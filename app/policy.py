@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .config import settings
+
 
 @dataclass(frozen=True)
 class AutomationPolicy:
@@ -28,4 +30,15 @@ class AutomationPolicy:
             raise ValueError("Credential/session export is disabled by policy")
 
 
+def policy_from_settings() -> AutomationPolicy:
+    """Build the runtime policy from the same settings used by the CLI."""
+    policy = AutomationPolicy(
+        dry_run=settings.dry_run,
+        require_human_approval=settings.approval_required,
+    )
+    policy.validate()
+    return policy
+
+
 DEFAULT_POLICY = AutomationPolicy()
+DEFAULT_POLICY.validate()
