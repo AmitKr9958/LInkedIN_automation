@@ -23,7 +23,7 @@ def doctor():
     for check in checks:
         label = "PASS" if check.ok else "FAIL"
         typer.echo(f"[{label}] {check.name}: {check.detail}")
-    raise typer.Exit(code=0 if all(x.ok for x in checks) else 1)
+    raise typer.Exit(code=0 if all(x.ok for x in checks if x.blocking) else 1)
 
 
 @app.command()
