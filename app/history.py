@@ -63,6 +63,18 @@ class History:
                 )
             db.commit()
 
+    def get_by_url(self, url: str):
+        """Return the most recent stored job with this exact URL."""
+        url = (url or "").strip()
+        if not url:
+            return None
+        with sqlite3.connect(self.path) as db:
+            return db.execute(
+                """SELECT title,company,location,url,score,reasons,status,first_seen
+                   FROM job_history WHERE url=? ORDER BY id DESC LIMIT 1""",
+                (url,),
+            ).fetchone()
+
     def recent(self, limit=50):
         limit = max(1, min(int(limit), 1000))
         with sqlite3.connect(self.path) as db:
