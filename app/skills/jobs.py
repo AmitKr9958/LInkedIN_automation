@@ -163,10 +163,11 @@ def _normalize_location_token(value: str) -> str:
     value = re.sub(r"\\s+", " ", value).strip()
     aliases = {
         "gurugram": "gurgaon",
-        "new delhi": "delhi",
         "ncr": "delhi",
     }
-    return aliases.get(value, value)
+    for source, target in aliases.items():
+        value = re.sub(rf"\\b{re.escape(source)}\\b", target, value)
+    return value
 
 
 def _location_matches_requested(location: str, requested: str) -> bool:
