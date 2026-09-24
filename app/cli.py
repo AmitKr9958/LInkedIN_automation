@@ -20,7 +20,8 @@ def doctor():
     """Run local production-readiness checks."""
     checks = run_doctor()
     for check in checks:
-        typer.echo(f"[{"PASS" if check.ok else "FAIL"}] {check.name}: {check.detail}")
+        label = "PASS" if check.ok else "FAIL"
+        typer.echo(f"[{label}] {check.name}: {check.detail}")
     raise typer.Exit(code=0 if all(x.ok for x in checks) else 1)
 
 
