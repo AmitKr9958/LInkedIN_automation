@@ -20,7 +20,8 @@ class JobListing:
 
 async def _visible(page: Page, selectors: list[str]) -> bool:
     for selector in selectors:
-        locator = page.locator(selector)\n        locator = locator.first if hasattr(locator, "first") else locator
+        locator = page.locator(selector)
+        locator = locator.first if hasattr(locator, "first") else locator
         try:
             if await locator.count() and await locator.is_visible():
                 return True
