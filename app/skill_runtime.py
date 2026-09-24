@@ -20,8 +20,11 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
 
         # Never assume authentication merely because LinkedIn did not redirect
         # to /login. Fail closed when the local session cannot be verified.
-        if not page.url or "linkedin.com" not in page.url:
-            await page.goto("https://www.linkedin.com/", wait_until="domcontentloaded")
+        # Start from the authenticated feed so LinkedIn can restore the
+        # persistent session before we inspect authentication state.
+        if not page.url or "linkedin.com" not in page.url or "/feed/" not in page.url:
+            await page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
+        await page.wait_for_timeout(3000)
         state = await current_session_state(page)
         if not state["authenticated"]:
             raise RuntimeError(
