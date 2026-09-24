@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import importlib
-from pathlib import Path
 
 from .config import ROOT, settings
 from .policy import DEFAULT_POLICY
@@ -13,6 +12,7 @@ class Check:
     name: str
     ok: bool
     detail: str
+    blocking: bool = True
 
 
 REQUIRED_MODULES = [
@@ -43,7 +43,17 @@ def run_doctor() -> list[Check]:
     except Exception as exc:
         checks.append(Check("policy", False, str(exc)))
 
-    checks.append(Check("dry-run", settings.dry_run, f"DRY_RUN={settings.dry_run}"))
-    checks.append(Check("approval", settings.approval_required, f"APPROVAL_REQUIRED={settings.approval_required}"))
+    checks.append(Check(
+        "dry-run",
+        settings.dry_run,
+        f"DRY_RUN={settings.dry_run} (recommended during validation)",
+        blocking=False,
+    ))
+    checks.append(Check(
+        "approval",
+        settings.approval_required,
+        f"APPROVAL_REQUIRED={settings.approval_required}",
+        blocking=True,
+    ))
     checks.append(Check("project-root", ROOT.exists(), str(ROOT)))
     return checks
