@@ -14,10 +14,13 @@ FEED_MARKERS = [
     "nav[aria-label*='Primary']",
 ]
 
+# Prefer the outer result item. Nested .job-card-container and
+# [data-occludable-job-id] selectors are retained as fallbacks only.
 JOB_CARD_SELECTORS = [
     "li.jobs-search-results__list-item",
-    ".job-card-container",
+    "li.scaffold-layout__list-item",
     "[data-occludable-job-id]",
+    ".job-card-container",
 ]
 
 PROFILE_MARKERS = [
