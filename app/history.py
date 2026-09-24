@@ -5,6 +5,8 @@ from pathlib import Path
 
 from .config import ROOT
 
+from .config import ROOT
+
 class History:
     def __init__(self, path=None):
         db_path = Path(path) if path is not None else ROOT / "data" / "activity.sqlite3"
