@@ -45,9 +45,6 @@ def read(skill: str, query: str = "", location: str = ""):
         payload = [x.to_dict() if hasattr(x, "to_dict") else x for x in payload]
     typer.echo(json.dumps(payload, indent=2, default=str))
 
-if __name__ == "__main__":
-    app()
-
 
 @app.command("approvals")
 def approvals():
@@ -64,3 +61,7 @@ def approve(item_id: str):
 def reject(item_id: str):
     ApprovalQueue().decide(item_id, False)
     typer.echo(f"rejected: {item_id}")
+
+
+if __name__ == "__main__":
+    app()
