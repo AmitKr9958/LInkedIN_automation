@@ -1,434 +1,509 @@
-# Production Readiness & Pending Issues
+# LinkedIn Automation Agent — Current Issues & Pending Work
 
-## Executive Summary
+## 1. Current Status
 
-Current local validation is strong, but the project is **not yet production-ready for the agreed job-discovery workflow**.
+The project is **not production-ready yet**.
 
-### Current verified state
+The automated codebase is currently healthy:
 
-- Git branch: `main`
-- Latest user-validated commit before the latest parser changes: `46d47d0`
-- Automated tests: **124 passed**
-- Skill self-test previously passed with **27 registered skills**
-- LinkedIn persistent browser session: **authenticated**
-- Live LinkedIn job-search page: **confirmed to load real job results**
-- Live probe observed:
-  - 25 `li.scaffold-layout__list-item`
-  - 25 `[data-occludable-job-id]`
-  - 7 `.job-card-container`
-  - 7 job links matching `/jobs/view/`
-  - visible job results for `Power BI Developer` in Gurgaon
-- Application command still returns:
-  `[]`
+- **124 automated tests pass**
+- **27 skills are registered and self-test successfully**
+- LinkedIn authentication through the persistent local browser profile works
+- The live LinkedIn job-search page loads successfully
+- The live LinkedIn page contains real job cards
 
-Therefore the principal unresolved defect is **live job-result parsing / runtime integration**. This is not currently an authentication failure, browser-startup failure, or a unit-test failure.
-
----
-
-## 1. Primary Blocking Issue — Live Job Discovery Returns Empty
-
-### Symptom
-
-This command is still returning an empty list:
+However, the application-level job discovery command still returns an empty result:
 
 ```powershell
 python -m app read jobs --query "Power BI Developer" --location "Gurgaon"
 ```
 
-Observed result:
+Current result:
 
 ```
 []
 ```
 
-### What has been proved
-
-The separate live probe demonstrated that LinkedIn is returning job cards in the authenticated session.
-
-The page title was:
-
-```
-(29) Power BI Developer Jobs in Gurgaon | LinkedIn
-```
-
-The page body contained real job records, including examples such as:
-
-- Power BI Developer — Stackzy Technologies Pvt Ltd — India (Remote)
-- Senior Developer, Power BI — Hollister Incorporated — Gurugram, Haryana, India (On-site)
-- Senior Power BI Developer — Papigen — India (Remote)
-- Power Platform Developer / BI Automation Specialist — Comviva — Gurugram
-
-Therefore the failure is downstream of page loading.
-
-### Most likely code-level causes still requiring verification
-
-1. The parser selects a container but does not consistently extract a valid title/URL/location tuple from the selected node.
-2. LinkedIn's current SDUI structure may use nested anchors/containers where the parser's first matching selector produces an incomplete record.
-3. The current location extraction can still produce an empty or non-city value, causing the requested-city filter to reject the card.
-4. Job-link extraction has been broadened, but a live end-to-end validation is still required after that change.
-5. The runtime freshness layer can only keep a result when posting age is known or unknown; we still need to verify that live records actually reach that layer.
-6. The current implementation has no structured diagnostic result explaining whether a live card was rejected for URL, title, location, freshness, or deduplication.
-
-### Required engineering work
-
-Implement a **diagnostic parser pipeline** that records per-card extraction state internally:
-
-```
-card found
-  -> href extracted?
-  -> title extracted?
-  -> company extracted?
-  -> location extracted?
-  -> posted extracted?
-  -> location accepted?
-  -> freshness accepted?
-  -> duplicate?
-  -> final result
-```
-
-This must be logging/diagnostic only and must not collect passwords, cookies, tokens, or session data.
-
-Add deterministic fixtures representing the currently observed LinkedIn SDUI card shapes.
-
-Then validate the live command again.
-
-**Production gate:** `read jobs` must return actual structured job records from the authenticated live page.
+This is the primary blocking issue.
 
 ---
 
-## 2. Freshness Filtering — Needs Live Verification
+# 2. PRIMARY BLOCKER — LIVE JOB PARSER
 
-The agreed job-search behavior is:
+## Problem
 
-- posted within the last **48 hours**
-- stale listings excluded
-- unknown posting age handled deliberately
+LinkedIn is returning job results in the authenticated browser, but the application's `jobs.search()` pipeline is not returning those jobs to the CLI.
 
-The unit-level freshness filtering exists, but the live path is still blocked by the empty parser result.
+The live probe demonstrated:
 
-### Required
+- LinkedIn job-search page loaded
+- Correct Gurgaon search page
+- 25 `[data-occludable-job-id]` elements
+- 7 `.job-card-container` elements
+- 7 job links containing `/jobs/view/`
+- Visible job listings in the page body
 
-After the live parser is fixed, verify:
+Therefore:
 
-- `2 hours ago` is retained
-- `1 day ago` is retained
-- `2 days ago` is retained/handled according to the exact 48-hour interpretation
-- `1 week ago` is excluded
-- missing posting age is explicitly classified as unknown rather than silently treated as fresh
+**Browser/session = working**
 
-**Production gate:** live output must visibly demonstrate freshness behavior.
+**LinkedIn search page = working**
+
+**Automated tests = working**
+
+**Application job extraction/filtering = still failing**
 
 ---
 
-## 3. Location Filtering — Needs Live Verification
+# 3. What Must Be Resolved
 
-The agreed locations are:
+The job parser needs to be traced end-to-end and made observable.
+
+For every detected card, the parser must verify:
+
+```
+Job card detected
+      ↓
+Job URL extracted
+      ↓
+Job title extracted
+      ↓
+Company extracted
+      ↓
+Location extracted
+      ↓
+Posted time extracted
+      ↓
+Location filter applied
+      ↓
+48-hour freshness filter applied
+      ↓
+Duplicate check applied
+      ↓
+Job returned
+```
+
+At present, we do not have enough diagnostic information to identify exactly which stage is causing the live records to disappear.
+
+## Required fix
+
+Add safe diagnostic logging/counts showing:
+
+- number of cards detected
+- number of URLs extracted
+- number of titles extracted
+- number of companies extracted
+- number of locations extracted
+- number rejected because location did not match
+- number rejected because freshness exceeded 48 hours
+- number rejected as duplicates
+- final number returned
+
+The diagnostic output must never expose passwords, OTPs, cookies, session tokens, or authentication headers.
+
+---
+
+# 4. LIVE SDUI SELECTOR VALIDATION
+
+LinkedIn is currently using an SDUI-style job-result structure.
+
+The live page showed selectors such as:
+
+```
+[data-occludable-job-id]
+.job-card-container
+li:has(a[href*="/jobs/view/"])
+[data-job-id]
+```
+
+The parser has already been updated to prioritize these structures.
+
+It has also been updated to broaden job-link extraction.
+
+## Still pending
+
+The updated parser must be tested against the real authenticated page and must return actual `Job` objects.
+
+If extraction still fails, capture only safe structural diagnostics and update the parser based on the actual live DOM.
+
+---
+
+# 5. LOCATION FILTERING
+
+Required supported locations:
 
 - Delhi
 - Gurgaon / Gurugram
 - Noida
 - Jaipur
 
-Remote jobs should only pass when the requested city is explicitly represented, according to the configured policy.
+Expected behavior:
 
-Existing unit coverage verifies important cases such as:
+- Gurugram should match Gurgaon
+- New Delhi should match Delhi
+- Noida should not match Gurgaon
+- India-only Remote should not be treated as Gurgaon
+- US Remote should not be treated as Delhi
+- A job explicitly saying Gurgaon + Remote may match Gurgaon
 
-- Gurugram matches Gurgaon
-- New Delhi matches Delhi
-- Noida does not match Gurgaon
-- India (Remote) does not match Gurgaon
-- United States (Remote) does not match Delhi
-- Gurgaon city + Remote can match Gurgaon
+## Status
 
-### Remaining work
+Unit tests exist and pass.
 
-Verify these filters on the real LinkedIn page after parser repair.
+## Pending
 
-**Production gate:** Gurgaon query must not return US/India-only remote records or unrelated NCR locations.
+Live validation is still required because the live parser currently returns no jobs.
 
 ---
 
-## 4. Job URL / Deduplication Hardening
+# 6. 48-HOUR FRESHNESS
 
-The code already normalizes job URLs, but the live parser needs verification against:
+Required job-search rule:
 
-- `/jobs/view/<id>`
-- tracking query parameters
-- duplicate cards rendered by SDUI
-- selected job/currentJobId state
+**Only jobs posted within the configured 48-hour window should be returned for the job-discovery workflow.**
+
+Examples that need verification:
+
+- 2 hours ago → included
+- 12 hours ago → included
+- 1 day ago → included
+- older than 48 hours → excluded
+- unknown posting age → handled explicitly and consistently
+
+## Status
+
+The freshness filter exists and has unit coverage.
+
+## Pending
+
+Live end-to-end validation is blocked by the empty parser result.
+
+---
+
+# 7. JOB DATA QUALITY
+
+Each returned job should contain, where LinkedIn exposes the information:
+
+- title
+- company
+- location
+- URL
+- posted text
+- posted age in hours
+- Easy Apply indicator
+- source
+- relevant visible text/description
+
+## Pending
+
+Verify these fields against real live results after the parser begins returning jobs.
+
+---
+
+# 8. DEDUPLICATION
+
+The system must ensure the same LinkedIn job is returned only once.
+
+It should handle:
+
+- repeated SDUI cards
+- tracking parameters
+- current selected job state
+- duplicate URLs
 - repeated cards after scrolling
 
-### Required
+## Pending
 
-Add fixture tests for the currently observed live URL structures and ensure one logical job becomes one record.
-
----
-
-## 5. Company / Posted-Time Extraction
-
-The current implementation has:
-
-- card selectors
-- company selectors
-- posted-time selectors
-- fallback text extraction
-- detail-page hydration
-- JSON-LD fallback
-
-This is a good foundation, but it is not yet live-proven on the current page because the top-level parser still returns an empty result.
-
-### Required
-
-Once cards are successfully returned:
-
-- verify company is populated when shown in the card
-- verify posted text is populated when shown
-- verify detail hydration only occurs when required
-- avoid unnecessary navigation that slows discovery
+Add live fixture/regression coverage based on the current LinkedIn result structure and verify actual discovery output.
 
 ---
 
-## 6. Runtime Contract / Diagnostics
+# 9. JOB RANKING / PREFERENCES
 
-The current CLI returns simply:
+The agreed job preferences include:
 
-```
-[]
-```
+- Power BI Developer
+- Power BI
+- Business Intelligence
+- Data Analyst
+- BI Developer
+- Reporting Analyst
 
-That makes debugging difficult.
+Preferred locations:
 
-### Required
+- Delhi
+- Gurgaon
+- Noida
+- Jaipur
 
-Provide a safe debug mode such as:
+Other preferences:
 
-```powershell
-python -m app read jobs --query "Power BI Developer" --location "Gurgaon" --debug
-```
+- recent postings
+- approximately 5–12 years experience range
+- Easy Apply preferred
+- internships excluded
+- fresher roles excluded
+- remote only when explicitly permitted by the location policy
 
-or equivalent logging configuration.
+## Pending
 
-The diagnostic output should report counts, for example:
-
-- cards detected
-- URLs extracted
-- titles extracted
-- locations extracted
-- records rejected by location
-- records rejected as stale
-- duplicates removed
-- final records
-
-It should never print:
-
-- passwords
-- OTPs
-- cookies
-- session tokens
-- authentication headers
+Ranking cannot be properly validated until live jobs are successfully returned.
 
 ---
 
-## 7. Browser Smoke Test
+# 10. RECRUITER / HR / HIRING MANAGER WORKFLOW
 
-Unit tests currently pass, but a real authenticated LinkedIn session is intentionally not used in CI.
+The planned workflow includes:
 
-### Required production validation
+1. Discover relevant jobs.
+2. Identify recruiter / HR / hiring-manager targets.
+3. Classify the target.
+4. Score relevance.
+5. Draft a job-specific connection message.
+6. Draft follow-up messages.
+7. Link outreach to the relevant job.
+8. Keep consequential actions behind human approval.
 
-Run the existing local authenticated smoke workflow after the parser is repaired:
+## Status
 
-1. authenticated session check
-2. jobs page
-3. people page
-4. companies page
-5. posts page
-6. saved page
-7. profile page
+Local implementation and tests exist.
 
-This must be run locally because CI cannot use the real LinkedIn session.
+## Pending
 
----
-
-## 8. Documentation Accuracy
-
-The current documentation contains a few stale claims/inconsistencies that should be corrected before release.
-
-Examples:
-
-- README/docs contain references to **26 skills**, while the current self-test reports **27 skills**.
-- Some status text says live job parsing and 48-hour filtering were verified, but the latest user validation still returns `[]`.
-- There are duplicated entries in the production-readiness skill lists.
-- Some release-readiness statements are stronger than the current live evidence supports.
-
-### Required
-
-Update README and production-readiness documentation only after the live job command succeeds.
-
-Documentation must distinguish:
-
-- unit-tested
-- locally browser-tested
-- live-account verified
-- not yet verified
+End-to-end live validation should occur after job discovery is fixed.
 
 ---
 
-## 9. Production Features Previously Agreed
+# 11. CONTENT SYSTEM
 
-After the blocking live job-parser issue is resolved, the previously agreed production scope is:
-
-### Job discovery
-
-- Power BI / BI / Data Analyst searches
-- Delhi / Gurgaon / Noida / Jaipur
-- 48-hour freshness
-- remote handling
-- duplicate removal
-- preference-based ranking
-- Easy Apply preference
-- internship/fresher exclusion
-- local job history
-
-### Recruiter / HR / Hiring Manager workflow
-
-- identify relevant people
-- classify recruiter / HR / hiring manager
-- score relevance
-- generate connection drafts
-- generate follow-up drafts
-- link outreach to the relevant job
-- keep consequential actions approval-gated
-
-### Content system
+The agreed content features include:
 
 - Post Audit
 - Story Bank
-- central Voice Engine
-- humanization / cleanup
-- hook extraction/planning
-- repurposing
-- optional media prompt generation
-- controlled publishing workflow
+- Central Voice Engine
+- Humanization
+- Hook extraction/planning
+- Repurposing
+- Optional media prompt generation
+- Controlled publishing workflow
 
-### Application tracking
+## Status
+
+These components have been implemented and covered by automated tests.
+
+## Pending
+
+Final production validation and documentation consistency.
+
+---
+
+# 12. APPLICATION TRACKING
+
+Required workflow:
 
 - shortlist
 - applied
 - interview
 - offer
-- rejected / closed states
+- rejected / closed
 - notes
 - JSON/CSV export
 
-### Safety / operational controls
+## Status
 
-- DRY_RUN by default
-- human approval for consequential actions
-- no password/OTP/token export
+Implemented locally and tested.
+
+## Pending
+
+Final end-to-end workflow validation.
+
+---
+
+# 13. SAFETY / SECURITY REQUIREMENTS
+
+These remain mandatory for production:
+
+- DRY_RUN enabled by default
+- consequential actions require human approval
+- no password storage by the agent
+- no OTP handling by the agent
+- no cookie/session-token export
 - no CAPTCHA bypass
+- no security/access-control bypass
 - no stealth/fingerprint evasion
 - no uncontrolled bulk messaging
-- no real LinkedIn credentials in CI
-- persistent local browser profile
+- no real authenticated LinkedIn session in CI
+- persistent browser profile remains local and private
+
+These boundaries should remain unchanged.
 
 ---
 
-## 10. Production Release Gates
+# 14. TESTING REQUIRED BEFORE PRODUCTION
 
-The project should not be declared production-ready until all of the following are true:
+## Automated
 
-### Automated gates
+All of the following must pass:
 
-- `python -m compileall -q app tests`
-- `ruff check app tests --select E9,F63,F7,F82`
-- `pytest -q -m "not e2e"`
-- self-test passes
-- policy tests pass
-- action-gateway tests pass
-- application tracker tests pass
-- Story Bank/outreach/content contract tests pass
-- no secrets/browser profile committed
+```powershell
+python -m compileall -q app tests
+ruff check app tests --select E9,F63,F7,F82
+pytest -q -m "not e2e"
+python -m app selftest
+```
 
-### Live local gates
+Current known automated result:
 
-- authenticated session detected
-- `read profile` succeeds
-- `read jobs` returns actual jobs
-- 48-hour freshness verified
-- location filtering verified
-- recruiter/HR/hiring-manager discovery verified
-- content audit verified
-- approval queue verified
-- application tracking verified
-- export verified
+```
+124 passed
+27 skills self-test PASS
+```
 
-### Documentation gates
+## Live local validation
 
-- skill counts consistent
-- production status accurately reflects evidence
-- setup instructions current
-- known limitations documented
+Must pass:
 
----
-
-## 11. Current Status Summary
-
-| Area | Status |
-|---|---|
-| Python/unit test suite | PASS — 124 tests |
-| Skill self-test | PASS — 27 skills |
-| LinkedIn authentication | PASS |
-| LinkedIn live job page | PASS |
-| Live job cards visible | PASS |
-| Job parser end-to-end | **BLOCKED — returns []** |
-| 48-hour freshness live verification | **PENDING** |
-| City filtering live verification | **PENDING** |
-| Job ranking live verification | **PENDING** |
-| Recruiter/HR/HM workflow | Implemented locally; live verification pending |
-| Content/Story Bank/Voice | Implemented + tested |
-| Application tracker | Implemented + tested |
-| Approval/safety controls | Implemented + tested |
-| Production release | **NOT READY YET** |
-
----
-
-## 12. Recommended Order of Work
-
-### Phase 1 — Blocking
-Fix and instrument the live job parser until:
-
-```python
+```powershell
+python -m app debug-auth
+python -m app read profile
 python -m app read jobs --query "Power BI Developer" --location "Gurgaon"
 ```
 
-returns structured records.
-
-### Phase 2 — Job-quality validation
-Verify:
-
-- location
-- 48-hour freshness
-- deduplication
-- company
-- posted time
-- Easy Apply
-- ranking
-
-### Phase 3 — Full live smoke validation
-Verify profile, people, companies, posts, saved, jobs.
-
-### Phase 4 — Documentation/release hardening
-Correct stale skill counts and release claims.
-
-### Phase 5 — Production packaging
-Add the read-only scheduled discovery workflow and optional local dashboard/browser handoff described in the roadmap.
+The third command is currently the blocker.
 
 ---
 
-## User-side Requirement
+# 15. DOCUMENTATION CLEANUP
 
-At this moment, **no new credential, login, or configuration is required from the user**.
+Before release:
 
-The only remaining user-side action is to run the next validation command after a parser fix is committed and pull the latest `main`.
+- Ensure README skill count matches the actual registry.
+- Remove duplicated skill entries.
+- Remove outdated statements claiming live job parsing is verified.
+- Clearly distinguish:
+  - unit tested
+  - browser tested
+  - live-account verified
+  - pending
+- Keep production status accurate.
 
-Do not provide or store passwords, OTPs, cookies, or LinkedIn session tokens.
+---
+
+# 16. PRODUCTION RELEASE ORDER
+
+The work should be completed in this order:
+
+### Phase 1 — Fix the blocking parser
+
+Make:
+
+```
+python -m app read jobs --query "Power BI Developer" --location "Gurgaon"
+```
+
+return actual structured jobs.
+
+### Phase 2 — Validate job quality
+
+Verify:
+
+- title
+- company
+- location
+- URL
+- posted time
+- 48-hour freshness
+- Easy Apply
+- deduplication
+
+### Phase 3 — Validate preferences and ranking
+
+Verify:
+
+- target locations
+- experience
+- internship/fresher exclusions
+- remote rules
+- ranking
+
+### Phase 4 — Live smoke test
+
+Validate:
+
+- authentication
+- profile
+- jobs
+- people
+- companies
+- posts
+- saved items
+
+### Phase 5 — Validate workflows
+
+Validate:
+
+- recruiter/HR/hiring-manager workflow
+- outreach drafting
+- follow-ups
+- application tracking
+- approval queue
+- reporting/export
+
+### Phase 6 — Documentation and release hardening
+
+Update:
+
+- README
+- production-readiness documentation
+- skill counts
+- known limitations
+- setup instructions
+
+### Phase 7 — Production release
+
+Only after the above gates pass should the project be considered production-ready.
+
+---
+
+# 17. CURRENT PENDING CHECKLIST
+
+| Item | Status |
+|---|---|
+| Python environment | PASS |
+| Automated tests | PASS — 124 |
+| Skill registry/self-test | PASS — 27 |
+| LinkedIn authentication | PASS |
+| Live LinkedIn job page | PASS |
+| Live job cards detected | PASS |
+| Application job parser | **BLOCKED** |
+| Job CLI returns results | **PENDING** |
+| 48-hour live validation | PENDING |
+| Location live validation | PENDING |
+| Job deduplication live validation | PENDING |
+| Job ranking live validation | PENDING |
+| Recruiter/HR/HM live workflow | PENDING |
+| Full live smoke test | PENDING |
+| Documentation cleanup | PENDING |
+| Production release | **NOT READY** |
+
+---
+
+# 18. USER-SIDE REQUIREMENT
+
+At this stage, **nothing additional is required from the user's side** except running the validation commands after a new parser fix is committed.
+
+No password, OTP, cookie, `li_at` token, or other session credential should be provided.
+
+The primary engineering responsibility remaining is to fix and verify the live job parser.
+
+## Definition of Done
+
+The primary blocker is considered resolved only when:
+
+```powershell
+python -m app read jobs --query "Power BI Developer" --location "Gurgaon"
+```
+
+returns real structured jobs from the authenticated LinkedIn page, and those jobs correctly pass the agreed location, freshness, deduplication, and preference rules.
+
+Only then should the project move to the remaining production-release gates.
