@@ -80,3 +80,13 @@ async def test_session_state_accepts_authenticated_marker():
         {"[data-view-name='feed']"},
     ))
     assert state["authenticated"] is True
+
+
+@pytest.mark.asyncio
+async def test_session_state_accepts_authenticated_feed_title_without_marker():
+    state = await current_session_state(Page(
+        "https://www.linkedin.com/feed/",
+        page_title="Feed | LinkedIn",
+    ))
+    assert state["authenticated"] is True
+    assert state["confidence"] == "high"
