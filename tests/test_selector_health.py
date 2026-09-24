@@ -7,6 +7,10 @@ class Locator:
     def __init__(self, visible=False):
         self._visible = visible
 
+    @property
+    def first(self):
+        return self
+
     async def count(self):
         return 1
 
