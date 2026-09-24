@@ -66,3 +66,25 @@ python -m app --help
 - No stealth plugins or fingerprint spoofing
 - Secrets stay in local environment variables
 - Browser profile stays outside source control
+
+
+## Current implementation
+
+All 12 skill modules are now present. The first operational layer is read-only: profile, jobs, people, companies, posts and saved-post discovery can be invoked through the CLI. Connection, messaging and engagement functions only create drafts / require the approval layer; they are not bulk-action engines.
+
+### Read commands
+
+```bash
+linkedin-agent skills
+linkedin-agent status
+linkedin-agent read jobs --query "Power BI" --location "Gurgaon"
+linkedin-agent read people --query "Power BI recruiter"
+linkedin-agent read companies --query "data analytics"
+linkedin-agent read posts --query "Power BI"
+linkedin-agent read saved
+linkedin-agent read profile
+```
+
+The first `linkedin-agent login` run should be performed with `HEADLESS=false`. Log in manually in the opened browser and let the local persistent profile retain the session. Playwright documents persistent browser contexts as the mechanism for retaining browser storage locally. citeturn0search0
+
+> **Important:** LinkedIn's current User Agreement prohibits unauthorized automated methods, including bots/scripts that automate activity or scrape/copy services. The repository therefore avoids CAPTCHA bypass, stealth/fingerprint evasion, cookie/session-token extraction and high-volume unsolicited actions. citeturn0search1turn0search3
