@@ -18,7 +18,7 @@ class WorkflowResult:
     details: str = ""
 
 
-async def login_check(wait_for_login: bool = True, keep_open: bool = False) -> WorkflowResult:
+async def login_check(wait_for_login: bool = True, keep_open: bool = False, open_url: str | None = None) -> WorkflowResult:
     """Open a visible persistent browser and wait for manual LinkedIn login.
 
     The user performs authentication directly in the browser. Credentials,
@@ -27,8 +27,9 @@ async def login_check(wait_for_login: bool = True, keep_open: bool = False) -> W
     """
     async with linkedin_browser() as browser:
         page = browser.pages[0] if browser.pages else await browser.new_page()
-        await page.goto(settings.linkedin_base_url, wait_until="domcontentloaded")
+        await page.goto(open_url or settings.linkedin_base_url, wait_until="domcontentloaded")
 
+        await page.wait_for_timeout(3000)
         state = await current_session_state(page)
         # A root URL can retain an authenticated LinkedIn title while the app
         # redirects asynchronously to /feed/. Give the browser a brief chance
