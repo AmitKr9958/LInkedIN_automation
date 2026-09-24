@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import uuid
+from .config import ROOT
 
 @dataclass
 class ApprovalItem:
@@ -15,7 +16,8 @@ class ApprovalItem:
     created_at: str
 
 class ApprovalQueue:
-    def __init__(self, path: str = "data/activity.sqlite3"):
+    def __init__(self, path: str | None = None):
+        path = str(ROOT / "data" / "activity.sqlite3") if path is None else path
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.path=path
         with sqlite3.connect(path) as db:
