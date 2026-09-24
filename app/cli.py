@@ -106,6 +106,7 @@ def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
                 "location": r.get("location", ""),
                 "url": r.get("href") or r.get("url", ""),
                 "posted_text": r.get("posted", ""),
+                "posted_hours": r.get("posted_hours"),
                 "description": r.get("text", ""),
                 "easy_apply": bool(r.get("easy_apply", False)),
                 "source": "linkedin",

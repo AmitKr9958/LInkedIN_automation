@@ -20,6 +20,32 @@ def test_recent_job_gets_recency_signal():
     assert "recent posting" in ranked[0]["reasons"]
 
 
+def test_numeric_posted_hours_drive_recency_signal():
+    job = JobRecord(
+        "Power BI Developer", "Example", "Gurgaon",
+        posted_text="22 hours ago", posted_hours=22.0,
+    )
+    ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+    assert "recent posting" in ranked[0]["reasons"]
+    assert ranked[0]["job"]["posted_hours"] == 22.0
+
+
+def test_numeric_recency_wins_over_text_estimate():
+    job = JobRecord(
+        "Power BI Developer", "Example", "Gurgaon",
+        posted_text="3 days ago", posted_hours=18.0,
+    )
+    ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+    assert "recent posting" in ranked[0]["reasons"]
+
+
+def test_unknown_recency_stays_neutral():
+    job = JobRecord("Power BI Developer", "Example", "Gurgaon")
+    ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+    assert "recent posting" not in ranked[0]["reasons"]
+    assert "outside posting window" not in ranked[0]["reasons"]
+
+
 def test_stale_job_gets_negative_recency_signal():
     job = JobRecord("Power BI Developer", "Example", "Gurgaon", posted_text="3 days ago")
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)

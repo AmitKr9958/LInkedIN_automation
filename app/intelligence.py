@@ -14,6 +14,7 @@ class JobRecord:
     description: str = ""
     easy_apply: bool = False
     source: str = "manual"
+    posted_hours: float | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -98,7 +99,9 @@ def score_job(job: JobRecord, preferences) -> tuple[int, list[str]]:
         score += 10
         reasons.append("Easy Apply")
 
-    posted_hours = _posted_hours(job.posted_text)
+    posted_hours = job.posted_hours
+    if posted_hours is None:
+        posted_hours = _posted_hours(job.posted_text)
     if posted_hours is not None:
         if posted_hours <= preferences.posted_within_hours:
             score += 15

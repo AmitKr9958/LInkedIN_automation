@@ -25,8 +25,11 @@
 - Job preference model
 - LinkedIn job URL normalization
 - Preference-based job ranking
-- Robust posted-time extraction (time element, datetime fallback, conservative blanks)
-- Company extraction hardening (logo-alt signal, noise-line filtering, placeholder-card skip)
+- Robust posted-time extraction (card text, aria-label/title/datetime attributes, time elements, JSON-LD, detail-page main-text fallback)
+- Hour-level relative-time precision from datetime values plus numeric `posted_hours` recency for 48-hour filtering
+- Company extraction hardening (selectors, logo-alt, accessibility attributes, detail-page company link, page-title and JSON-LD fallbacks, noise-line filtering, placeholder-card skip)
+- Targeted job-detail hydration for records missing company/posted (capped at 10 per run; card values always win the merge)
+- Extraction-source debug diagnostics (`card`/`detail-page`/`missing`) that never log credentials or session data
 - Experience-range matching against configured minimum/maximum years
 - Discovery-report job persistence fix (ranked dict records)
 - Local job history and discovery reporting (`python -m app history`)
@@ -71,11 +74,13 @@ The latest live test exposed profile-field and job-card extraction defects. Read
 - duplicate rendered job-title cleanup (including no-separator concatenated titles)
 - robust posted-time extraction (time element text, datetime fallback, "within the past 24 hours" suffix normalization, no badge leakage)
 - company extraction hardening (logo-alt fallback, alumni/state noise filtering, unhydrated placeholder cards skipped)
+- live job-detail fallback: when a search card lacks company or posted (the 2026 result cards usually omit posted time), the detail page is hydrated for just those records (max 10 per run) and merged without overwriting card values
+- posted labels now resolve from the detail page's top-card region when cards omit them, and every record carries numeric `posted_hours` for 48-hour filtering
 - lazy job-card hydration (scrolling so cards render their full contents)
 - canonical LinkedIn job URL normalization
 - regression tests for these cases
 
-Release validation has been rerun against the current working tree: the local unit/E2E suite passes (77 tests) warning-free (pytest-asyncio 1.x on Python 3.14), `python -m app doctor` reports all checks green, and live validation (`status` plus a Power BI/Gurgaon job search) confirmed an authenticated session, clean job-card extraction, posted-time extraction wherever LinkedIn renders it, and correct 48-hour recency filtering ("21 hours ago" scored as recent, "2 weeks ago" as outside the window).
+Release validation has been rerun against the current working tree: the local unit/E2E suite passes (97 tests) warning-free (pytest-asyncio 1.x on Python 3.14), `python -m app doctor` reports all checks green, and live validation (`status` plus a Power BI/Gurgaon job search) confirmed an authenticated session, clean job-card extraction, correct 48-hour recency filtering, and full posted-time coverage after the extraction hardening: 7/7 live records now carry both `posted` and `posted_hours` ("1 hour ago" = 1.0, "23 hours ago" = 23.0, "2 days ago" = 48.0, "1 week ago" = 168.0) and company is populated wherever LinkedIn exposes it. A promoted posting that LinkedIn renders without any structured company (no company link, logo alt, JSON-LD or metadata — the name appears only inside description prose) intentionally stays `""` as explicitly unknown.
 
 ## Operational note
 

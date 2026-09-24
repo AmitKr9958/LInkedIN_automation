@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 
 from app.job_normalize import dedupe_jobs, normalize_job_url
@@ -60,9 +61,18 @@ def test_profile_name_can_fall_back_to_linkedin_title():
 
 
 from app.skills.jobs import (
+    Job,
     _POSTED_RE,
+    _attribute_text,
+    _company_from_page_title,
+    _detail_company_from_links,
+    _detail_fields,
     _fallback_company,
+    _hours_from_datetime,
+    _hours_from_posted,
+    _jsonld_job_fields,
     _logo_company,
+    _merge_detail,
     _normalize_posted,
     _relative_from_datetime,
 )
@@ -163,3 +173,304 @@ async def test_logo_company_extracts_alt_and_skips_placeholder():
     assert await _logo_company(_FakeCard("Quik Hire Staffing logo")) == "Quik Hire Staffing"
     assert await _logo_company(_FakeCard("{:companyName} logo")) == ""
     assert await _logo_company(_FakeCard(None)) == ""
+
+
+def test_normalize_posted_supports_all_live_variants():
+    expected = {
+        "Just now": "Just now",
+        "1 minute ago": "1 minute ago",
+        "15 minutes ago": "15 minutes ago",
+        "1 hour ago": "1 hour ago",
+        "22 hours ago": "22 hours ago",
+        "1 day ago": "1 day ago",
+        "2 days ago": "2 days ago",
+        "1 week ago": "1 week ago",
+        "2 weeks ago": "2 weeks ago",
+        "1 month ago": "1 month ago",
+        "30+ days ago": "30+ days ago",
+        "Today": "Today",
+        "Yesterday": "Yesterday",
+    }
+    for raw, normalized in expected.items():
+        assert _normalize_posted(raw) == normalized, raw
+
+
+def test_hours_from_posted_maps_variants_to_numeric_recency():
+    assert _hours_from_posted("Just now") == 0.0
+    assert _hours_from_posted("Today") == 0.0
+    assert _hours_from_posted("Yesterday") == 24.0
+    assert _hours_from_posted("15 minutes ago") == 0.25
+    assert _hours_from_posted("22 hours ago") == 22.0
+    assert _hours_from_posted("2 days ago") == 48.0
+    assert _hours_from_posted("1 week ago") == 168.0
+    assert _hours_from_posted("1 month ago") == 720.0
+    assert _hours_from_posted("30+ days ago") == 720.0
+    assert _hours_from_posted("") is None
+    assert _hours_from_posted("Easy Apply") is None
+
+
+def test_relative_datetime_keeps_hour_level_precision():
+    now = datetime.now(timezone.utc)
+    assert _relative_from_datetime(
+        (now - timedelta(minutes=15)).isoformat()
+    ) == "15 minutes ago"
+    assert _relative_from_datetime((now - timedelta(hours=1)).isoformat()) == "1 hour ago"
+    assert _relative_from_datetime((now - timedelta(hours=22)).isoformat()) == "22 hours ago"
+    assert _relative_from_datetime((now - timedelta(days=16)).isoformat()) == "2 weeks ago"
+    assert _relative_from_datetime((now - timedelta(days=40)).isoformat()) == "1 month ago"
+
+
+def test_hours_from_datetime_tracks_recency():
+    now = datetime.now(timezone.utc)
+    hours = _hours_from_datetime((now - timedelta(hours=18)).isoformat())
+    assert hours is not None
+    assert 17.9 < hours < 18.1
+    assert _hours_from_datetime("not-a-date") is None
+
+
+class _AttrLocator:
+    def __init__(self, attrs):
+        self._attrs = attrs
+
+    async def get_attribute(self, name):
+        return self._attrs.get(name)
+
+
+async def test_attribute_text_reads_accessibility_values():
+    assert await _attribute_text(_AttrLocator({"aria-label": " 22 hours ago "})) == "22 hours ago"
+    assert await _attribute_text(_AttrLocator({"title": "1 week ago"})) == "1 week ago"
+    assert await _attribute_text(
+        _AttrLocator({"datetime": "2026-09-24T06:00:00Z"})
+    ) == "2026-09-24T06:00:00Z"
+    assert await _attribute_text(_AttrLocator({})) == ""
+
+
+def _jobposting_jsonld(date_hours_ago: float, company: str = "Example Corp") -> str:
+    return json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "JobPosting",
+            "title": "Power BI Developer",
+            "datePosted": (
+                datetime.now(timezone.utc) - timedelta(hours=date_hours_ago)
+            ).isoformat(),
+            "hiringOrganization": {"@type": "Organization", "name": company},
+        }
+    )
+
+
+def test_jsonld_job_fields_extract_company_and_posted():
+    fields = _jsonld_job_fields([_jobposting_jsonld(18), "not-json", ""])
+    assert fields["company"] == "Example Corp"
+    assert fields["posted"] == "18 hours ago"
+    assert fields["posted_hours"] is not None
+    assert 17.9 < fields["posted_hours"] < 18.1
+
+
+def test_jsonld_job_fields_tolerate_missing_data():
+    assert _jsonld_job_fields([]) == {"company": "", "posted": "", "posted_hours": None}
+    assert _jsonld_job_fields(["{}"]) == {"company": "", "posted": "", "posted_hours": None}
+
+
+class _DetailNode:
+    def __init__(self, text="", attrs=None):
+        self._text = text
+        self._attrs = attrs or {}
+
+    @property
+    def first(self):
+        return self
+
+    async def count(self):
+        return 1 if (self._text or self._attrs) else 0
+
+    async def text_content(self):
+        return self._text
+
+    async def inner_text(self):
+        return self._text
+
+    async def get_attribute(self, name):
+        return self._attrs.get(name)
+
+
+class _CompanyLinks:
+    def __init__(self, texts):
+        self._texts = list(texts)
+
+    async def count(self):
+        return len(self._texts)
+
+    def nth(self, index):
+        return _DetailNode(self._texts[index])
+
+
+class _DetailPage:
+    """Minimal page double for the targeted detail-page extraction path."""
+
+    def __init__(
+        self,
+        company="",
+        posted="",
+        jsonld=None,
+        company_links=None,
+        body_text="",
+        title_text="",
+    ):
+        self.company = company
+        self.posted = posted
+        self.jsonld = jsonld or []
+        self.company_links = company_links or []
+        self.body_text = body_text
+        self.title_text = title_text
+        self.visited = []
+
+    async def goto(self, url, wait_until=None):
+        self.visited.append(url)
+
+    async def wait_for_timeout(self, ms):
+        return None
+
+    async def evaluate(self, script):
+        return self.jsonld
+
+    async def title(self):
+        return self.title_text
+
+    async def inner_text(self, selector="body"):
+        return self.body_text
+
+    def locator(self, selector):
+        from app.skills.jobs import DETAIL_COMPANY_SELECTORS, DETAIL_POSTED_SELECTORS
+
+        if selector in DETAIL_COMPANY_SELECTORS:
+            return _DetailNode(self.company)
+        if selector in DETAIL_POSTED_SELECTORS:
+            return _DetailNode(self.posted)
+        if selector == "a[href*='/company/']":
+            return _CompanyLinks(self.company_links)
+        if selector == "main":
+            return _DetailNode(self.body_text)
+        return _DetailNode()
+
+
+async def test_detail_fields_extract_company_and_posted_from_page():
+    page = _DetailPage(
+        company="Example Corp",
+        posted="India · 18 hours ago · Over 100 applicants",
+    )
+    fields = await _detail_fields(page, "https://www.linkedin.com/jobs/view/999")
+    assert page.visited == ["https://www.linkedin.com/jobs/view/999"]
+    assert fields["company"] == "Example Corp"
+    assert fields["posted"] == "18 hours ago"
+    assert fields["posted_hours"] == 18.0
+
+
+async def test_detail_fields_use_jsonld_when_selectors_are_empty():
+    page = _DetailPage(jsonld=[_jobposting_jsonld(18, company="Example Corp")])
+    fields = await _detail_fields(page, "https://www.linkedin.com/jobs/view/1000")
+    assert fields["company"] == "Example Corp"
+    assert fields["posted"] == "18 hours ago"
+    assert fields["posted_hours"] is not None
+    assert 17.9 < fields["posted_hours"] < 18.1
+
+
+async def test_detail_fields_survive_navigation_errors():
+    class _BrokenPage:
+        async def goto(self, url, wait_until=None):
+            raise RuntimeError("navigation failed")
+
+    fields = await _detail_fields(_BrokenPage(), "https://www.linkedin.com/jobs/view/1")
+    assert fields == {"company": "", "posted": "", "posted_hours": None}
+
+
+def test_merge_detail_fills_only_missing_card_fields():
+    # Regression: the live Business Intelligence Manager card exposed only
+    # title and location; company and posted came back from the detail page.
+    job = Job(
+        title="Business Intelligence Manager",
+        location="Gurugram, Haryana, India (Hybrid)",
+    )
+    _merge_detail(
+        job,
+        {"company": "Example Corp", "posted": "18 hours ago", "posted_hours": 18.0},
+    )
+    assert job.company == "Example Corp"
+    assert job.posted == "18 hours ago"
+    assert job.posted_hours == 18.0
+
+
+def test_merge_detail_keeps_existing_card_values():
+    job = Job(
+        title="Power BI Developer",
+        company="Card Corp",
+        posted="22 hours ago",
+        posted_hours=22.0,
+    )
+    _merge_detail(
+        job,
+        {"company": "Detail Corp", "posted": "1 day ago", "posted_hours": 24.0},
+    )
+    assert job.company == "Card Corp"
+    assert job.posted == "22 hours ago"
+    assert job.posted_hours == 22.0
+
+
+async def test_detail_company_from_links_skips_empty_and_call_to_action():
+    page = _DetailPage(company_links=["", "   ", "Show Premium Insights", "Guardian"])
+    assert await _detail_company_from_links(page) == "Guardian"
+    assert await _detail_company_from_links(_DetailPage()) == ""
+
+
+def test_company_from_page_title_parses_tab_title():
+    assert (
+        _company_from_page_title("Lead - Reporting & Analytics | Guardian | LinkedIn")
+        == "Guardian"
+    )
+    assert _company_from_page_title("Business Intelligence Manager | LinkedIn") == ""
+    assert _company_from_page_title("") == ""
+
+
+async def test_detail_fields_use_company_links_and_main_text():
+    # Live regression: the 2026 detail DOM exposes the company as the top-card
+    # company link and the posted label inside the main text top-card region.
+    page = _DetailPage(
+        company_links=["Guardian", "Guardian", "Show Premium Insights"],
+        body_text=(
+            "Guardian Lead - Reporting & Analytics Gurgaon, Haryana, India "
+            "\u00b7 23 hours ago \u00b7 Over 100 people clicked apply"
+        ),
+    )
+    fields = await _detail_fields(page, "https://www.linkedin.com/jobs/view/4469335122")
+    assert fields["company"] == "Guardian"
+    assert fields["posted"] == "23 hours ago"
+    assert fields["posted_hours"] == 23.0
+
+
+async def test_detail_fields_fall_back_to_page_title_for_company():
+    page = _DetailPage(
+        title_text="Senior Developer, Power BI | Hollister Incorporated | LinkedIn",
+        body_text=(
+            "Senior Developer, Power BI Gurugram, Haryana, India "
+            "\u00b7 2 weeks ago \u00b7 Over 100 people clicked apply"
+        ),
+    )
+    fields = await _detail_fields(page, "https://www.linkedin.com/jobs/view/4464444518")
+    assert fields["company"] == "Hollister Incorporated"
+    assert fields["posted"] == "2 weeks ago"
+    assert fields["posted_hours"] == 336.0
+
+
+async def test_detail_fields_leave_company_unknown_when_linkedin_hides_it():
+    # Promoted/off-LinkedIn-managed postings expose no structured company;
+    # the record must stay explicitly unknown rather than guessing.
+    page = _DetailPage(
+        body_text=(
+            "Business Intelligence Manager Gurugram, Haryana, India "
+            "\u00b7 1 week ago \u00b7 Over 100 people clicked apply Promoted by hirer"
+        ),
+    )
+    fields = await _detail_fields(page, "https://www.linkedin.com/jobs/view/4464774817")
+    assert fields["company"] == ""
+    assert fields["posted"] == "1 week ago"
+    assert fields["posted_hours"] == 168.0
