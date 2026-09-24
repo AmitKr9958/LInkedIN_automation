@@ -8,6 +8,7 @@ from .doctor import run_doctor
 from .orchestrator import build_discovery_report
 from .approval_queue import ApprovalQueue
 from .config import settings
+from .reporting import application_rows, export_rows
 from .skill_registry import list_skills
 from .skill_runtime import run_read
 from .workflows import login_check
@@ -64,8 +65,6 @@ def read(skill: str, query: str = "", location: str = ""):
     typer.echo(json.dumps(payload, indent=2, default=str))
 
 
-
-
 @app.command("discover-jobs")
 def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
     """Discover jobs, deduplicate them, rank them, and store local history."""
@@ -90,6 +89,22 @@ def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
 
     report = asyncio.run(_run())
     typer.echo(json.dumps(report.ranked, indent=2, default=str))
+
+
+@app.command("export-applications")
+def export_applications(
+    path: str = "data/applications.json",
+    fmt: str = "json",
+    status: str = "",
+):
+    """Export locally tracked applications as JSON or CSV."""
+    if fmt not in {"json", "csv"}:
+        raise typer.BadParameter("fmt must be json or csv")
+    if status and status not in STATUSES:
+        raise typer.BadParameter(f"status must be one of: {', '.join(STATUSES)}")
+    rows = ApplicationTracker().list(status or None)
+    destination = export_rows(application_rows(rows), path, fmt)
+    typer.echo(str(destination))
 
 
 @app.command("approvals")
