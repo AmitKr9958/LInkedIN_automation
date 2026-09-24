@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+
 from .approval_queue import ApprovalQueue
-from .config import settings
-from .policy import DEFAULT_POLICY
+from .policy import policy_from_settings
 
 
 @dataclass(frozen=True)
@@ -21,22 +21,21 @@ class ActionGateway:
         self.queue = queue or ApprovalQueue()
 
     def request(self, request: ActionRequest) -> str:
-        DEFAULT_POLICY.validate()
+        policy = policy_from_settings()
         if not request.action.strip() or not request.target.strip():
             raise ValueError("action and target are required")
-        if settings.dry_run:
+
+        payload = json.dumps(request.payload, ensure_ascii=False)
+        if policy.dry_run:
             return self.queue.add(
                 f"dry_run:{request.action}",
                 request.target,
-                json.dumps(request.payload, ensure_ascii=False),
+                payload,
             )
-        if settings.approval_required:
-            return self.queue.add(
-                request.action,
-                request.target,
-                json.dumps(request.payload, ensure_ascii=False),
-            )
+        if policy.require_human_approval:
+            return self.queue.add(request.action, request.target, payload)
         raise RuntimeError(
             "Direct account-changing execution is disabled. "
-            "Use the approval queue for consequential actions."
+            "Enable an explicit implementation behind the approval queue before "
+            "allowing consequential actions."
         )
