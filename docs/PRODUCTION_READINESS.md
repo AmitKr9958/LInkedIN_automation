@@ -11,6 +11,8 @@ The project is divided into four boundaries:
 
 ## Skill coverage
 
+The registry currently contains 24 governed skills.
+
 ### Account/workflow skills
 - auth
 - profile
@@ -52,6 +54,7 @@ Before a release is considered production-ready:
 - policy tests pass
 - application tracker tests pass
 - README/setup instructions are current
+- no stale skill-count assertions or documentation remain
 
 ## Operational rules
 
@@ -62,6 +65,10 @@ Before a release is considered production-ready:
 - Consequential actions are approval-gated.
 - Bulk unsolicited messaging, security bypass and stealth/evasion are disabled.
 - CI never receives a real LinkedIn session.
+
+## Current status
+
+The automated release gates are passing in GitHub Actions. The remaining work is live-account validation after the user performs manual login; CI intentionally does not use an authenticated LinkedIn session.
 
 ## User setup later
 
