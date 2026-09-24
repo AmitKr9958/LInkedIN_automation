@@ -17,14 +17,16 @@ async def login_check() -> WorkflowResult:
         page = browser.pages[0] if browser.pages else await browser.new_page()
         await page.goto(settings.linkedin_base_url, wait_until="domcontentloaded")
         state = await current_session_state(page)
-        return WorkflowResult("login_check", "ok", str(state))
+        status = "ok" if state["authenticated"] else "not_authenticated"
+        return WorkflowResult("login_check", status, str(state))
 
 async def open_profile() -> WorkflowResult:
     async with linkedin_browser() as browser:
         page = browser.pages[0] if browser.pages else await browser.new_page()
         await page.goto(f"{settings.linkedin_base_url}/in/", wait_until="domcontentloaded")
         state = await current_session_state(page)
-        return WorkflowResult("open_profile", "ready", str(state))
+        status = "ready" if state["authenticated"] else "not_authenticated"
+        return WorkflowResult("open_profile", status, str(state))
 
 async def search_jobs(keywords: str = "Power BI", location: str = "Gurgaon") -> WorkflowResult:
     async with linkedin_browser() as browser:
@@ -32,7 +34,8 @@ async def search_jobs(keywords: str = "Power BI", location: str = "Gurgaon") -> 
         url = f"{settings.linkedin_base_url}/jobs/search/?keywords={quote_plus(keywords)}&location={quote_plus(location)}"
         await page.goto(url, wait_until="domcontentloaded")
         state = await current_session_state(page)
-        return WorkflowResult("search_jobs", "read_only", str(state))
+        status = "read_only" if state["authenticated"] else "not_authenticated"
+        return WorkflowResult("search_jobs", status, str(state))
 
 async def draft_action(action: str, target: str, text: str) -> WorkflowResult:
     return WorkflowResult(action, "drafted", f"target={target}; text={text}")
