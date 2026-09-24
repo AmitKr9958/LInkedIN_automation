@@ -58,6 +58,14 @@ async def read_profile(page) -> ProfileSnapshot:
     name = await _first_text(page, PROFILE_NAME_SELECTORS)
     headline = await _first_text(page, PROFILE_HEADLINE_SELECTORS)
     location = await _first_text(page, PROFILE_LOCATION_SELECTORS)
+    if not headline:
+        headline = await _first_candidate(
+            page, "[class*='text-body-medium']", {name.lower(), "1st", "2nd", "3rd"}
+        )
+    if not location:
+        location = await _first_location_candidate(
+            page, "[class*='text-body-small']", {name.lower(), headline.lower()}
+        )
 
     # The profile title is a safe last-resort name source when LinkedIn has
     # rendered the authenticated profile title but not the h1 yet.
