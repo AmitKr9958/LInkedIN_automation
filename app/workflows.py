@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from urllib.parse import quote_plus
 
@@ -6,19 +7,45 @@ from .browser import linkedin_browser
 from .config import settings
 from .linkedin_reader import current_session_state
 
+LOGIN_WAIT_SECONDS = 300
+LOGIN_POLL_SECONDS = 2
+
+
 @dataclass
 class WorkflowResult:
     action: str
     status: str
     details: str = ""
 
+
 async def login_check() -> WorkflowResult:
+    """Open a visible persistent browser and wait for manual LinkedIn login.
+
+    The user performs authentication directly in the browser. Credentials,
+    OTPs, passwords, cookies, and session tokens are never requested,
+    exported, or logged by this workflow.
+    """
     async with linkedin_browser() as browser:
         page = browser.pages[0] if browser.pages else await browser.new_page()
         await page.goto(settings.linkedin_base_url, wait_until="domcontentloaded")
+
         state = await current_session_state(page)
-        status = "ok" if state["authenticated"] else "not_authenticated"
-        return WorkflowResult("login_check", status, str(state))
+        if state["authenticated"]:
+            return WorkflowResult("login_check", "ok", str(state))
+
+        deadline = asyncio.get_running_loop().time() + LOGIN_WAIT_SECONDS
+        while asyncio.get_running_loop().time() < deadline:
+            await page.wait_for_timeout(LOGIN_POLL_SECONDS * 1000)
+            state = await current_session_state(page)
+            if state["authenticated"]:
+                return WorkflowResult("login_check", "ok", str(state))
+
+        return WorkflowResult(
+            "login_check",
+            "timeout",
+            f"LinkedIn authentication was not detected within {LOGIN_WAIT_SECONDS} seconds: {state}",
+        )
+
 
 async def open_profile() -> WorkflowResult:
     async with linkedin_browser() as browser:
@@ -27,6 +54,7 @@ async def open_profile() -> WorkflowResult:
         state = await current_session_state(page)
         status = "ready" if state["authenticated"] else "not_authenticated"
         return WorkflowResult("open_profile", status, str(state))
+
 
 async def search_jobs(keywords: str = "Power BI", location: str = "Gurgaon") -> WorkflowResult:
     async with linkedin_browser() as browser:
@@ -37,8 +65,10 @@ async def search_jobs(keywords: str = "Power BI", location: str = "Gurgaon") -> 
         status = "read_only" if state["authenticated"] else "not_authenticated"
         return WorkflowResult("search_jobs", status, str(state))
 
+
 async def draft_action(action: str, target: str, text: str) -> WorkflowResult:
     return WorkflowResult(action, "drafted", f"target={target}; text={text}")
+
 
 async def execute_action(action: str, target: str, text: str) -> WorkflowResult:
     require_approval(action)
