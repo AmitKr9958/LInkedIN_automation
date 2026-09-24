@@ -52,6 +52,23 @@ async def test_session_state_rejects_unknown_non_login_page():
 
 
 @pytest.mark.asyncio
+async def test_session_state_rejects_login_page_even_with_generic_main_shell():
+    state = await current_session_state(Page("https://www.linkedin.com/", {"main[role='main']"}))
+    assert state["authenticated"] is False
+    assert state["confidence"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_session_state_rejects_login_marker_before_positive_marker():
+    state = await current_session_state(Page(
+        "https://www.linkedin.com/",
+        {"input[name='session_key']", "nav[aria-label*='Primary']"},
+    ))
+    assert state["authenticated"] is False
+    assert state["confidence"] == "high"
+
+
+@pytest.mark.asyncio
 async def test_session_state_accepts_authenticated_marker():
     state = await current_session_state(Page(
         "https://www.linkedin.com/feed/",
