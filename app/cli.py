@@ -6,6 +6,7 @@ from .config import settings
 from .skill_registry import list_skills
 from .workflows import login_check
 from .skill_runtime import run_read
+from .approval_queue import ApprovalQueue
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
 
@@ -46,3 +47,20 @@ def read(skill: str, query: str = "", location: str = ""):
 
 if __name__ == "__main__":
     app()
+
+
+@app.command("approvals")
+def approvals():
+    """List pending human approvals."""
+    for item in ApprovalQueue().list_pending():
+        typer.echo(f"{item.id} | {item.action} | {item.target} | {item.created_at}")
+
+@app.command("approve")
+def approve(item_id: str):
+    ApprovalQueue().decide(item_id, True)
+    typer.echo(f"approved: {item_id}")
+
+@app.command("reject")
+def reject(item_id: str):
+    ApprovalQueue().decide(item_id, False)
+    typer.echo(f"rejected: {item_id}")
