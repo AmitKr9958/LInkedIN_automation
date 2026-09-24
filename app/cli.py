@@ -15,8 +15,70 @@ from .reporting import application_rows, export_rows
 from .skill_registry import list_skills
 from .skill_runtime import run_read
 from .workflows import login_check
+from .post_audit import audit_post
+from .story_bank import Story, StoryBank
+from .outreach import OutreachTarget, draft_connection, draft_followup
+from .agent import LinkedInAgent
+from .selftest import run_selftest
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
+
+@app.command("selftest")
+def selftest():
+    """Run deterministic module and skill-contract checks."""
+    results = run_selftest()
+    for result in results:
+        label = "PASS" if result.ok else "FAIL"
+        typer.echo(f"[{label}] {result.name}: {result.detail}")
+    raise typer.Exit(code=0 if all(r.ok for r in results) else 1)
+
+
+@app.command("audit-post")
+def audit_post_command(path: str = "", text: str = ""):
+    """Audit a post draft without publishing it."""
+    if path:
+        text = open(path, encoding="utf-8").read()
+    if not text:
+        raise typer.BadParameter("provide text or a file path")
+    typer.echo(json.dumps(audit_post(text), indent=2, default=str))
+
+
+@app.command("story-bank")
+def story_bank(action: str = "list", query: str = "", limit: int = 20):
+    """List/search the local Story Bank."""
+    bank = StoryBank()
+    if action == "search":
+        rows = bank.search(query, limit)
+    elif action == "list":
+        rows = bank.list(limit)
+    else:
+        raise typer.BadParameter("action must be list or search")
+    typer.echo(json.dumps([row.to_dict() for row in rows], indent=2, default=str))
+
+
+@app.command("add-story")
+def add_story(title: str, situation: str = "", action: str = "", result: str = "", metric: str = "", lesson: str = "", tags: str = ""):
+    """Add one reusable career story to the local Story Bank."""
+    created = StoryBank().add(Story(title, situation, action, result, metric, lesson, tags))
+    typer.echo(json.dumps(created.to_dict(), indent=2, default=str))
+
+
+@app.command("request-connection")
+def request_connection(name: str, profile_url: str, title: str = "", company: str = "", note: str = "", job_url: str = ""):
+    """Queue one connection request for explicit human approval; does not auto-send."""
+    target = OutreachTarget(name=name, profile_url=profile_url, title=title, company=company, target_type="manual", job_url=job_url)
+    draft = {"target": target.to_dict(), "note": note, "status": "drafted"} if note else draft_connection(target, title, [])
+    item = LinkedInAgent().request_action("connection_request", profile_url, draft)
+    typer.echo(f"queued approval: {item}")
+
+
+@app.command("request-followup")
+def request_followup(name: str, profile_url: str, message: str, due_at: str = "", job_url: str = ""):
+    """Queue one follow-up message for explicit human approval; does not auto-send."""
+    target = OutreachTarget(name=name, profile_url=profile_url, job_url=job_url)
+    draft = draft_followup(target, message, due_at or None)
+    item = LinkedInAgent().request_action("followup_message", profile_url, draft)
+    typer.echo(f"queued approval: {item}")
 
 
 @app.command()
