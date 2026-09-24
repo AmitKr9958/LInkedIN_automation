@@ -29,14 +29,17 @@ class Job:
         return asdict(self)
 
 
+# Prefer selectors that identify an actual job result card on the
+# current LinkedIn SDUI layout. Generic scaffold list items can contain
+# non-job wrappers and caused live searches to be discarded.
 CARD_SELECTORS = (
-    "li.jobs-search-results__list-item",
-    "li.scaffold-layout__list-item",
     "[data-occludable-job-id]",
     ".job-card-container",
     "li:has(a[href*='/jobs/view/'])",
-    "li:has(a[href*='/jobs/collections/'])",
     "[data-job-id]",
+    "li.jobs-search-results__list-item",
+    "li.scaffold-layout__list-item",
+    "li:has(a[href*='/jobs/collections/'])",
     "article:has(a[href*='/jobs/'])",
 )
 
@@ -366,6 +369,18 @@ async def _attribute_text(locator) -> str:
     return ""
 
 
+async def _location(card, raw_text: str) -> str:
+    value = await _text(card, LOCATION_SELECTORS)
+    if value and _looks_like_location(value):
+        return value
+    # Current SDUI cards sometimes expose location as plain text rather than
+    # a dedicated metadata element. Recover it from visible card lines.
+    for line in _lines(raw_text):
+        if _looks_like_location(line):
+            return line
+    return value
+
+
 async def _posted(card) -> tuple[str, float | None]:
     value = _normalize_posted(await _text(card, POSTED_SELECTORS))
     if value:
@@ -630,7 +645,7 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
             company = await _logo_company(card)
         if not company:
             company = await _company_from_attributes(card)
-        location_text = await _text(card, LOCATION_SELECTORS)
+        location_text = await _location(card, text)
         posted, posted_hours = await _posted(card)
 
         if not company:
