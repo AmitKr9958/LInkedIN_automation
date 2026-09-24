@@ -1,5 +1,6 @@
 import asyncio
 import json
+
 import typer
 
 from .application_tracker import ApplicationTracker, STATUSES
@@ -116,13 +117,15 @@ def approvals():
 
 @app.command("approve")
 def approve(item_id: str):
-    ApprovalQueue().decide(item_id, True)
+    if not ApprovalQueue().decide(item_id, True):
+        raise typer.BadParameter(f"approval item is missing or already decided: {item_id}")
     typer.echo(f"approved: {item_id}")
 
 
 @app.command("reject")
 def reject(item_id: str):
-    ApprovalQueue().decide(item_id, False)
+    if not ApprovalQueue().decide(item_id, False):
+        raise typer.BadParameter(f"approval item is missing or already decided: {item_id}")
     typer.echo(f"rejected: {item_id}")
 
 
@@ -151,6 +154,7 @@ def application_list(status: str = ""):
     rows = ApplicationTracker().list(status or None)
     for row in rows:
         typer.echo(" | ".join(str(value) for value in row))
+
 
 if __name__ == "__main__":
     app()
