@@ -49,10 +49,6 @@ async def current_session_state(page: Page) -> dict[str, Any]:
     if await _visible(page, AUTHENTICATED_MARKERS):
         return {"url": url, "title": title, "authenticated": True, "confidence": "high"}
 
-    # LinkedIn can render the authenticated feed without exposing one of the
-    # older navigation selectors. A canonical /feed/ URL plus the feed title
-    # is strong positive evidence, while login evidence was already checked
-    # above and therefore takes precedence.
     if "/feed/" in url_lower and title_lower.startswith("feed | linkedin"):
         return {"url": url, "title": title, "authenticated": True, "confidence": "high"}
 
@@ -73,41 +69,106 @@ async def _text(card, selectors: tuple[str, ...]) -> str:
 
 
 async def read_job_cards(page: Page) -> list[dict[str, Any]]:
-    selector = ", ".join(JOB_CARD_SELECTORS)
-    cards = await page.locator(selector).all()
+    cards = None
+    for selector in JOB_CARD_SELECTORS:
+        candidate = page.locator(selector)
+        try:
+            if await candidate.count():
+                cards = candidate
+                break
+        except Exception:
+            continue
+
+    if cards is None:
+        return []
+
+    try:
+        await cards.first.wait_for(state="visible", timeout=10_000)
+    except Exception:
+        pass
+
     result: list[dict[str, Any]] = []
-    for card in cards[:50]:
-        text = " ".join((await card.inner_text()).split())
+    seen: set[str] = set()
+
+    for i in range(min(await cards.count(), 50)):
+        card = cards.nth(i)
+        try:
+            text = " ".join((await card.inner_text()).split())
+        except Exception:
+            continue
+
         href = ""
         link = card.locator("a[href*='/jobs/view/']").first
-        if await link.count():
-            href = urljoin(settings.linkedin_base_url, await link.get_attribute("href") or "")
-        title = await _text(card, (
-            ".job-card-list__title",
-            ".artdeco-entity-lockup__title",
-            "a[href*='/jobs/view/']",
-        ))
-        company = await _text(card, (
-            ".artdeco-entity-lockup__subtitle",
-            ".job-card-container__company-name",
-            "h4",
-        ))
-        location = await _text(card, (
-            ".job-card-container__metadata-item",
-            ".artdeco-entity-lockup__caption",
-            "[class*='location']",
-        ))
-        posted = await _text(card, (
-            "time",
-            "[class*='listed-time']",
-            "[class*='posted']",
-        ))
-        result.append(asdict(JobListing(
-            title=title,
-            company=company,
-            location=location,
-            url=href,
-            posted=posted,
-            text=text,
-        )))
+        try:
+            if await link.count():
+                href = urljoin(
+                    settings.linkedin_base_url,
+                    await link.get_attribute("href") or "",
+                )
+        except Exception:
+            pass
+
+        title = await _text(
+            card,
+            (
+                ".job-card-list__title",
+                ".job-card-list__title-line a",
+                ".artdeco-entity-lockup__title a",
+                ".artdeco-entity-lockup__title",
+                "a[href*='/jobs/view/']",
+            ),
+        )
+        company = await _text(
+            card,
+            (
+                ".job-card-container__primary-description",
+                ".job-card-container__company-name",
+                ".artdeco-entity-lockup__subtitle a",
+                ".artdeco-entity-lockup__subtitle",
+                "h4",
+            ),
+        )
+        location = await _text(
+            card,
+            (
+                ".job-card-container__metadata-item",
+                ".job-card-container__metadata-wrapper li",
+                ".artdeco-entity-lockup__caption",
+                "[class*='location']",
+            ),
+        )
+        posted = await _text(
+            card,
+            (
+                "time",
+                ".job-card-container__footer-item",
+                ".job-card-container__listed-time",
+                "[class*='listed-time']",
+                "[class*='posted']",
+            ),
+        )
+
+        key = href.split("?", 1)[0].rstrip("/").lower()
+        if not key:
+            key = "|".join(
+                value.strip().lower() for value in (title, company, location)
+            )
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+
+        result.append(
+            asdict(
+                JobListing(
+                    title=title,
+                    company=company,
+                    location=location,
+                    url=href,
+                    posted=posted,
+                    text=text,
+                )
+            )
+        )
+
     return result
