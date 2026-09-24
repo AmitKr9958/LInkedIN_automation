@@ -44,7 +44,7 @@ def test_repurpose_preserves_source_text():
     assert "one question" in draft.text
     assert draft.metadata["goal"] == "engagement"
     assert "voice_audit" in draft.metadata
-    assert repurpose("").kind == "repurposed_post
+    assert repurpose("").kind == "repurposed_post"
 
 def test_draft_comment_handles_short_and_long_context():
     short = draft_comment("Short post", "Great breakdown")
