@@ -34,6 +34,30 @@ def status():
     typer.echo(f"dry_run={settings.dry_run}, headless={settings.headless}")
 
 
+@app.command("debug-auth")
+def debug_auth():
+    """Show non-secret browser/session diagnostics for troubleshooting."""
+    async def _run():
+        from .browser import linkedin_browser
+        from .linkedin_reader import current_session_state
+
+        async with linkedin_browser() as browser:
+            pages = browser.pages
+            page = pages[0] if pages else await browser.new_page()
+            await page.goto(settings.linkedin_base_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000)
+            state = await current_session_state(page)
+            return {
+                "profile_path": str(settings.profile_path),
+                "page_count": len(browser.pages),
+                "url": page.url,
+                "title": await page.title(),
+                "state": state,
+            }
+
+    typer.echo(json.dumps(asyncio.run(_run()), indent=2, default=str))
+
+
 @app.command()
 def login():
     typer.echo("A visible browser will open. Log in manually; credentials are never requested or exported.")
