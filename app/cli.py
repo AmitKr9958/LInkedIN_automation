@@ -37,7 +37,7 @@ def status():
 @app.command()
 def login():
     typer.echo("A visible browser will open. Log in manually; credentials are never requested or exported.")
-    result = asyncio.run(login_check())
+    result = asyncio.run(login_check(keep_open=True))
     typer.echo(f"{result.status}: {result.details}")
 
 
