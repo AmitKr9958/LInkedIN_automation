@@ -10,10 +10,8 @@ LOGIN_MARKERS = [
 
 FEED_MARKERS = [
     "[data-view-name='feed']",
-    "main[role='main']",
-    "div[role='main']",
-    "nav[aria-label*='Primary']",
     "a[href*='/feed/']",
+    "nav[aria-label*='Primary']",
 ]
 
 JOB_CARD_SELECTORS = [
@@ -23,8 +21,13 @@ JOB_CARD_SELECTORS = [
 ]
 
 PROFILE_MARKERS = [
-    "a[href*='/in/']",
     "a[href*='/mynetwork/']",
     "button[aria-label*='profile']",
-    "main[role='main']",
+]
+
+AUTHENTICATED_MARKERS = [
+    "[data-view-name='feed']",
+    "a[href*='/feed/']",
+    "nav[aria-label*='Primary']",
+    "button[aria-label*='Me']",
 ]
