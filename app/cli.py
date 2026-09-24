@@ -151,3 +151,6 @@ def application_list(status: str = ""):
     rows = ApplicationTracker().list(status or None)
     for row in rows:
         typer.echo(" | ".join(str(value) for value in row))
+
+if __name__ == "__main__":
+    app()
