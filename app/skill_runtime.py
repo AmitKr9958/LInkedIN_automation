@@ -14,6 +14,18 @@ class RuntimeResult:
     data: Any
 
 
+def _filter_jobs_by_freshness(data: list[Any], max_posted_hours: float | None = 48) -> list[Any]:
+    """Keep fresh jobs plus records whose posting age could not be determined."""
+    if max_posted_hours is None:
+        return data
+    return [
+        job
+        for job in data
+        if getattr(job, "posted_hours", None) is None
+        or job.posted_hours <= max_posted_hours
+    ]
+
+
 async def run_read(skill: str, **kwargs) -> RuntimeResult:
     async with linkedin_browser() as browser:
         page = browser.pages[0] if browser.pages else await browser.new_page()
@@ -51,13 +63,7 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
                 kwargs.get("keywords", "Power BI"),
                 kwargs.get("location", "Gurgaon"),
             )
-            max_posted_hours = kwargs.get("max_posted_hours", 48)
-            if max_posted_hours is not None:
-                data = [
-                    job
-                    for job in data
-                    if job.posted_hours is None or job.posted_hours <= max_posted_hours
-                ]
+            data = _filter_jobs_by_freshness(data, kwargs.get("max_posted_hours", 48))
         elif skill == "people":
             data = await people.search(
                 page,
