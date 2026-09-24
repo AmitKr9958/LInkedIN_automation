@@ -36,8 +36,17 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
             data = await profile.read_profile(page)
         elif skill == "jobs":
             data = await jobs.search(
-                page, kwargs.get("keywords", "Power BI"), kwargs.get("location", "Gurgaon")
+                page,
+                kwargs.get("keywords", "Power BI"),
+                kwargs.get("location", "Gurgaon"),
             )
+            max_posted_hours = kwargs.get("max_posted_hours", 48)
+            if max_posted_hours is not None:
+                data = [
+                    job
+                    for job in data
+                    if job.posted_hours is None or job.posted_hours <= max_posted_hours
+                ]
         elif skill == "people":
             data = await people.search(page, kwargs.get("query", "Power BI recruiter"))
         elif skill == "companies":
