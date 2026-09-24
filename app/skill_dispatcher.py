@@ -5,14 +5,18 @@ from .content_skills import (
     employee_advocacy_plan, extract_hook, humanize, interviewer_questions,
     profile_audit, repurpose, thread_followups, write_post,
 )
+from .post_audit import audit_post
+from .story_bank import StoryBank
 
 READ_CONTENT = {
     "hook_extractor": extract_hook,
     "humanizer": humanize,
     "profile_optimizer": profile_audit,
+    "post_audit": audit_post,
     "engager_analytics": analyze_engagers,
     "thread_monitor": thread_followups,
 }
+
 DRAFT_CONTENT = {
     "post_writer": write_post,
     "content_planner": content_plan,
@@ -28,4 +32,9 @@ def dispatch(skill: str, **kwargs):
         return READ_CONTENT[skill](**kwargs)
     if skill in DRAFT_CONTENT:
         return DRAFT_CONTENT[skill](**kwargs)
+    if skill == "story_bank":
+        bank = StoryBank(kwargs.get("path"))
+        if kwargs.get("action", "list") == "search":
+            return [story.to_dict() for story in bank.search(kwargs.get("query", ""))]
+        return [story.to_dict() for story in bank.list(kwargs.get("limit", 50))]
     raise ValueError(f"Unknown content skill: {skill}")
