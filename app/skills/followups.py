@@ -3,7 +3,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from ..store import list_activity, log_activity
 
-FOLLOWUP_STATUSES = ("pending", "drafted", "sent", "done", "skipped")
+FOLLOWUP_STATUSES = ("pending", "drafted", "sent", "responded", "done", "skipped", "declined", "closed")
 
 @dataclass
 class FollowUp:
