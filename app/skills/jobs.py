@@ -157,6 +157,37 @@ def _lines(value: str) -> list[str]:
     return [line.strip() for line in value.splitlines() if line.strip()]
 
 
+def _normalize_location_token(value: str) -> str:
+    """Normalize common LinkedIn city spellings for local location filtering."""
+    value = re.sub(r"[^a-z0-9\\s]", " ", (value or "").lower())
+    value = re.sub(r"\\s+", " ", value).strip()
+    aliases = {
+        "gurugram": "gurgaon",
+        "new delhi": "delhi",
+        "ncr": "delhi",
+    }
+    return aliases.get(value, value)
+
+
+def _location_matches_requested(location: str, requested: str) -> bool:
+    """Return True only when the returned job location matches the requested city.
+
+    LinkedIn can ignore/relax the search location and return nationwide or foreign
+    remote jobs. Those records must not leak into a city-scoped read.
+    """
+    requested_token = _normalize_location_token(requested)
+    if not requested_token:
+        return True
+    actual = (location or "").lower()
+    if not actual:
+        return False
+    # Generic country-wide remote results are not a city match.
+    if "remote" in actual and requested_token not in _normalize_location_token(actual):
+        return False
+    normalized_actual = _normalize_location_token(actual)
+    return bool(re.search(rf"\\b{re.escape(requested_token)}\\b", normalized_actual))
+
+
 def _looks_like_location(value: str) -> bool:
     lower = value.lower()
     return (
@@ -631,6 +662,12 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
             continue
         if key:
             seen.add(key)
+
+        # LinkedIn may return results outside the requested city even when the
+        # search URL contains a location parameter. Enforce the requested city
+        # locally so read/discovery results respect the user's location policy.
+        if location and not _location_matches_requested(location_text, location):
+            continue
 
         easy_apply = "easy apply" in text.lower()
         if not easy_apply:
