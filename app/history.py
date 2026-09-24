@@ -3,10 +3,13 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .config import ROOT
+
 class History:
-    def __init__(self, path="data/activity.sqlite3"):
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.path = path
+    def __init__(self, path=None):
+        db_path = Path(path) if path is not None else ROOT / "data" / "activity.sqlite3"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = str(db_path)
         with sqlite3.connect(path) as db:
             db.execute("""CREATE TABLE IF NOT EXISTS job_history(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
