@@ -45,3 +45,37 @@ def test_clean_title_removes_duplicate_rendering_and_verification():
 def test_profile_name_can_fall_back_to_linkedin_title():
     assert _name_from_title("Amit Kumar | LinkedIn") == "Amit Kumar"
     assert _name_from_title("Feed | LinkedIn") == ""
+
+
+from app.skills.jobs import _POSTED_RE, _fallback_company
+from app.skills.profile import _parse_top_card
+
+
+def test_posted_regex_extracts_relative_time():
+    assert _POSTED_RE.search("Lead - Reporting & Analytics 19 hours ago") is not None
+
+
+def test_fallback_company_extracts_company_from_card_text():
+    raw = """Business Intelligence Manager
+Business Intelligence Manager
+Example Corp
+Gurugram, Haryana, India (Hybrid)"""
+    assert _fallback_company(
+        raw,
+        "Business Intelligence Manager",
+        "Gurugram, Haryana, India (Hybrid)",
+        "",
+    ) == "Example Corp"
+
+
+def test_profile_top_card_fallback_extracts_headline_and_location():
+    name, headline, location = _parse_top_card(
+        """Amit Kumar
+Senior Power BI Developer | Business Intelligence
+New Delhi, Delhi, India
+500+ connections""",
+        "Amit Kumar",
+    )
+    assert name == "Amit Kumar"
+    assert headline.startswith("Senior Power BI Developer")
+    assert "Delhi" in location
