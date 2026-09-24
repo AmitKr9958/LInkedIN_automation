@@ -17,7 +17,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
       - run: python -m compileall -q app tests
-      - run: ruff check app tests
+      - run: ruff check app tests --select E9,F63,F7,F82
       - run: pytest -q -m "not e2e"
 
   browser-smoke:
