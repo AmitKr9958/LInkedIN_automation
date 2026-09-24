@@ -30,6 +30,9 @@ class ApplicationTracker:
             db.commit()
 
     def add(self, job_url, title="", company="", status="new"):
+        job_url = str(job_url or "").strip()
+        if not job_url:
+            raise ValueError("job_url is required")
         if status not in STATUSES:
             raise ValueError("invalid status")
         with sqlite3.connect(self.path) as db:
@@ -39,6 +42,9 @@ class ApplicationTracker:
             db.commit()
 
     def transition(self, job_url, new_status, notes=""):
+        job_url = str(job_url or "").strip()
+        if not job_url:
+            raise ValueError("job_url is required")
         if new_status not in STATUSES:
             raise ValueError("invalid status")
         with sqlite3.connect(self.path) as db:
