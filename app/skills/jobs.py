@@ -163,10 +163,36 @@ def _fallback_company(raw_text: str, title: str, location: str, posted: str) -> 
 
 
 async def _posted(card) -> str:
-    value = await _text(card, POSTED_SELECTORS)
-    if value and value.strip().lower() not in {"promoted", "sponsored"}:
-        match = _POSTED_RE.search(value)
-        return match.group(0).strip() if match else value.strip()
+    # LinkedIn sometimes renders the relative posting time only in an
+    # aria-label/title/datetime attribute, not in the visible card text.
+    try:
+        await card.scroll_into_view_if_needed(timeout=2_000)
+    except Exception:
+        pass
+
+    for selector in POSTED_SELECTORS:
+        value = await _text(card, (selector,))
+        if value and value.strip().lower() not in {"promoted", "sponsored"}:
+            match = _POSTED_RE.search(value)
+            if match:
+                return match.group(0).strip()
+
+    metadata = card.locator("[aria-label], [title], time[datetime]")
+    try:
+        for i in range(min(await metadata.count(), 100)):
+            node = metadata.nth(i)
+            candidates = (
+                await node.get_attribute("aria-label") or "",
+                await node.get_attribute("title") or "",
+                await node.get_attribute("datetime") or "",
+                (await node.text_content()) or "",
+            )
+            for candidate in candidates:
+                match = _POSTED_RE.search(" ".join(candidate.split()))
+                if match:
+                    return match.group(0).strip()
+    except Exception:
+        pass
 
     try:
         text = await card.inner_text()
