@@ -37,3 +37,22 @@ def transition_followup(followup: FollowUp, new_status: str, path=None) -> Follo
     log_activity("followup_status", followup.target, new_status, f"from={followup.status}", path=path)
     followup.status = new_status
     return followup
+
+
+STOP_STATUSES = {"done", "skipped", "responded", "declined", "closed"}
+
+
+def can_schedule_followup(followup: FollowUp, response_received: bool = False,
+                          application_closed: bool = False) -> bool:
+    """Return whether a follow-up may still be scheduled."""
+    if response_received or application_closed:
+        return False
+    return followup.status not in STOP_STATUSES
+
+
+def mark_response(followup: FollowUp, path=None) -> FollowUp:
+    if followup.status in STOP_STATUSES:
+        return followup
+    log_activity("followup_response", followup.target, "responded", "", path=path)
+    followup.status = "responded"
+    return followup
