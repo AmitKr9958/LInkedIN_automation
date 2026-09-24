@@ -18,6 +18,10 @@ async def linkedin_browser():
                 user_data_dir=str(settings.profile_path),
                 headless=settings.headless,
                 viewport={"width": 1440, "height": 900},
+                # Keep the native scrollbar visible in the headed automation browser.
+                # Chromium can otherwise use overlay scrollbars that are only shown
+                # while scrolling, which makes manual navigation confusing.
+                args=["--disable-features=OverlayScrollbar"],
                 timeout=30_000,
             )
         except PlaywrightError as exc:
