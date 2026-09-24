@@ -20,6 +20,8 @@ from .story_bank import Story, StoryBank
 from .outreach import OutreachTarget, draft_connection, draft_followup
 from .agent import LinkedInAgent
 from .selftest import run_selftest
+from .media import build_image_prompt, build_quote_card
+from .publishing import PublishRequest, queue_publish
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
 
@@ -81,8 +83,20 @@ def request_followup(name: str, profile_url: str, message: str, due_at: str = ""
     typer.echo(f"queued approval: {item}")
 
 
-@app.command()
-def doctor():
+
+@app.command("media-prompt")
+def media_prompt(text: str, kind: str = "wide", brand: str = ""):
+    """Create an optional image/quote-card prompt without calling an external provider."""
+    result = build_image_prompt(text, kind, brand) if kind != "quote-card" else build_quote_card(text)
+    typer.echo(json.dumps(result.to_dict(), indent=2))
+
+
+@app.command("request-publish")
+def request_publish(text: str, scheduled_for: str = ""):
+    """Queue a publishing intent for explicit human approval; does not publish directly."""
+    item = queue_publish(PublishRequest(text=text, scheduled_for=scheduled_for))
+    typer.echo(f"queued approval: {item}")
+\n@app.command()\ndef doctor():
     """Run local production-readiness checks."""
     checks = run_doctor()
     for check in checks:
