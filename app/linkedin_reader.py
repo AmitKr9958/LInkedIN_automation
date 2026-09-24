@@ -4,7 +4,7 @@ from urllib.parse import urljoin
 
 from playwright.async_api import Page
 
-from .linkedin_selectors import FEED_MARKERS, JOB_CARD_SELECTORS, LOGIN_MARKERS, PROFILE_MARKERS
+from .linkedin_selectors import AUTHENTICATED_MARKERS, JOB_CARD_SELECTORS, LOGIN_MARKERS
 from .config import settings
 
 
@@ -39,13 +39,15 @@ async def current_session_state(page: Page) -> dict[str, Any]:
     """
     url = page.url
     title = await page.title()
-    on_login = "/login" in url.lower() or await _visible(page, LOGIN_MARKERS)
+    url_lower = url.lower()
+    title_lower = title.lower()
+    login_title = "log in" in title_lower or "sign up" in title_lower
+    on_login = "/login" in url_lower or login_title or await _visible(page, LOGIN_MARKERS)
     if on_login:
         return {"url": url, "title": title, "authenticated": False, "confidence": "high"}
 
-    logged_in_marker = await _visible(page, FEED_MARKERS) or await _visible(page, PROFILE_MARKERS)
-    if logged_in_marker:
-        return {"url": url, "title": title, "authenticated": True, "confidence": "medium"}
+    if await _visible(page, AUTHENTICATED_MARKERS):
+        return {"url": url, "title": title, "authenticated": True, "confidence": "high"}
 
     return {"url": url, "title": title, "authenticated": False, "confidence": "low"}
 
