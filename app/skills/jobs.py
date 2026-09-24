@@ -96,6 +96,17 @@ def _clean_title(value: str) -> str:
             index = value.lower().find(marker)
             value = value[:index].strip()
     # Some rendered cards contain the same title twice.
+    compact = value.replace(" ", "")
+    if len(compact) >= 2 and len(compact) % 2 == 0:
+        half = len(compact) // 2
+        if compact[:half] == compact[half:]:
+            # Preserve the readable first half when LinkedIn renders a
+            # title twice without a separator.
+            midpoint = len(value) // 2
+            left = value[:midpoint].strip()
+            right = value[midpoint:].strip()
+            if left.replace(" ", "") == right.replace(" ", ""):
+                value = left
     words = value.split()
     if len(words) >= 2 and len(words) % 2 == 0:
         half = len(words) // 2
