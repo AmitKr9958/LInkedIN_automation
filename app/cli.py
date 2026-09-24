@@ -2,13 +2,15 @@ import asyncio
 import json
 import typer
 
+from .application_tracker import ApplicationTracker, STATUSES
+from .approval_queue import ApprovalQueue
 from .config import settings
 from .skill_registry import list_skills
-from .workflows import login_check
 from .skill_runtime import run_read
-from .approval_queue import ApprovalQueue
+from .workflows import login_check
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
+
 
 @app.command()
 def status():
@@ -16,11 +18,13 @@ def status():
     typer.echo(f"{result.action}: {result.status} - {result.details}")
     typer.echo(f"dry_run={settings.dry_run}, headless={settings.headless}")
 
+
 @app.command()
 def login():
     typer.echo("A visible browser will open. Log in manually; credentials are never requested or exported.")
     result = asyncio.run(login_check())
     typer.echo(f"{result.status}: {result.details}")
+
 
 @app.command("skills")
 def skills():
@@ -28,9 +32,10 @@ def skills():
         mode = "mutating" if skill.mutating else "read/draft"
         typer.echo(f"- {skill.name}: {skill.description} [{mode}]")
 
+
 @app.command("read")
 def read(skill: str, query: str = "", location: str = ""):
-    """Run a read-only skill and print JSON. Requires an existing LinkedIn browser session."""
+    """Run a read-only skill and print JSON."""
     if skill in {"jobs", "people"} and not query:
         query = "Power BI" if skill == "jobs" else "Power BI recruiter"
     if skill == "companies" and not query:
@@ -52,10 +57,12 @@ def approvals():
     for item in ApprovalQueue().list_pending():
         typer.echo(f"{item.id} | {item.action} | {item.target} | {item.created_at}")
 
+
 @app.command("approve")
 def approve(item_id: str):
     ApprovalQueue().decide(item_id, True)
     typer.echo(f"approved: {item_id}")
+
 
 @app.command("reject")
 def reject(item_id: str):
@@ -63,5 +70,28 @@ def reject(item_id: str):
     typer.echo(f"rejected: {item_id}")
 
 
-if __name__ == "__main__":
-    app()
+applications = typer.Typer(help="Track job applications locally.")
+app.add_typer(applications, name="applications")
+
+
+@applications.command("add")
+def application_add(job_url: str, title: str = "", company: str = ""):
+    ApplicationTracker().add(job_url, title, company)
+    typer.echo(f"tracked: {job_url}")
+
+
+@applications.command("transition")
+def application_transition(job_url: str, new_status: str, notes: str = ""):
+    if new_status not in STATUSES:
+        raise typer.BadParameter(f"status must be one of: {', '.join(STATUSES)}")
+    ApplicationTracker().transition(job_url, new_status, notes)
+    typer.echo(f"{job_url}: {new_status}")
+
+
+@applications.command("list")
+def application_list(status: str = ""):
+    if status and status not in STATUSES:
+        raise typer.BadParameter(f"status must be one of: {', '.join(STATUSES)}")
+    rows = ApplicationTracker().list(status or None)
+    for row in rows:
+        typer.echo(" | ".join(str(value) for value in row))
