@@ -43,6 +43,8 @@ TITLE_SELECTORS = (
     ".artdeco-entity-lockup__title a",
     ".artdeco-entity-lockup__title",
     "a[href*='/jobs/view/']",
+    "a[href*='/jobs/collections/']",
+    "[data-job-id]",
 )
 
 COMPANY_SELECTORS = (
@@ -67,6 +69,7 @@ POSTED_SELECTORS = (
     ".job-card-container__listed-time",
     "[class*='listed-time']",
     "[class*='posted']",
+    "[data-test-job-posted-date]",
 )
 
 EASY_APPLY_SELECTORS = (
@@ -566,6 +569,7 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
     await page.goto(
         f"{settings.linkedin_base_url}/jobs/search/?{params}",
         wait_until="domcontentloaded",
+        timeout=60_000,
     )
 
     cards = None
