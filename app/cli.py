@@ -28,7 +28,7 @@ def doctor():
 
 @app.command()
 def status():
-    result = asyncio.run(login_check())
+    result = asyncio.run(login_check(wait_for_login=False))
     typer.echo(f"{result.action}: {result.status} - {result.details}")
     typer.echo(f"dry_run={settings.dry_run}, headless={settings.headless}")
 
