@@ -129,11 +129,22 @@ async def _text(card, selectors: tuple[str, ...]) -> str:
 
 
 async def _href(card) -> str:
-    link = card.locator("a[href*='/jobs/view/']").first
     try:
-        if await link.count():
-            href = urljoin(settings.linkedin_base_url, await link.get_attribute("href") or "")
-            return normalize_job_url(href)
+        links = card.locator("a[href*='/jobs/']")
+        total = await links.count()
+    except Exception:
+        total = 0
+    for index in range(min(total, 8)):
+        try:
+            href_value = await links.nth(index).get_attribute("href") or ""
+        except Exception:
+            continue
+        if "/jobs/view/" in href_value or "/jobs/" in href_value:
+            return normalize_job_url(urljoin(settings.linkedin_base_url, href_value))
+    try:
+        raw_href = await card.get_attribute("href") or ""
+        if "/jobs/" in raw_href:
+            return normalize_job_url(urljoin(settings.linkedin_base_url, raw_href))
     except Exception:
         pass
     return ""
