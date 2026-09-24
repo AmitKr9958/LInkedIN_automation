@@ -3,6 +3,8 @@ import json
 import typer
 
 from .application_tracker import ApplicationTracker, STATUSES
+from .job_normalize import dedupe_jobs
+from .orchestrator import build_discovery_report
 from .approval_queue import ApprovalQueue
 from .config import settings
 from .skill_registry import list_skills
@@ -49,6 +51,34 @@ def read(skill: str, query: str = "", location: str = ""):
     elif isinstance(payload, list):
         payload = [x.to_dict() if hasattr(x, "to_dict") else x for x in payload]
     typer.echo(json.dumps(payload, indent=2, default=str))
+
+
+
+
+@app.command("discover-jobs")
+def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
+    """Discover jobs, deduplicate them, rank them, and store local history."""
+    async def _run():
+        data = await run_read("jobs", keywords=query, location=location)
+        rows = [x.to_dict() if hasattr(x, "to_dict") else x for x in data.data]
+        rows = dedupe_jobs(rows)
+        normalized = [
+            {
+                "title": r.get("title", ""),
+                "company": r.get("company", ""),
+                "location": r.get("location", ""),
+                "url": r.get("href") or r.get("url", ""),
+                "posted_text": r.get("posted", ""),
+                "description": r.get("text", ""),
+                "easy_apply": bool(r.get("easy_apply", False)),
+                "source": "linkedin",
+            }
+            for r in rows
+        ]
+        return build_discovery_report(normalized)
+
+    report = asyncio.run(_run())
+    typer.echo(json.dumps(report.ranked, indent=2, default=str))
 
 
 @app.command("approvals")
