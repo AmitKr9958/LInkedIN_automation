@@ -172,6 +172,13 @@ async def read_job_cards(page: Page) -> list[dict[str, Any]]:
                 "[class*='location']",
             ),
         )
+        # LinkedIn can render the relative posting time in metadata
+        # attributes even when it is absent from the visible card text.
+        try:
+            await card.scroll_into_view_if_needed(timeout=2_000)
+        except Exception:
+            pass
+
         posted_value = await _text(
             card,
             (
@@ -182,8 +189,34 @@ async def read_job_cards(page: Page) -> list[dict[str, Any]]:
                 "[class*='posted']",
             ),
         )
-        posted_match = _POSTED_RE.search(posted_value or text)
-        posted = posted_match.group(0).strip() if posted_match else posted_value
+        posted = ""
+        posted_match = _POSTED_RE.search(posted_value or "")
+        if posted_match:
+            posted = posted_match.group(0).strip()
+        else:
+            metadata = card.locator("[aria-label], [title], time[datetime]")
+            try:
+                for metadata_index in range(min(await metadata.count(), 100)):
+                    node = metadata.nth(metadata_index)
+                    candidates = (
+                        await node.get_attribute("aria-label") or "",
+                        await node.get_attribute("title") or "",
+                        await node.get_attribute("datetime") or "",
+                        (await node.text_content()) or "",
+                    )
+                    for candidate in candidates:
+                        posted_match = _POSTED_RE.search(" ".join(candidate.split()))
+                        if posted_match:
+                            posted = posted_match.group(0).strip()
+                            break
+                    if posted:
+                        break
+            except Exception:
+                pass
+
+        if not posted:
+            posted_match = _POSTED_RE.search(text)
+            posted = posted_match.group(0).strip() if posted_match else ""
 
         if not company:
             company = _fallback_company(raw_text, title, location, posted)
