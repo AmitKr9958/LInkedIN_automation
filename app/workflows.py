@@ -30,6 +30,16 @@ async def login_check(wait_for_login: bool = True, keep_open: bool = False) -> W
         await page.goto(settings.linkedin_base_url, wait_until="domcontentloaded")
 
         state = await current_session_state(page)
+        # A root URL can retain an authenticated LinkedIn title while the app
+        # redirects asynchronously to /feed/. Give the browser a brief chance
+        # to finish that redirect before classifying the session.
+        if not state["authenticated"] and wait_for_login:
+            try:
+                await page.wait_for_url("**/feed/**", timeout=5_000)
+                state = await current_session_state(page)
+            except Exception:
+                pass
+
         if state["authenticated"] or not wait_for_login:
             status = "ok" if state["authenticated"] else "not_authenticated"
             result = WorkflowResult("login_check", status, str(state))
