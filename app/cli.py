@@ -96,6 +96,10 @@ def request_publish(text: str, scheduled_for: str = ""):
     """Queue a publishing intent for explicit human approval; does not publish directly."""
     item = queue_publish(PublishRequest(text=text, scheduled_for=scheduled_for))
     typer.echo(f"queued approval: {item}")
+
+
+@app.command()
+def doctor():
     """Run local production-readiness checks."""
     checks = run_doctor()
     for check in checks:
