@@ -62,8 +62,12 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
                 page,
                 kwargs.get("keywords", "Power BI"),
                 kwargs.get("location", "Gurgaon"),
+                start=kwargs.get("start", 0),
             )
-            data = _filter_jobs_by_freshness(data, kwargs.get("max_posted_hours", 48))
+            data = _filter_jobs_by_freshness(
+                data,
+                kwargs.get("max_posted_hours", 48),
+            )
         elif skill == "people":
             data = await people.search(
                 page,
