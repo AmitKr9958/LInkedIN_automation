@@ -54,8 +54,32 @@ def run_selftest() -> list[SelfTestResult]:
         from .skill_dispatcher import dispatch
         missing = []
         for name in expected_dispatch:
-            kwargs = {"text": "A 20% result.\n\nWhat do you think?"} if name in {"post_audit", "humanizer", "hook_extractor"} else {}
-            if name == "story_bank":
+            kwargs = {}
+            if name == "post_audit":
+                kwargs = {"text": "A 20% result.\n\nWhat do you think?"}
+            elif name in {"humanizer", "hook_extractor"}:
+                kwargs = {"text": "A 20% result.\n\nWhat do you think?"}
+            elif name == "post_writer":
+                kwargs = {"topic": "Power BI", "angle": "a measured improvement"}
+            elif name == "content_planner":
+                kwargs = {"theme": "Power BI", "audience": "recruiters"}
+            elif name == "comment_drafter":
+                kwargs = {"post_text": "Power BI post", "point": "Useful point"}
+            elif name == "reply_handler":
+                kwargs = {"comment_text": "Question", "response": "Answer"}
+            elif name == "repurposer":
+                kwargs = {"source": "Power BI improved refresh time.", "goal": "engagement"}
+            elif name == "profile_optimizer":
+                kwargs = {"profile": {"headline": "BI Developer"}}
+            elif name == "interviewer":
+                kwargs = {"topic": "Power BI"}
+            elif name == "engager_analytics":
+                kwargs = {"rows": [], "target_titles": ["recruiter"]}
+            elif name == "thread_monitor":
+                kwargs = {"rows": []}
+            elif name == "employee_advocacy":
+                kwargs = {"team_size": 1, "goal": "reach"}
+            elif name == "story_bank":
                 kwargs = {"action": "list", "limit": 1}
             if name not in names:
                 missing.append(name)
