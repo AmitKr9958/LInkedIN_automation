@@ -1,11 +1,13 @@
 from dataclasses import dataclass, asdict
 from typing import Any
 from urllib.parse import urljoin
+import re
 
 from playwright.async_api import Page
 
 from .linkedin_selectors import AUTHENTICATED_MARKERS, JOB_CARD_SELECTORS, LOGIN_MARKERS
 from .config import settings
+from .job_normalize import normalize_job_url
 
 
 @dataclass
@@ -16,6 +18,13 @@ class JobListing:
     url: str = ""
     posted: str = ""
     text: str = ""
+
+
+_POSTED_RE = re.compile(
+    r"(?i)\b(?:just now|\d+\s+(?:minute|hour|day|week|month)s?\s+ago|"
+    r"today|yesterday|\d+\s+(?:minute|hour|day|week|month)s?\b)"
+    r"(?:\s+within the past 24 hours)?"
+)
 
 
 async def _visible(page: Page, selectors: list[str]) -> bool:
@@ -31,12 +40,6 @@ async def _visible(page: Page, selectors: list[str]) -> bool:
 
 
 async def current_session_state(page: Page) -> dict[str, Any]:
-    """Return a conservative authentication assessment.
-
-    A non-login URL is not sufficient evidence of authentication: LinkedIn can
-    redirect anonymous users to public pages. We require a known authenticated
-    marker and explicitly report low confidence when no marker is found.
-    """
     url = page.url
     title = await page.title()
     url_lower = url.lower()
@@ -68,6 +71,37 @@ async def _text(card, selectors: tuple[str, ...]) -> str:
     return ""
 
 
+def _lines(value: str) -> list[str]:
+    return [line.strip() for line in value.splitlines() if line.strip()]
+
+
+def _looks_like_location(value: str) -> bool:
+    lower = value.lower()
+    return (
+        "," in value
+        or "(remote)" in lower
+        or "remote" in lower
+        or "on-site" in lower
+        or "hybrid" in lower
+        or any(token in lower for token in ("india", "delhi", "gurgaon", "gurugram", "noida", "jaipur"))
+    )
+
+
+def _fallback_company(raw_text: str, title: str, location: str, posted: str) -> str:
+    excluded = {title.lower(), location.lower(), posted.lower(), "promoted", "sponsored", "easy apply"}
+    for line in _lines(raw_text):
+        value = " ".join(line.split())
+        lower = value.lower()
+        if lower in excluded or lower == title.lower():
+            continue
+        if _looks_like_location(value) or _POSTED_RE.search(value):
+            continue
+        if "with verification" in lower:
+            continue
+        return value
+    return ""
+
+
 async def read_job_cards(page: Page) -> list[dict[str, Any]]:
     cards = None
     for selector in JOB_CARD_SELECTORS:
@@ -93,7 +127,8 @@ async def read_job_cards(page: Page) -> list[dict[str, Any]]:
     for i in range(min(await cards.count(), 50)):
         card = cards.nth(i)
         try:
-            text = " ".join((await card.inner_text()).split())
+            raw_text = await card.inner_text()
+            text = " ".join(raw_text.split())
         except Exception:
             continue
 
@@ -101,9 +136,8 @@ async def read_job_cards(page: Page) -> list[dict[str, Any]]:
         link = card.locator("a[href*='/jobs/view/']").first
         try:
             if await link.count():
-                href = urljoin(
-                    settings.linkedin_base_url,
-                    await link.get_attribute("href") or "",
+                href = normalize_job_url(
+                    urljoin(settings.linkedin_base_url, await link.get_attribute("href") or "")
                 )
         except Exception:
             pass
@@ -125,6 +159,7 @@ async def read_job_cards(page: Page) -> list[dict[str, Any]]:
                 ".job-card-container__company-name",
                 ".artdeco-entity-lockup__subtitle a",
                 ".artdeco-entity-lockup__subtitle",
+                "a[href*='/company/']",
                 "h4",
             ),
         )
@@ -137,7 +172,7 @@ async def read_job_cards(page: Page) -> list[dict[str, Any]]:
                 "[class*='location']",
             ),
         )
-        posted = await _text(
+        posted_value = await _text(
             card,
             (
                 "time",
@@ -147,12 +182,15 @@ async def read_job_cards(page: Page) -> list[dict[str, Any]]:
                 "[class*='posted']",
             ),
         )
+        posted_match = _POSTED_RE.search(posted_value or text)
+        posted = posted_match.group(0).strip() if posted_match else posted_value
 
-        key = href.split("?", 1)[0].rstrip("/").lower()
+        if not company:
+            company = _fallback_company(raw_text, title, location, posted)
+
+        key = href.lower().rstrip("/")
         if not key:
-            key = "|".join(
-                value.strip().lower() for value in (title, company, location)
-            )
+            key = "|".join(value.strip().lower() for value in (title, company, location))
         if key and key in seen:
             continue
         if key:
