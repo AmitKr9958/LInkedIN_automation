@@ -18,7 +18,7 @@ class WorkflowResult:
     details: str = ""
 
 
-async def login_check() -> WorkflowResult:
+async def login_check(wait_for_login: bool = True) -> WorkflowResult:
     """Open a visible persistent browser and wait for manual LinkedIn login.
 
     The user performs authentication directly in the browser. Credentials,
@@ -30,8 +30,9 @@ async def login_check() -> WorkflowResult:
         await page.goto(settings.linkedin_base_url, wait_until="domcontentloaded")
 
         state = await current_session_state(page)
-        if state["authenticated"]:
-            return WorkflowResult("login_check", "ok", str(state))
+        if state["authenticated"] or not wait_for_login:
+            status = "ok" if state["authenticated"] else "not_authenticated"
+            return WorkflowResult("login_check", status, str(state))
 
         deadline = asyncio.get_running_loop().time() + LOGIN_WAIT_SECONDS
         while asyncio.get_running_loop().time() < deadline:
