@@ -4,6 +4,7 @@ import typer
 
 from .application_tracker import ApplicationTracker, STATUSES
 from .job_normalize import dedupe_jobs
+from .doctor import run_doctor
 from .orchestrator import build_discovery_report
 from .approval_queue import ApprovalQueue
 from .config import settings
@@ -12,6 +13,15 @@ from .skill_runtime import run_read
 from .workflows import login_check
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
+
+
+@app.command()
+def doctor():
+    """Run local production-readiness checks."""
+    checks = run_doctor()
+    for check in checks:
+        typer.echo(f"[{"PASS" if check.ok else "FAIL"}] {check.name}: {check.detail}")
+    raise typer.Exit(code=0 if all(x.ok for x in checks) else 1)
 
 
 @app.command()
