@@ -88,3 +88,23 @@ linkedin-agent read profile
 The first `linkedin-agent login` run should be performed with `HEADLESS=false`. Log in manually in the opened browser and let the local persistent profile retain the session. Playwright documents persistent browser contexts as the mechanism for retaining browser storage locally. citeturn0search0
 
 > **Important:** LinkedIn's current User Agreement prohibits unauthorized automated methods, including bots/scripts that automate activity or scrape/copy services. The repository therefore avoids CAPTCHA bypass, stealth/fingerprint evasion, cookie/session-token extraction and high-volume unsolicited actions. citeturn0search1turn0search3
+
+
+## Intelligence layer
+
+The project now includes an offline intelligence layer that can work from job records you explicitly provide/export:
+
+- app/intelligence.py — job scoring and filtering
+- app/drafting.py — recruiter/follow-up/post drafts
+- app/cli_intelligence.py — command-line utilities
+- tests/test_intelligence.py — ranking tests
+
+Example commands:
+
+    python -m app.cli_intelligence rank jobs.json
+    python -m app.cli_intelligence recruiter-draft "Recruiter" "Power BI Developer" "Power BI, DAX, SQL, Power Query"
+    python -m app.cli_intelligence followup-draft "Recruiter" "Power BI Developer"
+
+This layer deliberately separates analysis/drafting from interaction with LinkedIn itself. LinkedIn's current help documentation says third-party software that scrapes or automates activity on LinkedIn is not allowed, and its User Agreement prohibits unauthorized automated methods for scraping, messaging, adding contacts and other engagement. citeturn0search0turn0search1
+
+Accordingly, the project is being developed as a local intelligence + drafting assistant rather than a stealth/unattended LinkedIn bot.
