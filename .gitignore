@@ -2,10 +2,12 @@
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
 .env
 .browser-profile/
 data/*.db
 data/*.sqlite
+data/*.sqlite3
 logs/
 screenshots/
 *.log

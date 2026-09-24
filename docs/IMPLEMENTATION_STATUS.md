@@ -24,6 +24,8 @@
 - Job preference model
 - LinkedIn job URL normalization
 - Preference-based job ranking
+- Experience-range matching against configured minimum/maximum years
+- Discovery-report job persistence fix (ranked dict records)
 - Local job history and discovery reporting
 - JSON/CSV application export
 
@@ -32,6 +34,7 @@
 - Status transition validation
 - Approval queue with SQLite persistence
 - Legacy approval-queue schema migration
+- Local activity log for approval requests/decisions and discovery runs
 
 ### Skills
 - 24 registered/governed skills
@@ -61,11 +64,11 @@ The latest live test exposed profile-field and job-card extraction defects. Read
 - rendered profile fields and title fallback
 - stable job-card selector fallback order
 - duplicate job-card suppression
-- duplicate rendered job-title cleanup
+- duplicate rendered job-title cleanup (including no-separator concatenated titles)
 - canonical LinkedIn job URL normalization
 - regression tests for these cases
 
-The next required release validation is to pull the latest `main` commit and rerun the live read commands, followed by the local unit/E2E suite.
+Release validation has been rerun against the current working tree: the local unit/E2E suite passes (59 tests), `python -m app doctor` reports all checks green, and live read validation (`status` plus a Power BI/Gurgaon job search) confirmed an authenticated session with clean job-card extraction.
 
 ## Operational note
 

@@ -112,6 +112,14 @@ def _clean_title(value: str) -> str:
         if index >= 0:
             value = value[:index].strip()
 
+    # Some LinkedIn cards render the title twice with no separator at all
+    # ("TitleTitle"); collapse exact character-level duplication first.
+    length = len(value)
+    if length >= 4 and length % 2 == 0:
+        half = length // 2
+        if value[:half] == value[half:]:
+            value = value[:half]
+
     words = value.split()
     if len(words) >= 2 and len(words) % 2 == 0:
         half = len(words) // 2

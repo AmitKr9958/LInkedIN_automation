@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 import typer
-from .drafting import recruiter_message, followup_message
+from .drafting import connection_note, recruiter_message, followup_message
 from .intelligence import JobRecord, rank_jobs
 from .job_preferences import DEFAULT_JOB_PREFERENCES
 
@@ -23,3 +23,11 @@ def recruiter(name: str, role: str, skills: str):
 @app.command("followup-draft")
 def followup(name: str, role: str):
     print(followup_message(name,role).text)
+
+@app.command("connection-draft")
+def connection(name: str, role: str, skills: str = ""):
+    d=connection_note(name,role,[x.strip() for x in skills.split(",") if x.strip()])
+    print(d.text)
+
+if __name__ == "__main__":
+    app()

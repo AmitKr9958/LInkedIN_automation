@@ -54,6 +54,30 @@ def _is_remote(location: str, title: str, description: str) -> bool:
     return "remote" in text
 
 
+_EXPERIENCE_RE = re.compile(
+    r"(\d{1,2})\s*(?:\+|plus\b|or more)?\s*(?:(?:-|–|—|to)\s*(\d{1,2})\s*\+?)?\s*(?:years?|yrs?)\b",
+    re.IGNORECASE,
+)
+
+
+def _experience_years(text: str) -> tuple[int, int | None] | None:
+    """Parse an experience expectation such as "3-5 years" or "6+ years"."""
+    match = _EXPERIENCE_RE.search(text)
+    if not match:
+        return None
+    low = int(match.group(1))
+    high = int(match.group(2)) if match.group(2) else None
+    if high is None:
+        opened = any(
+            token in match.group(0).lower() for token in ("+", "plus", "or more")
+        )
+        if not opened:
+            high = low  # a bare "5 years" reads as an exact expectation
+    if high is not None and high < low:
+        low, high = high, low
+    return low, high
+
+
 def score_job(job: JobRecord, preferences) -> tuple[int, list[str]]:
     score = 0
     reasons: list[str] = []
@@ -94,6 +118,20 @@ def score_job(job: JobRecord, preferences) -> tuple[int, list[str]]:
         else:
             score -= 25
             reasons.append("remote not explicit")
+
+    experience = _experience_years(searchable)
+    if experience:
+        low, high = experience
+        high = preferences.max_experience_years if high is None else high
+        if (
+            low <= preferences.max_experience_years
+            and high >= preferences.min_experience_years
+        ):
+            score += 10
+            reasons.append("experience range matches")
+        else:
+            score -= 15
+            reasons.append("experience range outside preference")
 
     if preferences.exclude_internships and re.search(
         r"\bintern(ship)?\b", searchable, re.IGNORECASE

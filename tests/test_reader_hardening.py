@@ -42,6 +42,16 @@ def test_clean_title_removes_duplicate_rendering_and_verification():
     ) == "Senior Power BI Developer"
 
 
+def test_clean_title_removes_concatenated_duplicate_rendering():
+    # Live cards sometimes concatenate the duplicate title with no separator.
+    assert _clean_title(
+        "Business Intelligence ManagerBusiness Intelligence Manager"
+    ) == "Business Intelligence Manager"
+    assert _clean_title(
+        "Data Visualization Specialist (Remote)Data Visualization Specialist (Remote)"
+    ) == "Data Visualization Specialist (Remote)"
+
+
 def test_profile_name_can_fall_back_to_linkedin_title():
     assert _name_from_title("Amit Kumar | LinkedIn") == "Amit Kumar"
     assert _name_from_title("Feed | LinkedIn") == ""

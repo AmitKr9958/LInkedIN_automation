@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 class JobPreferences(BaseModel):
@@ -11,5 +11,5 @@ class ActionDraft(BaseModel):
     action: str
     target: str
     text: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     approved: bool = False

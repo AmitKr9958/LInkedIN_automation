@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import ROOT
+from .store import log_activity
 
 
 @dataclass
@@ -55,6 +56,13 @@ class ApprovalQueue:
                 (item_id, action, target, payload, "pending", now),
             )
             db.commit()
+        log_activity(
+            "approval_requested",
+            target,
+            "pending",
+            f"{action}: {payload[:100]}",
+            path=self.path,
+        )
         return item_id
 
     def list_pending(self) -> list[ApprovalItem]:
@@ -77,4 +85,11 @@ class ApprovalQueue:
                 (status, datetime.now(timezone.utc).isoformat(), item_id),
             )
             db.commit()
-        return cursor.rowcount == 1
+            if cursor.rowcount != 1:
+                return False
+            row = db.execute(
+                "SELECT action, target FROM approval_queue WHERE id=?", (item_id,)
+            ).fetchone()
+        action, target = row if row else (item_id, item_id)
+        log_activity("approval_decided", target, status, f"action={action}", path=self.path)
+        return True

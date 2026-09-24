@@ -24,3 +24,30 @@ def test_stale_job_gets_negative_recency_signal():
     job = JobRecord("Power BI Developer", "Example", "Gurgaon", posted_text="3 days ago")
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
     assert "outside posting window" in ranked[0]["reasons"]
+
+
+def test_matching_experience_range_gets_signal():
+    job = JobRecord(
+        "BI Developer", "Example", "Gurgaon",
+        description="Requires 6+ years of experience with Power BI.",
+    )
+    ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+    assert "experience range matches" in ranked[0]["reasons"]
+
+
+def test_mismatched_experience_range_gets_negative_signal():
+    job = JobRecord(
+        "Data Analyst", "Example", "Gurgaon",
+        description="1-2 years of experience required.",
+    )
+    ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+    assert "experience range outside preference" in ranked[0]["reasons"]
+
+
+def test_bare_years_treated_as_exact_expectation():
+    job = JobRecord(
+        "Reporting Analyst", "Example", "Gurgaon",
+        description="2 years experience preferred.",
+    )
+    ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+    assert "experience range outside preference" in ranked[0]["reasons"]

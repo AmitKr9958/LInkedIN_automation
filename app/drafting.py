@@ -20,6 +20,14 @@ def followup_message(name: str, role: str) -> Draft:
           "I remain interested and would be happy to share any additional details needed.")
     return Draft("followup",name,text,"Polite follow-up without pressure")
 
+def connection_note(name: str, role: str, skills: list[str]) -> Draft:
+    skill_text=", ".join(skills[:3]) or "analytics and reporting"
+    text=(f"Hi {name}, I’m exploring {role} roles and came across your profile. "
+          f"My background includes {skill_text} — I’d value staying connected.")
+    if len(text)>300:
+        text=text[:297].rstrip()+"..."
+    return Draft("connection_note",name,text,"Short note kept within LinkedIn’s 300-character limit")
+
 def post_draft(topic: str, points: list[str]) -> Draft:
     body="\n\n".join([topic]+[f"• {p}" for p in points])
     return Draft("post","self",body,"Structured draft for manual review")

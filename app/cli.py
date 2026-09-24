@@ -4,6 +4,7 @@ import json
 import typer
 
 from .application_tracker import ApplicationTracker, STATUSES
+from .cli_intelligence import app as intelligence_app
 from .job_normalize import dedupe_jobs
 from .doctor import run_doctor
 from .orchestrator import build_discovery_report
@@ -155,6 +156,7 @@ def reject(item_id: str):
 
 applications = typer.Typer(help="Track job applications locally.")
 app.add_typer(applications, name="applications")
+app.add_typer(intelligence_app, name="intel")
 
 
 @applications.command("add")
