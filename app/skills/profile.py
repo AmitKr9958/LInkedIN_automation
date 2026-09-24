@@ -94,3 +94,31 @@ def _name_from_title(title: str) -> str:
         if candidate and candidate.lower() not in {"linkedin", "feed"}:
             return candidate
     return ""
+
+
+async def _first_candidate(page, selector: str, exclude: set[str]) -> str:
+    loc = page.locator(selector)
+    try:
+        for i in range(min(await loc.count(), 20)):
+            value = " ".join(((await loc.nth(i).text_content()) or "").split())
+            if value and value.lower() not in exclude and len(value) > 2:
+                return value
+    except Exception:
+        pass
+    return ""
+
+
+async def _first_location_candidate(page, selector: str, exclude: set[str]) -> str:
+    loc = page.locator(selector)
+    try:
+        for i in range(min(await loc.count(), 30)):
+            value = " ".join(((await loc.nth(i).text_content()) or "").split())
+            lower = value.lower()
+            if value and lower not in exclude and (
+                "," in value or " india" in lower or "gurgaon" in lower
+                or "gurugram" in lower or "delhi" in lower or "noida" in lower
+            ):
+                return value
+    except Exception:
+        pass
+    return ""
