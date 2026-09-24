@@ -32,6 +32,7 @@ PROFILE_HEADLINE_SELECTORS = (
     "main .text-body-medium.break-words",
     "main .text-body-medium",
     "[class*='headline']",
+    "[class*='text-body-medium']",
 )
 
 PROFILE_LOCATION_SELECTORS = (
@@ -40,6 +41,7 @@ PROFILE_LOCATION_SELECTORS = (
     "main .text-body-small.inline",
     "main .text-body-small",
     "[class*='location']",
+    "[class*='text-body-small']",
 )
 
 
