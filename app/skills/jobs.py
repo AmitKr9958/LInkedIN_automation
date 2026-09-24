@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from urllib.parse import quote_plus, urljoin
+import re
+
+from ..job_normalize import normalize_job_url
 
 from ..config import settings
 
@@ -41,6 +44,7 @@ COMPANY_SELECTORS = (
     ".job-card-container__company-name",
     ".artdeco-entity-lockup__subtitle a",
     ".artdeco-entity-lockup__subtitle",
+    "a[href*=\"/company/\"]",
     "h4",
 )
 
@@ -117,19 +121,16 @@ def _clean_title(value: str) -> str:
 
 async def _posted(card) -> str:
     value = await _text(card, POSTED_SELECTORS)
-    if value:
+    if value and value.strip().lower() not in {"promoted", "sponsored"}:
         return value
-    # Footer text is a useful fallback when LinkedIn changes the inner span.
     text = " ".join((await card.inner_text()).split())
-    lowered = text.lower()
-    for marker in (" ago", "today", "yesterday", "hour", "day", "week", "month"):
-        idx = lowered.find(marker)
-        if idx >= 0:
-            start = max(0, idx - 30)
-            candidate = text[start: idx + len(marker)].strip(" ·|-")
-            if candidate:
-                return candidate
-    return ""
+    match = re.search(
+        r"(?i)\\b(?:just now|\\d+\\s+(?:minute|hour|day|week|month)s?\\s+ago|"
+        r"today|yesterday|\\d+\\s+(?:minute|hour|day|week|month)s?\\b)"
+        r"(?:\\s+within the past 24 hours)?",
+        text,
+    )
+    return match.group(0).strip() if match else ""
 
 
 async def search(page, keywords: str, location: str = "", start: int = 0) -> list[Job]:
@@ -176,7 +177,8 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
 
         href = await _href(card)
         # Deduplicate by canonical job URL first, then by meaningful content.
-        key = href.split("?", 1)[0].rstrip("/").lower()
+        canonical_href = normalize_job_url(href)
+        key = canonical_href.lower()
         title = _clean_title(await _text(card, TITLE_SELECTORS))
         company = await _text(card, COMPANY_SELECTORS)
         location_text = await _text(card, LOCATION_SELECTORS)
@@ -212,7 +214,7 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
                 title=title,
                 company=company,
                 location=location_text,
-                href=href,
+                href=canonical_href or href,
                 posted=posted,
                 easy_apply=easy_apply,
                 text=text,
