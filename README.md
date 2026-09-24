@@ -20,7 +20,7 @@ The agent is designed as a **personal LinkedIn productivity control layer**:
 
 ## Important LinkedIn limitation
 
-LinkedIn's current User Agreement says members must not use unauthorized bots, scripts or other automated methods to scrape/copy the service or to automate actions such as adding contacts, sending/redirecting messages, or creating/liking/commenting/sharing posts. LinkedIn also states that third-party software that automates activity on its website is prohibited and may lead to account restrictions. citeturn0search0turn0search1
+LinkedIn's current User Agreement says members must not use unauthorized bots, scripts or other automated methods to scrape/copy the service or to automate actions such as adding contacts, sending/redirecting messages, or creating/liking/commenting/sharing posts. LinkedIn also states that third-party software that automates activity on its website is prohibited and may lead to account restrictions.
 
 Therefore this repository **does not implement an unrestricted autonomous bot that takes over the account**. The safe architecture is:
 
@@ -121,22 +121,13 @@ Orchestrator ---- optional LLM provider
 
 ## Current implementation status
 
-All 24 registered skills are present:
+All 24 skills are registered/governed. Their implementation boundaries are explicit:
 
-1. auth
-2. profile
-3. jobs
-4. people
-5. companies
-6. posts
-7. saved
-8. connections
-9. messaging
-10. engagement
-11. leadgen
-12. followups
+- **Live read layer:** profile, jobs, people, companies, posts and saved items.
+- **Content/intelligence layer:** 12 local drafting and analysis skills.
+- **Account/workflow layer:** authentication, connections, messaging, engagement, lead generation and follow-ups are governed workflow surfaces; consequential account-changing execution remains behind the approval gateway and is not an autonomous UI executor.
 
-The operational read layer currently covers profile, jobs, people, companies, posts and saved items. The content/intelligence layer adds 12 governed drafting and analysis skills. Drafting and approval infrastructure exists for consequential actions. Application tracking, job normalization, discovery reporting, and JSON/CSV export are local and independent of LinkedIn.
+Application tracking, job normalization, discovery reporting, and JSON/CSV export are local and independent of LinkedIn.
 
 ## Testing
 
@@ -175,4 +166,4 @@ The remaining engineering layers are release hardening rather than unrestricted 
 - add a Windows scheduled **read-only** discovery workflow
 - add optional user-confirmed browser handoff for individual actions
 
-This keeps the tool useful for your job search while avoiding automation patterns that LinkedIn explicitly prohibits. citeturn0search0turn0search2
+This keeps the tool useful for your job search while avoiding automation patterns that LinkedIn explicitly prohibits.
