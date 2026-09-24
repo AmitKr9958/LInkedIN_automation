@@ -121,7 +121,7 @@ Orchestrator ---- optional LLM provider
 
 ## Current implementation status
 
-All 12 skill modules are present:
+All 24 registered skills are present:
 
 1. auth
 2. profile
@@ -136,7 +136,7 @@ All 12 skill modules are present:
 11. leadgen
 12. followups
 
-The operational read layer currently covers profile, jobs, people, companies, posts and saved items. Drafting and approval infrastructure exists for consequential actions. Application tracking and job normalization are local and independent of LinkedIn.
+The operational read layer currently covers profile, jobs, people, companies, posts and saved items. The content/intelligence layer adds 12 governed drafting and analysis skills. Drafting and approval infrastructure exists for consequential actions. Application tracking, job normalization, discovery reporting, and JSON/CSV export are local and independent of LinkedIn.
 
 ## Testing
 
@@ -167,11 +167,10 @@ Do not put a real LinkedIn login/session into CI.
 
 ## Roadmap
 
-The next engineering layers are release hardening rather than unrestricted account takeover:
+The remaining engineering layers are release hardening rather than unrestricted account takeover:
 
 - improve resilient selectors as LinkedIn UI changes
-- add job deduplication and discovery reporting to the CLI
-- add CSV/JSON reporting
+- harden resilient selectors and fixture coverage as LinkedIn UI changes
 - add a local dashboard for jobs, applications and approvals
 - add a Windows scheduled **read-only** discovery workflow
 - add optional user-confirmed browser handoff for individual actions
