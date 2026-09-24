@@ -10,3 +10,5 @@ def test_job_history_upsert_and_blank_url(tmp_path):
     assert rows[0][2] == "Noida"
     h.upsert_job({"title":"Another","company":"X"}, 10, [])
     assert len(h.recent()) == 2
+    assert h.get_by_url(job["url"])[2] == "Noida"
+    assert h.get_by_url("") is None
