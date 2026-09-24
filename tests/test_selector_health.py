@@ -19,12 +19,13 @@ class Locator:
 
 
 class Page:
-    def __init__(self, url, visible_selectors=None):
+    def __init__(self, url, visible_selectors=None, page_title="LinkedIn"):
         self.url = url
         self.visible_selectors = set(visible_selectors or [])
+        self.page_title = page_title
 
     async def title(self):
-        return "LinkedIn"
+        return self.page_title
 
     def locator(self, selector):
         return Locator(selector in self.visible_selectors)
@@ -53,7 +54,11 @@ async def test_session_state_rejects_unknown_non_login_page():
 
 @pytest.mark.asyncio
 async def test_session_state_rejects_login_page_even_with_generic_main_shell():
-    state = await current_session_state(Page("https://www.linkedin.com/", {"main[role='main']"}))
+    state = await current_session_state(Page(
+        "https://www.linkedin.com/",
+        {"main[role='main']"},
+        "LinkedIn: Log In or Sign Up",
+    ))
     assert state["authenticated"] is False
     assert state["confidence"] == "high"
 
