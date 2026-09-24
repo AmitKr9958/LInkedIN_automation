@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 
-from playwright.async_api import BrowserContext, TimeoutError as PlaywrightTimeoutError, async_playwright
+from playwright.async_api import BrowserContext, Error as PlaywrightError, async_playwright
 
 from .config import settings
+
 
 @asynccontextmanager
 async def linkedin_browser():
@@ -19,10 +20,17 @@ async def linkedin_browser():
                 viewport={"width": 1440, "height": 900},
                 timeout=30_000,
             )
-        except PlaywrightTimeoutError as exc:
+        except PlaywrightError as exc:
+            detail = str(exc).lower()
+            if "user data directory is already in use" in detail or "singleton" in detail:
+                reason = "the local browser profile is already in use"
+            elif "executable doesn't exist" in detail or "browserType.launch" in detail:
+                reason = "Chromium is not installed"
+            else:
+                reason = "Chromium could not be started"
             raise RuntimeError(
-                "Could not start Chromium. Run 'python -m playwright install chromium' "
-                "and verify that the local browser profile is not already locked."
+                f"{reason}. Close other agent/Chromium instances using this profile "
+                "or run 'python -m playwright install chromium'."
             ) from exc
         try:
             yield context
