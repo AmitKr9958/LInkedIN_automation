@@ -50,7 +50,7 @@ Before a release is considered production-ready:
 - pytest -q -m "not e2e"
 - Playwright browser smoke tests pass
 - no secrets or local browser profile committed
-- action gateway tests pass
+- action gateway tests pass (queueing and per-run action-limit enforcement)
 - policy tests pass
 - application tracker tests pass
 - README/setup instructions are current
@@ -68,7 +68,7 @@ Before a release is considered production-ready:
 
 ## Current status
 
-The automated release gates are passing in GitHub Actions. The remaining work is live-account validation after the user performs manual login; CI intentionally does not use an authenticated LinkedIn session.
+The automated release gates pass locally and in GitHub Actions. Live-account validation has been performed on the authenticated session: session status, job search with posted-time/company extraction, and 48-hour recency filtering were verified. CI intentionally does not use an authenticated LinkedIn session.
 
 ## User setup later
 

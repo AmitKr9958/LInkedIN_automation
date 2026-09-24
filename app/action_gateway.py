@@ -19,11 +19,18 @@ class ActionGateway:
 
     def __init__(self, queue: ApprovalQueue | None = None):
         self.queue = queue or ApprovalQueue()
+        self._requested = 0
 
     def request(self, request: ActionRequest) -> str:
         policy = policy_from_settings()
         if not request.action.strip() or not request.target.strip():
             raise ValueError("action and target are required")
+        if self._requested >= policy.max_actions_per_run:
+            raise RuntimeError(
+                f"Run action limit reached ({policy.max_actions_per_run}). "
+                "Further account-changing actions are blocked for this run."
+            )
+        self._requested += 1
 
         payload = json.dumps(request.payload, ensure_ascii=False)
         if policy.dry_run:

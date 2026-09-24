@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from app.job_normalize import dedupe_jobs, normalize_job_url
 from app.skills.jobs import _clean_title
 from app.skills.profile import _name_from_title
@@ -57,7 +59,13 @@ def test_profile_name_can_fall_back_to_linkedin_title():
     assert _name_from_title("Feed | LinkedIn") == ""
 
 
-from app.skills.jobs import _POSTED_RE, _fallback_company
+from app.skills.jobs import (
+    _POSTED_RE,
+    _fallback_company,
+    _logo_company,
+    _normalize_posted,
+    _relative_from_datetime,
+)
 from app.skills.profile import _parse_top_card
 
 
@@ -89,3 +97,69 @@ New Delhi, Delhi, India
     assert name == "Amit Kumar"
     assert headline.startswith("Senior Power BI Developer")
     assert "Delhi" in location
+
+
+def test_normalize_posted_strips_suffix_and_normalizes_just_now():
+    assert _normalize_posted("21 hours ago Within the past 24 hours") == "21 hours ago"
+    assert _normalize_posted("just now") == "Just now"
+    assert _normalize_posted("1 month ago") == "1 month ago"
+
+
+def test_normalize_posted_rejects_non_time_text():
+    # Selector fallbacks can return badges such as "Easy Apply"; those must
+    # never leak into the posted field.
+    assert _normalize_posted("Easy Apply") == ""
+    assert _normalize_posted("Viewed Promoted") == ""
+    assert _normalize_posted("") == ""
+
+
+def test_relative_datetime_fallback_converts_dates():
+    now = datetime.now(timezone.utc)
+    assert _relative_from_datetime(now.isoformat()) == "Just now"
+    assert _relative_from_datetime((now - timedelta(days=3)).isoformat()) == "3 days ago"
+    assert _relative_from_datetime("not-a-date") == ""
+
+
+def test_fallback_company_skips_alumni_and_state_noise():
+    raw = """Business Intelligence Manager
+Business Intelligence Manager
+Gurugram, Haryana, India (Hybrid)
+18 school alumni work here
+18 Delhi University school alumni work here
+Promoted"""
+    assert _fallback_company(
+        raw,
+        "Business Intelligence Manager",
+        "Gurugram, Haryana, India (Hybrid)",
+        "",
+    ) == ""
+
+
+class _FakeLocator:
+    def __init__(self, alt):
+        self._alt = alt
+
+    @property
+    def first(self):
+        return self
+
+    async def count(self):
+        return 1 if self._alt is not None else 0
+
+    async def get_attribute(self, name):
+        return self._alt if name == "alt" else None
+
+
+class _FakeCard:
+    def __init__(self, alt):
+        self._alt = alt
+
+    def locator(self, selector):
+        return _FakeLocator(self._alt)
+
+
+async def test_logo_company_extracts_alt_and_skips_placeholder():
+    assert await _logo_company(_FakeCard("EXL logo")) == "EXL"
+    assert await _logo_company(_FakeCard("Quik Hire Staffing logo")) == "Quik Hire Staffing"
+    assert await _logo_company(_FakeCard("{:companyName} logo")) == ""
+    assert await _logo_company(_FakeCard(None)) == ""

@@ -38,3 +38,30 @@ def log_activity(
         con.execute("INSERT INTO activity(created_at, action, target, status, details) VALUES (?, ?, ?, ?, ?)",
                     (datetime.now(timezone.utc).isoformat(), action, target, status, details))
         con.commit()
+
+def list_activity(
+    action: str | None = None,
+    limit: int = 50,
+    path: str | Path | None = None,
+) -> list[tuple]:
+    """Read recent activity newest-first without creating the database.
+
+    The local shared database may only contain the job-history table so far,
+    in which case there is simply no activity to report.
+    """
+    db_path = _db_file(path)
+    if not db_path.exists():
+        return []
+    query = "SELECT created_at, action, target, status, details FROM activity"
+    params: list[object] = []
+    if action:
+        query += " WHERE action = ?"
+        params.append(action)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    with sqlite3.connect(db_path) as con:
+        try:
+            rows = con.execute(query, params).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        return [tuple(row) for row in rows]

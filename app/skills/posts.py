@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from urllib.parse import quote_plus
 from ..config import settings
+from .parsing import dedupe_by
 
 @dataclass
 class Post:
@@ -20,4 +21,4 @@ async def search(page, query: str) -> list[Post]:
         a=card.locator("a[href*='/in/']").first
         if await a.count(): author=" ".join(((await a.text_content()) or "").split()); link=await a.get_attribute("href") or ""
         out.append(Post(author=author,text=text,href=link))
-    return out
+    return dedupe_by(out, lambda post: post.href or post.text)

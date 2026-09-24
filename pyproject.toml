@@ -18,7 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3,<9",
-  "pytest-asyncio>=0.25,<1",
+  "pytest-asyncio>=1.4,<2",
   "pytest-playwright>=0.7,<1",
   "ruff>=0.12,<1",
 ]
@@ -35,6 +35,7 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
   "e2e: browser end-to-end tests",
 ]

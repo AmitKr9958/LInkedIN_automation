@@ -1,6 +1,7 @@
 from app.content_skills import (
-    analyze_engagers, content_plan, extract_hook, humanize, profile_audit,
-    thread_followups, employee_advocacy_plan,
+    analyze_engagers, content_plan, draft_comment, draft_reply, extract_hook,
+    humanize, interviewer_questions, profile_audit, repurpose, thread_followups,
+    employee_advocacy_plan, write_post,
 )
 
 def test_content_plan_bounded():
@@ -22,3 +23,39 @@ def test_engager_and_thread_filters():
 
 def test_advocacy():
     assert employee_advocacy_plan(5, "reach")["team_size"] == 5
+
+def test_write_post_draft_only_with_empty_fallback():
+    draft = write_post("Power BI", "Share a dashboard win")
+    assert draft.kind == "post"
+    assert "Power BI" in draft.text
+    assert draft.metadata["topic"] == "Power BI"
+    assert write_post("", "").kind == "post"
+
+def test_repurpose_preserves_source_text():
+    draft = repurpose("Dashboards should answer one question. Everything else is noise.")
+    assert draft.kind == "repurposed_post"
+    assert "one question" in draft.text
+    assert draft.metadata["goal"] == "engagement"
+    assert repurpose("").kind == "repurposed_post"
+
+def test_draft_comment_handles_short_and_long_context():
+    short = draft_comment("Short post", "Great breakdown")
+    assert short.kind == "comment"
+    assert "Great breakdown" in short.text
+    assert short.metadata["source"] == "Short post"
+    long = draft_comment("word " * 500, "A point")
+    assert long.kind == "comment"
+    assert draft_comment("", "").kind == "comment"
+
+def test_draft_reply_returns_supplied_response_safely():
+    draft = draft_reply("Do you use DAX daily?", "Yes, for measures.")
+    assert draft.kind == "reply"
+    assert draft.text == "Yes, for measures."
+    assert draft.metadata["in_reply_to"] == "Do you use DAX daily?"
+    assert draft_reply("", "").kind == "reply"
+
+def test_interviewer_questions_cover_topic_and_empty():
+    questions = interviewer_questions("Power BI")
+    assert len(questions) == 5
+    assert "Power BI" in questions[0]
+    assert len(interviewer_questions("")) == 5

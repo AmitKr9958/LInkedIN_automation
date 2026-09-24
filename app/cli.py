@@ -6,6 +6,7 @@ import typer
 from .application_tracker import ApplicationTracker, STATUSES
 from .cli_intelligence import app as intelligence_app
 from .job_normalize import dedupe_jobs
+from .history import History
 from .doctor import run_doctor
 from .orchestrator import build_discovery_report
 from .approval_queue import ApprovalQueue
@@ -115,6 +116,17 @@ def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
 
     report = asyncio.run(_run())
     typer.echo(json.dumps(report.ranked, indent=2, default=str))
+
+
+@app.command("history")
+def history(limit: int = 20):
+    """Show recently stored job history from local discovery runs."""
+    rows = History().recent(limit)
+    if not rows:
+        typer.echo("no job history yet")
+        return
+    for row in rows:
+        typer.echo(" | ".join(str(value) for value in row))
 
 
 @app.command("export-applications")

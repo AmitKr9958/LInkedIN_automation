@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from urllib.parse import quote_plus
 from ..config import settings
+from .parsing import dedupe_by
 
 @dataclass
 class Person:
@@ -31,4 +32,4 @@ async def search(page, query: str, location: str = "") -> list[Person]:
         h=card.locator(".entity-result__primary-subtitle")
         if await h.count(): headline=" ".join(((await h.first.text_content()) or "").split())
         out.append(Person(name=name,headline=headline,href=href or "",text=text))
-    return out
+    return dedupe_by(out, lambda person: person.href or person.name)

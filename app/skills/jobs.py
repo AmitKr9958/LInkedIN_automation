@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+from datetime import datetime, timezone
 from urllib.parse import quote_plus, urljoin
 import re
 
@@ -155,12 +156,18 @@ def _fallback_company(raw_text: str, title: str, location: str, posted: str) -> 
     if not raw_text or not title:
         return ""
     excluded = {title.lower(), location.lower(), posted.lower(), *_NOISE_LINES}
+    noise_fragments = ("alumni work here", "within the past", "applicant")
+    noise_lines = {"viewed", "applied", "reposted", "promoted", "sponsored"}
     for line in _lines(raw_text):
         normalized = " ".join(line.split())
         lower = normalized.lower()
         if lower in excluded or _looks_like_location(normalized) or _looks_like_posted(normalized):
             continue
+        if any(fragment in lower for fragment in noise_fragments):
+            continue
         if "easy apply" in lower or "with verification" in lower:
+            continue
+        if lower in noise_lines:
             continue
         # Search cards often render title twice; skip another exact title.
         if lower == title.lower():
@@ -170,18 +177,91 @@ def _fallback_company(raw_text: str, title: str, location: str, posted: str) -> 
     return ""
 
 
+async def _logo_company(card) -> str:
+    """Company name from the company-logo alt text (a stable card signal)."""
+    for selector in ("img[alt$=' logo']", "img[alt$=' Logo']"):
+        loc = card.locator(selector).first
+        try:
+            if not await loc.count():
+                continue
+            alt = ((await loc.get_attribute("alt")) or "").strip()
+        except Exception:
+            continue
+        if "{" in alt:
+            continue  # unhydrated placeholder such as "{:companyName} logo"
+        if alt.lower().endswith(" logo"):
+            value = alt[:-5].strip()
+            if value:
+                return value
+    return ""
+
+
+def _normalize_posted(value: str) -> str:
+    collapsed = " ".join(value.split())
+    if not collapsed:
+        return ""
+    match = _POSTED_RE.search(collapsed)
+    if not match:
+        return ""
+    found = re.sub(
+        r"(?i)\s+within the past 24 hours$", "", match.group(0).strip()
+    ).strip()
+    return "Just now" if found.lower() == "just now" else found
+
+
+def _relative_from_datetime(value: str) -> str:
+    """Convert a time[datetime] attribute into a relative label (conservative)."""
+    if not value:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    days = int((datetime.now(timezone.utc) - parsed).total_seconds() // 86_400)
+    if days <= 0:
+        return "Just now"
+    return f"{days} day{'s' if days != 1 else ''} ago"
+
+
 async def _posted(card) -> str:
-    value = await _text(card, POSTED_SELECTORS)
-    if value and value.strip().lower() not in {"promoted", "sponsored"}:
-        match = _POSTED_RE.search(value)
-        return match.group(0).strip() if match else value.strip()
+    value = _normalize_posted(await _text(card, POSTED_SELECTORS))
+    if value:
+        return value
+
+    try:
+        node = card.locator("time[datetime]").first
+        if await node.count():
+            value = _relative_from_datetime(await node.get_attribute("datetime") or "")
+            if value:
+                return value
+    except Exception:
+        pass
 
     try:
         text = await card.inner_text()
     except Exception:
         text = ""
-    match = _POSTED_RE.search(" ".join(text.split()))
-    return match.group(0).strip() if match else ""
+    return _normalize_posted(" ".join(text.split()))
+
+
+async def _hydrate(page, cards) -> None:
+    """Scroll lazy-loaded results so cards render their full contents."""
+    try:
+        total = min(await cards.count(), 50)
+    except Exception:
+        return
+    for index in range(0, total, 5):
+        try:
+            await cards.nth(index).scroll_into_view_if_needed(timeout=2000)
+            await page.wait_for_timeout(150)
+        except Exception:
+            continue
+    try:
+        await page.wait_for_timeout(400)
+    except Exception:
+        pass
 
 
 async def search(page, keywords: str, location: str = "", start: int = 0) -> list[Job]:
@@ -214,6 +294,8 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
     except Exception:
         pass
 
+    await _hydrate(page, cards)
+
     result: list[Job] = []
     seen: set[str] = set()
 
@@ -227,11 +309,17 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
         href = await _href(card)
         title = _clean_title(await _text(card, TITLE_SELECTORS))
         company = await _text(card, COMPANY_SELECTORS)
+        if not company:
+            company = await _logo_company(card)
         location_text = await _text(card, LOCATION_SELECTORS)
         posted = await _posted(card)
 
         if not company:
             company = _fallback_company(text, title, location_text, posted)
+
+        # Skip fully unhydrated placeholder cards with no usable fields.
+        if not title and not company and not location_text:
+            continue
 
         canonical_href = normalize_job_url(href)
         key = canonical_href.lower()

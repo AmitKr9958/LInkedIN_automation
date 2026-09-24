@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from urllib.parse import quote_plus
 from ..config import settings
+from .parsing import dedupe_by
 
 @dataclass
 class Company:
@@ -27,4 +28,4 @@ async def search(page, query: str) -> list[Company]:
                 name=" ".join(((await loc.first.text_content()) or "").split())
                 if name: break
         out.append(Company(name=name,href=href or "",text=text))
-    return out
+    return dedupe_by(out, lambda company: company.href or company.name)

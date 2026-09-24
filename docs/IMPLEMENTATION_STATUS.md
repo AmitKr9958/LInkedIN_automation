@@ -8,7 +8,7 @@
 - Centralized LinkedIn selector layer
 - Conservative LinkedIn session-state verification
 - SQLite activity/history store
-- Dry-run and human approval gate
+- Dry-run and human approval gate with enforced per-run action limit
 - CLI entry point and production-readiness doctor
 
 ### LinkedIn read layer
@@ -18,15 +18,18 @@
 - People/recruiter search
 - Company search
 - Post/content search
-- Saved-post extraction
+- Saved-post extraction with permalink capture
+- Result deduplication for people, company, post and saved reads (shared parsing helper)
 
 ### Job intelligence
 - Job preference model
 - LinkedIn job URL normalization
 - Preference-based job ranking
+- Robust posted-time extraction (time element, datetime fallback, conservative blanks)
+- Company extraction hardening (logo-alt signal, noise-line filtering, placeholder-card skip)
 - Experience-range matching against configured minimum/maximum years
 - Discovery-report job persistence fix (ranked dict records)
-- Local job history and discovery reporting
+- Local job history and discovery reporting (`python -m app history`)
 - JSON/CSV application export
 
 ### Application management
@@ -35,6 +38,7 @@
 - Approval queue with SQLite persistence
 - Legacy approval-queue schema migration
 - Local activity log for approval requests/decisions and discovery runs
+- Follow-up lifecycle records (create, list, duplicate-safe, validated status transitions)
 
 ### Skills
 - 24 registered/governed skills
@@ -65,10 +69,13 @@ The latest live test exposed profile-field and job-card extraction defects. Read
 - stable job-card selector fallback order
 - duplicate job-card suppression
 - duplicate rendered job-title cleanup (including no-separator concatenated titles)
+- robust posted-time extraction (time element text, datetime fallback, "within the past 24 hours" suffix normalization, no badge leakage)
+- company extraction hardening (logo-alt fallback, alumni/state noise filtering, unhydrated placeholder cards skipped)
+- lazy job-card hydration (scrolling so cards render their full contents)
 - canonical LinkedIn job URL normalization
 - regression tests for these cases
 
-Release validation has been rerun against the current working tree: the local unit/E2E suite passes (59 tests), `python -m app doctor` reports all checks green, and live read validation (`status` plus a Power BI/Gurgaon job search) confirmed an authenticated session with clean job-card extraction.
+Release validation has been rerun against the current working tree: the local unit/E2E suite passes (77 tests) warning-free (pytest-asyncio 1.x on Python 3.14), `python -m app doctor` reports all checks green, and live validation (`status` plus a Power BI/Gurgaon job search) confirmed an authenticated session, clean job-card extraction, posted-time extraction wherever LinkedIn renders it, and correct 48-hour recency filtering ("21 hours ago" scored as recent, "2 weeks ago" as outside the window).
 
 ## Operational note
 
