@@ -36,14 +36,17 @@ def list_followups(limit: int = 50, path=None) -> list[FollowUp]:
             if key not in records:
                 records[key] = FollowUp(target or "", message, due_at, status or "pending")
                 order.append(key)
-        elif action == "followup_status":
-            from_status = ""
-            if "from=" in (details or ""):
-                from_status = details.split("from=", 1)[1]
-            candidates = [key for key, item in records.items() if item.target == (target or "")]
+        elif action in ("followup_status", "followup_response"):
+            details = details or ""
+            due_at = details.split("due_at=", 1)[1].split(";", 1)[0] if "due_at=" in details else ""
+            from_status = details.split("from=", 1)[1].split(";", 1)[0] if "from=" in details else ""
+            candidates = [
+                key for key, item in records.items()
+                if item.target == (target or "") and (not due_at or item.due_at == due_at)
+            ]
             if candidates:
                 key = candidates[-1]
-                if not from_status or records[key].status == from_status:
+                if action == "followup_response" or not from_status or records[key].status == from_status:
                     records[key].status = status or records[key].status
 
     return [records[key] for key in order[-limit:]]
