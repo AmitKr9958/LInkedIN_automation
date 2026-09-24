@@ -73,3 +73,20 @@ def draft_followup(target: OutreachTarget, message: str, due_at: str | None = No
     payload = {"target": target.to_dict(), "message": message, "due_at": due_at, "status": "drafted"}
     log_activity("outreach_followup_drafted", target.name, "drafted", f"due_at={due_at}")
     return payload
+
+
+def build_outreach_plan(people: list, job: dict) -> list[OutreachTarget]:
+    """Rank already-read people against one job without performing outreach."""
+    job_title = str(job.get("title", ""))
+    company = str(job.get("company", ""))
+    targets = []
+    for person in people:
+        target = score_target(person, job_title, company)
+        if target.target_type != "other":
+            target.job_url = str(job.get("url") or job.get("href") or "")
+            targets.append(target)
+    return sorted(
+        targets,
+        key=lambda item: int(item.relevance_reason.rsplit("=", 1)[-1]),
+        reverse=True,
+    )
