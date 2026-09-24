@@ -21,7 +21,7 @@ def test_score_target_and_drafts(tmp_path):
     assert target.profile_url.endswith("/recruiter-one")
     draft = draft_connection(target, "Power BI Developer", ["Power BI", "SQL"])
     assert draft["status"] == "drafted"
-    follow = draft_followup(target, "Thanks for connecting.", path=None)
+    follow = draft_followup(target, "Thanks for connecting.")
     assert follow["status"] == "drafted"
     assert follow["target"]["name"] == "Recruiter One"
 
