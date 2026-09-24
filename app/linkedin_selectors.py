@@ -28,6 +28,5 @@ PROFILE_MARKERS = [
 AUTHENTICATED_MARKERS = [
     "[data-view-name='feed']",
     "a[href*='/feed/']",
-    "nav[aria-label*='Primary']",
     "button[aria-label*='Me']",
 ]
