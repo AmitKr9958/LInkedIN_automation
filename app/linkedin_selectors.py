@@ -3,12 +3,17 @@
 LOGIN_MARKERS = [
     "input[name='session_key']",
     "input[name='session_password']",
-    "button[type='submit']",
+    "input[autocomplete='username']",
+    "input[autocomplete='current-password']",
+    "form[action*='/login']",
 ]
 
 FEED_MARKERS = [
-    "main",
     "[data-view-name='feed']",
+    "main[role='main']",
+    "div[role='main']",
+    "nav[aria-label*='Primary']",
+    "a[href*='/feed/']",
 ]
 
 JOB_CARD_SELECTORS = [
@@ -18,6 +23,8 @@ JOB_CARD_SELECTORS = [
 ]
 
 PROFILE_MARKERS = [
-    "main",
-    "section",
+    "a[href*='/in/']",
+    "a[href*='/mynetwork/']",
+    "button[aria-label*='profile']",
+    "main[role='main']",
 ]
