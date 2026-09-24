@@ -28,6 +28,7 @@ The registry currently contains 26 governed skills.
 - leadgen
 - followups
 - outreach
+- outreach
 
 ### Content/intelligence skills
 - post_writer
@@ -35,11 +36,13 @@ The registry currently contains 26 governed skills.
 - comment_drafter
 - reply_handler
 - post_audit
+- post_audit
 - humanizer
 - hook_extractor
 - repurposer
 - profile_optimizer
 - interviewer
+- story_bank
 - story_bank
 - engager_analytics
 - thread_monitor
@@ -58,6 +61,7 @@ Before a release is considered production-ready:
 - policy tests pass
 - application tracker tests pass
 - Story Bank, outreach and self-test contract tests pass
+- Story Bank, outreach and self-test contract tests pass
 - README/setup instructions are current
 - no stale skill-count assertions or documentation remain
 
@@ -68,6 +72,7 @@ Before a release is considered production-ready:
 - Credentials, OTPs and session cookies are never requested by the agent.
 - CAPTCHA/security challenges are handled by the user.
 - Consequential actions are approval-gated.
+- Approval records are not treated as proof that LinkedIn completed an action.
 - Approval records are not treated as proof that LinkedIn completed an action.
 - Bulk unsolicited messaging, security bypass and stealth/evasion are disabled.
 - CI never receives a real LinkedIn session.
