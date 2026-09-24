@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 class History:
-    def __init__(self,path="data/activity.sqlite3"):
-        Path(path).parent.mkdir(parents=True,exist_ok=True)
-        self.path=path
+    def __init__(self, path="data/activity.sqlite3"):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        self.path = path
         with sqlite3.connect(path) as db:
             db.execute("""CREATE TABLE IF NOT EXISTS job_history(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -14,18 +14,35 @@ class History:
                 score INTEGER, reasons TEXT, first_seen TEXT,
                 status TEXT DEFAULT 'new', notes TEXT DEFAULT ''
             )""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_job_history_url ON job_history(url)")
             db.commit()
 
     def upsert_job(self, job: dict, score: int, reasons: list[str]) -> None:
+        url = (job.get("url") or "").strip()
+        now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(self.path) as db:
-            db.execute("""INSERT INTO job_history(title,company,location,url,score,reasons,first_seen)
-                         VALUES(?,?,?,?,?,?,?)
-                         ON CONFLICT(url) DO UPDATE SET score=excluded.score,reasons=excluded.reasons""",
-                       (job.get("title",""),job.get("company",""),job.get("location",""),
-                        job.get("url",""),score,", ".join(reasons),
-                        datetime.now(timezone.utc).isoformat()))
+            if url:
+                row = db.execute("SELECT id FROM job_history WHERE url=? ORDER BY id LIMIT 1", (url,)).fetchone()
+            else:
+                row = None
+            if row:
+                db.execute("""UPDATE job_history
+                             SET title=?, company=?, location=?, score=?, reasons=?
+                             WHERE id=?""",
+                           (job.get("title",""), job.get("company",""), job.get("location",""),
+                            score, ", ".join(reasons), row[0]))
+            else:
+                db.execute("""INSERT INTO job_history
+                             (title,company,location,url,score,reasons,first_seen)
+                             VALUES(?,?,?,?,?,?,?)""",
+                           (job.get("title",""), job.get("company",""), job.get("location",""),
+                            url, score, ", ".join(reasons), now))
             db.commit()
 
     def recent(self, limit=50):
+        limit = max(1, min(int(limit), 1000))
         with sqlite3.connect(self.path) as db:
-            return db.execute("SELECT title,company,location,url,score,reasons,status,first_seen FROM job_history ORDER BY id DESC LIMIT ?",(limit,)).fetchall()
+            return db.execute(
+                """SELECT title,company,location,url,score,reasons,status,first_seen
+                   FROM job_history ORDER BY id DESC LIMIT ?""", (limit,)
+            ).fetchall()
