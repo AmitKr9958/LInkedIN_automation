@@ -29,7 +29,7 @@ def doctor():
 
 @app.command()
 def status():
-    result = asyncio.run(login_check(wait_for_login=False))
+    result = asyncio.run(login_check(wait_for_login=False, open_url=f"{settings.linkedin_base_url}/feed/"))
     typer.echo(f"{result.action}: {result.status} - {result.details}")
     typer.echo(f"dry_run={settings.dry_run}, headless={settings.headless}")
 
