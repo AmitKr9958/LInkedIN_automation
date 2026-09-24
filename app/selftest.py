@@ -24,6 +24,8 @@ MODULES = (
     "app.voice",
     "app.story_bank",
     "app.outreach",
+    "app.media",
+    "app.publishing",
     "app.application_tracker",
     "app.history",
     "app.approval_queue",
