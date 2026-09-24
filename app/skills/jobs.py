@@ -89,7 +89,6 @@ DETAIL_POSTED_SELECTORS = (
     ".job-details-jobs-unified-top-card__primary-description-container",
 )
 
-# Only records with missing company/posted are hydrated, and never more than this.
 MAX_DETAIL_HYDRATION = 10
 
 _POSTED_RE = re.compile(
@@ -136,15 +135,11 @@ def _clean_title(value: str) -> str:
         index = value.lower().find(marker)
         if index >= 0:
             value = value[:index].strip()
-
-    # Some LinkedIn cards render the title twice with no separator at all
-    # ("TitleTitle"); collapse exact character-level duplication first.
     length = len(value)
     if length >= 4 and length % 2 == 0:
         half = length // 2
         if value[:half] == value[half:]:
             value = value[:half]
-
     words = value.split()
     if len(words) >= 2 and len(words) % 2 == 0:
         half = len(words) // 2
@@ -157,36 +152,30 @@ def _lines(value: str) -> list[str]:
     return [line.strip() for line in value.splitlines() if line.strip()]
 
 
-def _normalize_location_token(value: str) -> str:
-    """Normalize common LinkedIn city spellings for local location filtering."""
-    value = re.sub(r"[^a-z0-9\\s]", " ", (value or "").lower())
-    value = re.sub(r"\\s+", " ", value).strip()
-    aliases = {
-        "gurugram": "gurgaon",
-        "ncr": "delhi",
-    }
-    for source, target in aliases.items():
-        value = re.sub(rf"\\b{re.escape(source)}\\b", target, value)
-    return value
+def _normalize_location_text(value: str) -> str:
+    """Normalize punctuation/aliases while preserving words for token matching."""
+    normalized = (value or "").lower()
+    normalized = normalized.replace("–", "-").replace("—", "-")
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    normalized = re.sub(r"\bgurugram\b", "gurgaon", normalized)
+    normalized = re.sub(r"\bncr\b", "delhi", normalized)
+    return normalized
 
 
 def _location_matches_requested(location: str, requested: str) -> bool:
-    """Return True only when the returned job location matches the requested city.
-
-    LinkedIn can ignore/relax the search location and return nationwide or foreign
-    remote jobs. Those records must not leak into a city-scoped read.
-    """
-    requested_token = _normalize_location_token(requested)
+    """Return whether a LinkedIn result explicitly contains the requested city."""
+    requested_token = _normalize_location_text(requested)
+    actual = _normalize_location_text(location)
     if not requested_token:
         return True
-    actual = (location or "").lower()
     if not actual:
         return False
-    # Generic country-wide remote results are not a city match.
-    if "remote" in actual and requested_token not in _normalize_location_token(actual):
+    requested_words = requested_token.split()
+    actual_words = set(actual.split())
+    if not all(word in actual_words for word in requested_words):
         return False
-    normalized_actual = _normalize_location_token(actual)
-    return bool(re.search(rf"\\b{re.escape(requested_token)}\\b", normalized_actual))
+    return True
 
 
 def _looks_like_location(value: str) -> bool:
@@ -197,10 +186,7 @@ def _looks_like_location(value: str) -> bool:
         or "remote" in lower
         or "on-site" in lower
         or "hybrid" in lower
-        or any(
-            token in lower
-            for token in ("india", "delhi", "gurgaon", "gurugram", "noida", "jaipur")
-        )
+        or any(token in lower for token in ("india", "delhi", "gurgaon", "gurugram", "noida", "jaipur"))
     )
 
 
@@ -223,10 +209,7 @@ def _fallback_company(raw_text: str, title: str, location: str, posted: str) -> 
             continue
         if "easy apply" in lower or "with verification" in lower:
             continue
-        if lower in noise_lines:
-            continue
-        # Search cards often render title twice; skip another exact title.
-        if lower == title.lower():
+        if lower in noise_lines or lower == title.lower():
             continue
         if len(normalized) > 1:
             return normalized
@@ -234,7 +217,6 @@ def _fallback_company(raw_text: str, title: str, location: str, posted: str) -> 
 
 
 async def _logo_company(card) -> str:
-    """Company name from the company-logo alt text (a stable card signal)."""
     for selector in ("img[alt$=' logo']", "img[alt$=' Logo']"):
         loc = card.locator(selector).first
         try:
@@ -244,7 +226,7 @@ async def _logo_company(card) -> str:
         except Exception:
             continue
         if "{" in alt:
-            continue  # unhydrated placeholder such as "{:companyName} logo"
+            continue
         if alt.lower().endswith(" logo"):
             value = alt[:-5].strip()
             if value:
@@ -253,16 +235,13 @@ async def _logo_company(card) -> str:
 
 
 def _clean_company_attr(value: str) -> str:
-    """Sanitize an attribute-derived company label before accepting it."""
     value = " ".join(value.split())
     lowered = value.lower()
     for prefix in ("company, ", "company: "):
         if lowered.startswith(prefix):
             value = value[len(prefix):].strip()
             lowered = value.lower()
-    if not value or len(value) > 80:
-        return ""
-    if _looks_like_location(value) or _looks_like_posted(value):
+    if not value or len(value) > 80 or _looks_like_location(value) or _looks_like_posted(value):
         return ""
     return value
 
@@ -288,9 +267,7 @@ def _normalize_posted(value: str) -> str:
     match = _POSTED_RE.search(collapsed)
     if not match:
         return ""
-    found = re.sub(
-        r"(?i)\s+within the past 24 hours$", "", match.group(0).strip()
-    ).strip()
+    found = re.sub(r"(?i)\s+within the past 24 hours$", "", match.group(0).strip()).strip()
     lowered = found.lower()
     if lowered == "just now":
         return "Just now"
@@ -312,7 +289,6 @@ _UNIT_HOURS = {
 
 
 def _hours_from_posted(posted: str) -> float | None:
-    """Numeric recency in hours for a normalized posted label; None when unknown."""
     value = posted.strip().lower()
     if not value:
         return None
@@ -339,7 +315,6 @@ def _parse_datetime(value: str) -> datetime | None:
 
 
 def _relative_from_datetime(value: str) -> str:
-    """Convert a time[datetime] value into a relative label with hour precision."""
     parsed = _parse_datetime(value)
     if parsed is None:
         return ""
@@ -374,7 +349,6 @@ def _hours_from_datetime(value: str) -> float | None:
 
 
 async def _attribute_text(locator) -> str:
-    """Read aria-label/title/datetime values conservatively from one element."""
     for attr in ("aria-label", "title", "datetime"):
         try:
             value = await locator.get_attribute(attr)
@@ -386,11 +360,9 @@ async def _attribute_text(locator) -> str:
 
 
 async def _posted(card) -> tuple[str, float | None]:
-    """Posted label and numeric recency from every card-level representation."""
     value = _normalize_posted(await _text(card, POSTED_SELECTORS))
     if value:
         return value, _hours_from_posted(value)
-
     for selector in POSTED_SELECTORS:
         loc = card.locator(selector).first
         try:
@@ -401,7 +373,6 @@ async def _posted(card) -> tuple[str, float | None]:
         value = _normalize_posted(await _attribute_text(loc))
         if value:
             return value, _hours_from_posted(value)
-
     try:
         node = card.locator("time[datetime]").first
         if await node.count():
@@ -411,7 +382,6 @@ async def _posted(card) -> tuple[str, float | None]:
                 return value, _hours_from_datetime(raw)
     except Exception:
         pass
-
     try:
         text = await card.inner_text()
     except Exception:
@@ -433,7 +403,6 @@ def _walk_nodes(data) -> Iterable[dict]:
 
 
 def _jsonld_job_fields(payloads: Iterable[str]) -> dict:
-    """Extract company/posted fields from JSON-LD blobs when present and valid."""
     fields: dict = {"company": "", "posted": "", "posted_hours": None}
     for payload in payloads:
         try:
@@ -471,7 +440,6 @@ async def _jsonld_texts(page) -> list[str]:
 
 
 async def _detail_company_from_links(page) -> str:
-    """Company name from the top-card company link (current LinkedIn layout)."""
     links = page.locator("a[href*='/company/']")
     try:
         total = min(await links.count(), 8)
@@ -489,7 +457,6 @@ async def _detail_company_from_links(page) -> str:
 
 
 def _company_from_page_title(title: str) -> str:
-    """Company from a "{job title} | {company} | LinkedIn" tab title."""
     parts = [part.strip() for part in (title or "").split("|")]
     if len(parts) >= 3 and parts[-1].lower() == "linkedin":
         candidate = parts[-2]
@@ -499,7 +466,6 @@ def _company_from_page_title(title: str) -> str:
 
 
 async def _main_text(page, limit: int = 2500) -> str:
-    """Flattened main-content text; the posted label lives in the top-card region."""
     text = ""
     try:
         main = page.locator("main").first
@@ -516,7 +482,6 @@ async def _main_text(page, limit: int = 2500) -> str:
 
 
 async def _detail_fields(page, href: str) -> dict:
-    """Targeted detail-page extraction, used only when card fields are missing."""
     fields: dict = {"company": "", "posted": "", "posted_hours": None}
     try:
         await page.goto(href, wait_until="domcontentloaded")
@@ -556,7 +521,6 @@ async def _detail_fields(page, href: str) -> dict:
         posted_hours = _hours_from_posted(posted)
 
     fields.update(company=company, posted=posted, posted_hours=posted_hours)
-
     structured = _jsonld_job_fields(await _jsonld_texts(page))
     if not fields["company"] and structured["company"]:
         fields["company"] = structured["company"]
@@ -567,7 +531,6 @@ async def _detail_fields(page, href: str) -> dict:
 
 
 def _merge_detail(job: Job, detail: dict) -> None:
-    """Fill only the missing fields; values already read from the card win."""
     if not job.company and detail.get("company"):
         job.company = detail["company"]
     if not job.posted and detail.get("posted"):
@@ -577,7 +540,6 @@ def _merge_detail(job: Job, detail: dict) -> None:
 
 
 async def _hydrate(page, cards) -> None:
-    """Scroll lazy-loaded results so cards render their full contents."""
     try:
         total = min(await cards.count(), 50)
     except Exception:
@@ -615,7 +577,6 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
                 break
         except Exception:
             continue
-
     if cards is None:
         return []
 
@@ -649,24 +610,18 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
         if not company:
             company = _fallback_company(text, title, location_text, posted)
 
-        # Skip fully unhydrated placeholder cards with no usable fields.
         if not title and not company and not location_text:
             continue
 
         canonical_href = normalize_job_url(href)
         key = canonical_href.lower()
         if not key:
-            key = "|".join(
-                part.strip().lower() for part in (title, company, location_text)
-            )
+            key = "|".join(part.strip().lower() for part in (title, company, location_text))
         if key and key in seen:
             continue
         if key:
             seen.add(key)
 
-        # LinkedIn may return results outside the requested city even when the
-        # search URL contains a location parameter. Enforce the requested city
-        # locally so read/discovery results respect the user's location policy.
         if location and not _location_matches_requested(location_text, location):
             continue
 
@@ -675,9 +630,7 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
             for selector in EASY_APPLY_SELECTORS:
                 badge = card.locator(selector)
                 try:
-                    if await badge.count() and "easy apply" in (
-                        (await badge.first.text_content()) or ""
-                    ).lower():
+                    if await badge.count() and "easy apply" in ((await badge.first.text_content()) or "").lower():
                         easy_apply = True
                         break
                 except Exception:
@@ -690,18 +643,16 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
             posted or "missing",
         )
 
-        result.append(
-            Job(
-                title=title,
-                company=company,
-                location=location_text,
-                href=canonical_href or href,
-                posted=posted,
-                posted_hours=posted_hours,
-                easy_apply=easy_apply,
-                text=text,
-            )
-        )
+        result.append(Job(
+            title=title,
+            company=company,
+            location=location_text,
+            href=canonical_href or href,
+            posted=posted,
+            posted_hours=posted_hours,
+            easy_apply=easy_apply,
+            text=text,
+        ))
 
     hydrated = 0
     for job in result:
@@ -715,8 +666,8 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
         hydrated += 1
         _merge_detail(job, detail)
         logger.debug(
-            "JOB %s card company: %s; card posted: %s; detail company: %s; "
-            "detail posted: %s; company source: %s; posted source: %s",
+            "JOB %s card company: %s; card posted: %s; detail company: %s; detail posted: %s; "
+            "company source: %s; posted source: %s",
             job.href,
             "found" if card_company else "missing",
             "found" if card_posted else "missing",
