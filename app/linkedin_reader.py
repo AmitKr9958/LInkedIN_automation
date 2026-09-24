@@ -49,6 +49,13 @@ async def current_session_state(page: Page) -> dict[str, Any]:
     if await _visible(page, AUTHENTICATED_MARKERS):
         return {"url": url, "title": title, "authenticated": True, "confidence": "high"}
 
+    # LinkedIn can render the authenticated feed without exposing one of the
+    # older navigation selectors. A canonical /feed/ URL plus the feed title
+    # is strong positive evidence, while login evidence was already checked
+    # above and therefore takes precedence.
+    if "/feed/" in url_lower and title_lower.startswith("feed | linkedin"):
+        return {"url": url, "title": title, "authenticated": True, "confidence": "high"}
+
     return {"url": url, "title": title, "authenticated": False, "confidence": "low"}
 
 
