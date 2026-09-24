@@ -10,9 +10,11 @@ The agent is designed as a **personal LinkedIn productivity control layer**:
 - lets you log in manually once and reuse that local browser session
 - verifies the session instead of assuming that a non-login URL means authentication
 - discovers jobs, people, companies, posts, saved items and profile information
+- identifies recruiter, HR and hiring-manager outreach targets for a job
+- maintains a local Story Bank and content-quality audit layer
 - normalizes job URLs and stores job/application history locally
 - ranks jobs against your configured preferences
-- drafts recruiter, connection and follow-up messages
+- drafts job-specific recruiter, HR, hiring-manager connection and follow-up messages
 - keeps consequential account actions behind explicit approval
 - tracks applications through a local lifecycle
 - supports dry-run operation and CI/browser smoke tests
@@ -121,10 +123,10 @@ Orchestrator ---- optional LLM provider
 
 ## Current implementation status
 
-All 24 skills are registered/governed. Their implementation boundaries are explicit:
+All 26 skills are registered/governed. Their implementation boundaries are explicit:
 
 - **Live read layer:** profile, jobs, people, companies, posts and saved items.
-- **Content/intelligence layer:** 12 local drafting and analysis skills.
+- **Content/intelligence layer:** 13 content/analysis skills plus the Story Bank.
 - **Account/workflow layer:** authentication, connections, messaging, engagement, lead generation and follow-ups are governed workflow surfaces; consequential account-changing execution remains behind the approval gateway and is not an autonomous UI executor.
 
 Application tracking, job normalization, discovery reporting, and JSON/CSV export are local and independent of LinkedIn.
@@ -167,3 +169,17 @@ The remaining engineering layers are release hardening rather than unrestricted 
 - add optional user-confirmed browser handoff for individual actions
 
 This keeps the tool useful for your job search while avoiding automation patterns that LinkedIn explicitly prohibits.
+
+## New local quality and outreach commands
+
+```text
+python -m app selftest
+python -m app audit-post --text "<draft>"
+python -m app story-bank
+python -m app story-bank --action search --query "Power BI"
+python -m app add-story "Power BI automation" --metric "30%"
+python -m app request-connection "Recruiter Name" "https://www.linkedin.com/in/example" --title "Recruiter" --company "Example"
+python -m app request-followup "Recruiter Name" "https://www.linkedin.com/in/example" "Thanks for connecting..."
+```
+
+Connection/follow-up commands create controlled approval records. They do not claim that LinkedIn has completed the action.
