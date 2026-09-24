@@ -36,6 +36,12 @@ class ApprovalQueue:
                     decided_at TEXT
                 )"""
             )
+            columns = {
+                row[1]
+                for row in db.execute("PRAGMA table_info(approval_queue)").fetchall()
+            }
+            if "decided_at" not in columns:
+                db.execute("ALTER TABLE approval_queue ADD COLUMN decided_at TEXT")
             db.commit()
 
     def add(self, action: str, target: str, payload: str) -> str:
