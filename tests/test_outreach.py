@@ -1,4 +1,4 @@
-from app.outreach import OutreachTarget, classify_target, draft_connection, draft_followup, score_target
+from app.outreach import OutreachTarget, build_outreach_plan, classify_target, draft_connection, draft_followup, score_target
 
 
 class Person:
@@ -24,3 +24,13 @@ def test_score_target_and_drafts(tmp_path):
     follow = draft_followup(target, "Thanks for connecting.", path=None)
     assert follow["status"] == "drafted"
     assert follow["target"]["name"] == "Recruiter One"
+
+
+def test_build_outreach_plan_links_people_to_job():
+    plan = build_outreach_plan(
+        [Person()],
+        {"title": "Power BI Developer", "company": "Example", "url": "https://www.linkedin.com/jobs/view/1"},
+    )
+    assert len(plan) == 1
+    assert plan[0].target_type == "recruiter"
+    assert plan[0].job_url.endswith("/1")
