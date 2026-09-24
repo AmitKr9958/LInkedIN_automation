@@ -2,16 +2,17 @@
 
 ## Architecture
 
-The project is divided into four boundaries:
+The project is divided into five boundaries:
 
 1. Browser/session — persistent local Playwright profile owned by the user.
 2. Research/intelligence — read operations, normalization, ranking, content analysis and application tracking.
-3. Draft/approval — every consequential action enters the approval queue through ActionGateway.
-4. Persistence/reporting — SQLite history, application lifecycle, approvals and JSON/CSV exports.
+3. Content quality — Post Audit, central Voice rules and persistent Story Bank.
+4. Draft/approval — consequential actions enter the approval queue through ActionGateway.
+5. Persistence/reporting — SQLite history, application lifecycle, approvals and JSON/CSV exports.
 
 ## Skill coverage
 
-The registry currently contains 24 governed skills.
+The registry currently contains 26 governed skills.
 
 ### Account/workflow skills
 - auth
@@ -26,17 +27,20 @@ The registry currently contains 24 governed skills.
 - engagement
 - leadgen
 - followups
+- outreach
 
 ### Content/intelligence skills
 - post_writer
 - content_planner
 - comment_drafter
 - reply_handler
+- post_audit
 - humanizer
 - hook_extractor
 - repurposer
 - profile_optimizer
 - interviewer
+- story_bank
 - engager_analytics
 - thread_monitor
 - employee_advocacy
@@ -53,6 +57,7 @@ Before a release is considered production-ready:
 - action gateway tests pass (queueing and per-run action-limit enforcement)
 - policy tests pass
 - application tracker tests pass
+- Story Bank, outreach and self-test contract tests pass
 - README/setup instructions are current
 - no stale skill-count assertions or documentation remain
 
@@ -63,6 +68,7 @@ Before a release is considered production-ready:
 - Credentials, OTPs and session cookies are never requested by the agent.
 - CAPTCHA/security challenges are handled by the user.
 - Consequential actions are approval-gated.
+- Approval records are not treated as proof that LinkedIn completed an action.
 - Bulk unsolicited messaging, security bypass and stealth/evasion are disabled.
 - CI never receives a real LinkedIn session.
 
