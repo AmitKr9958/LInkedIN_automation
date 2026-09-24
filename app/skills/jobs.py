@@ -34,6 +34,10 @@ CARD_SELECTORS = (
     "li.scaffold-layout__list-item",
     "[data-occludable-job-id]",
     ".job-card-container",
+    "li:has(a[href*='/jobs/view/'])",
+    "li:has(a[href*='/jobs/collections/'])",
+    "[data-job-id]",
+    "article:has(a[href*='/jobs/'])",
 )
 
 TITLE_SELECTORS = (
@@ -582,7 +586,13 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
         except Exception:
             continue
     if cards is None:
-        return []
+        # Fallback for newer LinkedIn SDUI layouts where the card container
+        # itself no longer carries a stable class.
+        link_cards = page.locator("main a[href*='/jobs/']")
+        if await link_cards.count():
+            cards = link_cards
+        else:
+            return []
 
     try:
         await cards.first.wait_for(state="visible", timeout=10_000)
@@ -602,7 +612,19 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
             continue
 
         href = await _href(card)
+        if not href:
+            try:
+                raw_href = await card.get_attribute("href")
+            except Exception:
+                raw_href = ""
+            if raw_href and "/jobs/" in raw_href:
+                href = normalize_job_url(urljoin(settings.linkedin_base_url, raw_href))
         title = _clean_title(await _text(card, TITLE_SELECTORS))
+        if not title and href:
+            try:
+                title = _clean_title(await card.inner_text())
+            except Exception:
+                title = ""
         company = await _text(card, COMPANY_SELECTORS)
         if not company:
             company = await _logo_company(card)
