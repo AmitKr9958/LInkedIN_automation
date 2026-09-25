@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 
 from ..config import settings
+from ..scrolling import scroll_page_completely
 from .parsing import clean_text, dedupe_by
 
 
@@ -63,11 +64,12 @@ async def read_saved_posts(page) -> list[SavedItem]:
         )
     except Exception:
         pass  # read whatever rendered
+    await scroll_page_completely(page, max_rounds=12, pause_ms=600)
     cards = page.locator("div.feed-shared-update-v2, .occludable-update")
     if not await cards.count():
         return await _sdui_search(page)
     out = []
-    for i in range(min(await cards.count(), 50)):
+    for i in range(min(await cards.count(), 200)):
         card = cards.nth(i)
         text = clean_text(await card.inner_text())
         link = card.locator("a[href*='/feed/update/'], a[href*='/posts/']").first
