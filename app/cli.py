@@ -25,6 +25,8 @@ from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
 from .notifications import ConsoleNotificationProvider, FileNotificationProvider, EmailNotificationProvider, build_daily_report
 from .scheduler import ReadOnlyScheduler
+from .resume_match import match_resume_to_job
+from .resume_tailoring import tailor_resume
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
 
@@ -295,6 +297,22 @@ def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
     report = asyncio.run(_run())
     typer.echo(json.dumps(report.ranked, indent=2, default=str))
 
+
+@app.command("match-resume")
+def match_resume(job_text_path: str, resume_path: str, skills: str = ""):
+    """Compare a supplied job description with supplied resume/profile facts."""
+    job_text = open(job_text_path, encoding="utf-8").read()
+    resume_text = open(resume_path, encoding="utf-8").read()
+    skill_list = [x.strip() for x in skills.split(",") if x.strip()]
+    typer.echo(json.dumps(match_resume_to_job(job_text, resume_text, skill_list).to_dict(), indent=2))
+
+@app.command("tailor-resume")
+def tailor_resume_command(job_text_path: str, resume_path: str, skills: str = ""):
+    """Produce factual resume-tailoring suggestions without inventing facts."""
+    job_text = open(job_text_path, encoding="utf-8").read()
+    resume_text = open(resume_path, encoding="utf-8").read()
+    skill_list = [x.strip() for x in skills.split(",") if x.strip()]
+    typer.echo(json.dumps(tailor_resume(job_text, resume_text, skill_list).to_dict(), indent=2))
 
 @app.command("monitor-jobs")
 def monitor_jobs(
