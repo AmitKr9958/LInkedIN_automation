@@ -11,6 +11,7 @@ import re
 from ..job_normalize import normalize_job_url
 from ..config import settings
 from ..job_metadata import extract_application_url, parse_applicant_count, parse_experience
+from ..scrolling import scroll_page_completely
 
 logger = logging.getLogger(__name__)
 
@@ -691,7 +692,7 @@ def _merge_detail(job: Job, detail: dict) -> None:
 
 async def _hydrate(page, cards) -> None:
     try:
-        total = min(await cards.count(), 50)
+        total = min(await cards.count(), 200)
     except Exception:
         return
     for index in range(0, total, 5):
@@ -741,6 +742,10 @@ async def search(
         )
     except Exception:
         pass
+
+    scroll_rounds = await scroll_page_completely(page, max_rounds=16, pause_ms=700)
+    if diagnostics is not None:
+        diagnostics["scroll_rounds"] = scroll_rounds
 
     cards = None
     for selector in CARD_SELECTORS:
