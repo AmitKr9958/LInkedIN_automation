@@ -77,8 +77,40 @@ from app.skills.jobs import (
     _normalize_posted,
     _relative_from_datetime,
     search,
+    _scroll_complete_results_page,
 )
 from app.skills.profile import _parse_top_card
+
+
+
+async def test_scroll_complete_results_page_waits_for_stable_bottom():
+    class _ScrollPage:
+        def __init__(self):
+            self.states = [
+                {"maxHeight": 1200, "maxTop": 500, "jobCount": 10, "atBottom": False},
+                {"maxHeight": 2200, "maxTop": 1500, "jobCount": 20, "atBottom": False},
+                {"maxHeight": 2200, "maxTop": 2200, "jobCount": 30, "atBottom": True},
+                {"maxHeight": 2200, "maxTop": 2200, "jobCount": 30, "atBottom": True},
+                {"maxHeight": 2200, "maxTop": 2200, "jobCount": 30, "atBottom": True},
+                {"maxHeight": 2200, "maxTop": 2200, "jobCount": 30, "atBottom": True},
+            ]
+            self.calls = 0
+
+        async def evaluate(self, script):
+            state = self.states[min(self.calls, len(self.states) - 1)]
+            self.calls += 1
+            return state
+
+        async def wait_for_timeout(self, ms):
+            return None
+
+    page = _ScrollPage()
+    diagnostics = {}
+    await _scroll_complete_results_page(page, diagnostics=diagnostics)
+    assert diagnostics["scroll_completed"] is True
+    assert diagnostics["scroll_job_count"] == 30
+    assert diagnostics["scroll_max_height"] == 2200
+    assert diagnostics["scroll_passes"] >= 6
 
 
 def test_posted_regex_extracts_relative_time():
