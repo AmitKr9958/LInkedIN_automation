@@ -217,7 +217,7 @@ def _location_matches_requested(location: str, requested: str) -> bool:
 
 
 _LOCATION_CITY_RE = re.compile(
-    r"(?i)\\b(?:new\\s+delhi|delhi|gurgaon|gurugram|noida|jaipur)\\b"
+    r"(?i)\b(?:new\s+delhi|delhi|gurgaon|gurugram|noida|jaipur)\b"
 )
 
 
