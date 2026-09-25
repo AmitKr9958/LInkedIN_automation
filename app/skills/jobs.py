@@ -640,7 +640,7 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
     experience = parse_experience(main_text, fields.get("title") or title)
     fields["experience_low"], fields["experience_high"], fields["experience_detected"] = experience.low, experience.high, experience.detected
     try:
-        links = await page.locator("a[href]").evaluate_all("(els) => els.map(e => e.href)")
+        links = await page.locator("a[href]").evaluate_all("(els) => els.map(e => ({href:e.href, text:e.innerText || '', aria:e.getAttribute('aria-label') || '', title:e.getAttribute('title') || ''}))")
     except Exception:
         links = []
     fields["application_url"] = extract_application_url(main_text, links)
