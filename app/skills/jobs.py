@@ -10,6 +10,7 @@ import re
 
 from ..job_normalize import normalize_job_url
 from ..config import settings
+from ..job_metadata import extract_application_url, parse_applicant_count, parse_experience
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,12 @@ class Job:
     easy_apply: bool = False
     text: str = ""
     source: str = "linkedin"
+    applicant_count: int | None = None
+    applicant_count_text: str | None = None
+    experience_low: int | None = None
+    experience_high: int | None = None
+    experience_detected: bool = False
+    application_url: str | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -486,7 +493,7 @@ def _walk_nodes(data) -> Iterable[dict]:
 
 
 def _jsonld_job_fields(payloads: Iterable[str]) -> dict:
-    fields: dict = {"title": "", "company": "", "posted": "", "posted_hours": None, "location": ""}
+    fields: dict = {"title": "", "company": "", "posted": "", "posted_hours": None, "location": "", "applicant_count": None, "applicant_count_text": None, "experience_low": None, "experience_high": None, "experience_detected": False, "application_url": None}
     for payload in payloads:
         try:
             data = json.loads(payload)
@@ -628,6 +635,15 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
         except Exception:
             pass
     main_text = await _main_text(page)
+    applicant = parse_applicant_count(main_text)
+    fields["applicant_count"], fields["applicant_count_text"] = applicant.count, applicant.text
+    experience = parse_experience(main_text, fields.get("title") or title)
+    fields["experience_low"], fields["experience_high"], fields["experience_detected"] = experience.low, experience.high, experience.detected
+    try:
+        links = await page.locator("a[href]").evaluate_all("(els) => els.map(e => e.href)")
+    except Exception:
+        links = []
+    fields["application_url"] = extract_application_url(main_text, links)
     if not posted:
         posted = _normalize_posted(main_text)
     if posted and posted_hours is None:
@@ -662,6 +678,15 @@ def _merge_detail(job: Job, detail: dict) -> None:
         job.posted_hours = detail["posted_hours"]
     if not job.location and detail.get("location"):
         job.location = detail["location"]
+    if job.applicant_count is None and detail.get("applicant_count") is not None:
+        job.applicant_count = detail["applicant_count"]
+        job.applicant_count_text = detail.get("applicant_count_text")
+    if not job.experience_detected and detail.get("experience_detected"):
+        job.experience_low = detail.get("experience_low")
+        job.experience_high = detail.get("experience_high")
+        job.experience_detected = True
+    if not job.application_url and detail.get("application_url"):
+        job.application_url = detail["application_url"]
 
 
 async def _hydrate(page, cards) -> None:
@@ -785,6 +810,12 @@ async def search(
         posted, posted_hours = await _posted(card)
         if posted:
             _bump(diagnostics, "posted_extracted")
+        applicant = parse_applicant_count(text)
+        experience = parse_experience(text, title)
+        if applicant.count is not None:
+            _bump(diagnostics, "applicant_count_extracted")
+        if experience.detected:
+            _bump(diagnostics, "experience_detected")
 
         if not company:
             company = _fallback_company(text, title, location_text, posted)
@@ -833,6 +864,11 @@ async def search(
             easy_apply=easy_apply,
             text=text,
             source="linkedin",
+            applicant_count=applicant.count,
+            applicant_count_text=applicant.text,
+            experience_low=experience.low,
+            experience_high=experience.high,
+            experience_detected=experience.detected,
         ))
 
     hydrated = 0
@@ -884,6 +920,14 @@ async def search(
         if location and not _location_matches_requested(job.location, location):
             _bump(diagnostics, "rejected_location")
             continue
+        if job.applicant_count is not None:
+            _bump(diagnostics, "applicant_count_known")
+        else:
+            _bump(diagnostics, "applicant_count_unknown")
+        if job.experience_detected:
+            _bump(diagnostics, "experience_detected_final")
+        else:
+            _bump(diagnostics, "experience_unknown")
         result.append(job)
 
     if diagnostics is not None:
