@@ -6,8 +6,10 @@ from pathlib import Path
 
 from .config import ROOT
 
-STATUSES = ("discovered", "shortlisted", "application_ready", "applied", "recruiter_contacted", "follow_up_due", "response_received", "screening", "interview", "offer", "rejected", "withdrawn", "closed")
+STATUSES = ("new", "drafted", "discovered", "shortlisted", "application_ready", "applied", "recruiter_contacted", "follow_up_due", "response_received", "screening", "interview", "offer", "rejected", "withdrawn", "closed")
 TRANSITIONS = {
+    "new": {"shortlisted", "drafted", "discovered", "closed"},
+    "drafted": {"applied", "application_ready", "closed"},
     "discovered": {"shortlisted", "application_ready", "closed"},
     "shortlisted": {"application_ready", "applied", "closed"},
     "application_ready": {"applied", "closed"},
