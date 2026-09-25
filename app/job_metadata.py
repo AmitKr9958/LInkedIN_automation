@@ -5,6 +5,7 @@ import re
 from urllib.parse import urlparse
 
 APPLICANT_PATTERNS = (
+    re.compile(r"(?i)\b(?:over|more than)\s+(\d{1,3}(?:,\d{3})*|\d+)\s+applicants?\b"),
     re.compile(r"(?i)\b(\d{1,3}(?:,\d{3})*|\d+)\+?\s+applicants?\b"),
     re.compile(r"(?i)\bbe among the first\s+(\d{1,3}(?:,\d{3})*|\d+)\s+applicants?\b"),
 )
