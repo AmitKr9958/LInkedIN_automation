@@ -36,6 +36,7 @@ MODULES = (
     "app.notifications",
     "app.scheduler",
     "app.media_provider",
+    "app.scrolling",
 )
 
 
