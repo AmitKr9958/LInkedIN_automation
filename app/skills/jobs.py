@@ -494,7 +494,7 @@ def _walk_nodes(data) -> Iterable[dict]:
 
 
 def _jsonld_job_fields(payloads: Iterable[str]) -> dict:
-    fields: dict = {"title": "", "company": "", "posted": "", "posted_hours": None, "location": "", "applicant_count": None, "applicant_count_text": None, "experience_low": None, "experience_high": None, "experience_detected": False, "application_url": None}
+    fields: dict = {"title": "", "company": "", "posted": "", "posted_hours": None, "location": ""}
     for payload in payloads:
         try:
             data = json.loads(payload)
@@ -637,14 +637,13 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
             pass
     main_text = await _main_text(page)
     applicant = parse_applicant_count(main_text)
-    fields["applicant_count"], fields["applicant_count_text"] = applicant.count, applicant.text
+    applicant = parse_applicant_count(main_text)
     experience = parse_experience(main_text, fields.get("title") or title)
-    fields["experience_low"], fields["experience_high"], fields["experience_detected"] = experience.low, experience.high, experience.detected
     try:
         links = await page.locator("a[href]").evaluate_all("(els) => els.map(e => ({href:e.href, text:e.innerText || '', aria:e.getAttribute('aria-label') || '', title:e.getAttribute('title') || ''}))")
     except Exception:
         links = []
-    fields["application_url"] = extract_application_url(main_text, links)
+    application_url = extract_application_url(links)
     if not posted:
         posted = _normalize_posted(main_text)
     if posted and posted_hours is None:
