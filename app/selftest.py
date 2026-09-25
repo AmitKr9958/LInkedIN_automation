@@ -59,10 +59,12 @@ def run_selftest() -> list[SelfTestResult]:
     }
     missing_names = expected_names - names
     unexpected_names = names - expected_names
+    expected_mutating = {"connections", "messaging", "engagement", "followups", "outreach"}
+    actual_mutating = {skill.name for skill in skills if skill.mutating}
     results.append(SelfTestResult(
         "skill-contract",
-        len(skills) == 27 and not missing_names and not unexpected_names,
-        f"missing={sorted(missing_names)} unexpected={sorted(unexpected_names)}",
+        len(skills) == 27 and not missing_names and not unexpected_names and actual_mutating == expected_mutating,
+        f"missing={sorted(missing_names)} unexpected={sorted(unexpected_names)} mutating={sorted(actual_mutating)}",
     ))
 
 
