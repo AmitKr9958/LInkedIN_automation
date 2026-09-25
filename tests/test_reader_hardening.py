@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from app.job_normalize import dedupe_jobs, normalize_job_url
-from app.skills.jobs import _clean_title
+from app.skills.jobs import _clean_title, _location_matches_requested, _location_score
 from app.skills.profile import _name_from_title
 
 
@@ -825,3 +825,19 @@ def test_merge_detail_fills_missing_title():
     assert job.title == "Power BI Developer"
     # Existing company must not be overwritten
     assert job.company == "Comviva"
+
+
+
+def test_location_aliases_match_requested_city():
+    assert _location_matches_requested("Gurugram, Haryana, India", "Gurgaon")
+    assert _location_matches_requested("Gurgaon, Haryana, India", "Gurugram")
+    assert _location_matches_requested("New Delhi, Delhi, India", "Delhi")
+    assert _location_matches_requested("Delhi, India", "New Delhi")
+    assert _location_matches_requested("Noida, Uttar Pradesh, India", "Noida")
+    assert not _location_matches_requested("Gurugram, Haryana, India", "Delhi")
+
+
+def test_location_score_prefers_city_location_over_connection_noise():
+    location = "New Delhi, Delhi, India (On-site)"
+    noise = "18 Delhi University school alumni work here"
+    assert _location_score(location) > _location_score(noise)
