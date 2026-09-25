@@ -725,7 +725,7 @@ async def _scroll_complete_results_page(page, max_passes: int = 40, stable_passe
 async def _hydrate(page, cards) -> None:
     # Preserve existing card hydration; complete-page scrolling is handled above.
     try:
-        total = min(await cards.count(), 50)
+        total = await cards.count()
     except Exception:
         return
     for index in range(0, total, 5):
@@ -808,7 +808,7 @@ async def search(
     parsed: list[Job] = []
     seen: set[str] = set()
 
-    for i in range(min(await cards.count(), 50)):
+    for i in range(await cards.count()):
         card = cards.nth(i)
         _bump(diagnostics, "cards_detected")
         try:
