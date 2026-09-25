@@ -23,6 +23,8 @@ from .agent import LinkedInAgent
 from .selftest import run_selftest
 from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
+from .notifications import ConsoleNotificationProvider, FileNotificationProvider, EmailNotificationProvider, build_daily_report
+from .scheduler import ReadOnlyScheduler
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
 
@@ -293,6 +295,37 @@ def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
     report = asyncio.run(_run())
     typer.echo(json.dumps(report.ranked, indent=2, default=str))
 
+
+@app.command("monitor-jobs")
+def monitor_jobs(
+    query: str = "Power BI",
+    location: str = "Gurgaon",
+    interval_minutes: int = 1440,
+    once: bool = typer.Option(False, "--once"),
+    report_path: str = "",
+    email: bool = typer.Option(False, "--email"),
+):
+    """Run safe, read-only job discovery once or on a configurable schedule."""
+    scheduler = ReadOnlyScheduler(interval_minutes)
+    provider = EmailNotificationProvider() if email else (FileNotificationProvider(report_path) if report_path else ConsoleNotificationProvider())
+
+    def run_once():
+        async def _run():
+            data = await run_read("jobs", keywords=query, location=location)
+            rows = [x.to_dict() if hasattr(x, "to_dict") else x for x in data.data]
+            return dedupe_jobs(rows)
+        rows = asyncio.run(_run())
+        provider.send(build_daily_report(rows))
+        return rows
+
+    if once:
+        run_once()
+        return
+
+    while True:
+        run_once()
+        import time
+        time.sleep(scheduler.interval_minutes * 60)
 
 @app.command("history")
 def history(limit: int = 20):
