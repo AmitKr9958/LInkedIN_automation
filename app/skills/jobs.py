@@ -196,6 +196,7 @@ def _normalize_location_text(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
     normalized = re.sub(r"\s+", " ", normalized).strip()
     normalized = re.sub(r"\bgurugram\b", "gurgaon", normalized)
+    normalized = re.sub(r"\bnew delhi\b", "delhi", normalized)
     normalized = re.sub(r"\bncr\b", "delhi", normalized)
     return normalized
 
@@ -698,18 +699,30 @@ async def _scroll_complete_results_page(page, max_passes: int = 40, stable_passe
       return {moved,maxHeight,maxTop,jobCount:document.querySelectorAll("a[href*='/jobs/']").length,
         atBottom:candidates.every(el=>el.scrollTop+el.clientHeight>=el.scrollHeight-12)};
     }""";
-    let previous = None;
-    let stable = 0;
+    previous = None
+    stable = 0
     for pass_number in range(1, max_passes + 1):
         try:
             state = await page.evaluate(script)
         except Exception:
             break
+        if not isinstance(state, dict):
+            # Test doubles / unexpected evaluate payloads must not crash scrolling.
+            state = {}
         if diagnostics is not None:
             diagnostics["scroll_passes"] = pass_number
-            diagnostics["scroll_max_height"] = max(diagnostics.get("scroll_max_height", 0), int(state.get("maxHeight") or 0))
-            diagnostics["scroll_job_count"] = max(diagnostics.get("scroll_job_count", 0), int(state.get("jobCount") or 0))
-        signature = (int(state.get("maxHeight") or 0), int(state.get("maxTop") or 0), int(state.get("jobCount") or 0), bool(state.get("atBottom")))
+            diagnostics["scroll_max_height"] = max(
+                diagnostics.get("scroll_max_height", 0), int(state.get("maxHeight") or 0)
+            )
+            diagnostics["scroll_job_count"] = max(
+                diagnostics.get("scroll_job_count", 0), int(state.get("jobCount") or 0)
+            )
+        signature = (
+            int(state.get("maxHeight") or 0),
+            int(state.get("maxTop") or 0),
+            int(state.get("jobCount") or 0),
+            bool(state.get("atBottom")),
+        )
         stable = stable + 1 if signature == previous and signature[-1] else 0
         previous = signature
         try:
@@ -775,26 +788,38 @@ async def search(
     except Exception:
         pass
 
-    cards = None
-    for selector in CARD_SELECTORS:
-        candidate = page.locator(selector)
-        try:
-            if await candidate.count():
-                cards = candidate
-                break
-        except Exception:
-            continue
-    if cards is None:
+    async def _locate_cards():
+        """Locate job cards, preferring container selectors over bare links."""
+        for selector in CARD_SELECTORS:
+            candidate = page.locator(selector)
+            try:
+                if await candidate.count():
+                    return candidate
+            except Exception:
+                continue
         # Fallback for newer LinkedIn SDUI layouts where the card container
-        # itself no longer carries a stable class.
-        link_cards = page.locator("main a[href*='/jobs/']")
-        if await link_cards.count():
-            cards = link_cards
-        else:
-            if diagnostics is not None:
-                diagnostics["cards_detected"] = 0
-                diagnostics["returned"] = 0
-            return []
+        # itself no longer carries a stable class. Prefer the nearest list
+        # item / article ancestor of each job link so company/location/posted
+        # remain reachable.
+        link_cards = page.locator(
+            "main li:has(a[href*='/jobs/view/']), "
+            "main article:has(a[href*='/jobs/view/']), "
+            "main a[href*='/jobs/view/']"
+        )
+        try:
+            if await link_cards.count():
+                return link_cards
+        except Exception:
+            pass
+        return None
+
+    cards = await _locate_cards()
+    if cards is None:
+        if diagnostics is not None:
+            diagnostics["cards_detected"] = 0
+            diagnostics["cards_parsed"] = 0
+            diagnostics["final_returned"] = 0
+        return []
 
     try:
         await cards.first.wait_for(state="visible", timeout=10_000)
@@ -802,7 +827,19 @@ async def search(
         pass
 
     # Scroll the full LinkedIn results surface, including nested infinite-scroll panes.
+    # Order is intentional: navigate → wait → scroll → re-locate → parse.
     await _scroll_complete_results_page(page, diagnostics=diagnostics)
+
+    # Re-locate after scrolling so newly loaded cards are included and the
+    # locator is not bound to a stale pre-scroll snapshot.
+    cards = await _locate_cards()
+    if cards is None:
+        if diagnostics is not None:
+            diagnostics["cards_detected"] = 0
+            diagnostics["cards_parsed"] = 0
+            diagnostics["final_returned"] = 0
+        return []
+
     await _hydrate(page, cards)
 
     parsed: list[Job] = []
@@ -814,6 +851,7 @@ async def search(
         try:
             text = " ".join((await card.inner_text()).split())
         except Exception:
+            _bump(diagnostics, "cards_stale")
             continue
 
         href = await _href(card)
@@ -826,6 +864,9 @@ async def search(
                 href = normalize_job_url(urljoin(settings.linkedin_base_url, raw_href))
         if href:
             _bump(diagnostics, "urls_extracted")
+        else:
+            _bump(diagnostics, "cards_missing_url")
+
         title = _clean_title(await _text(card, TITLE_SELECTORS))
         if not title and href:
             try:
@@ -834,6 +875,9 @@ async def search(
                 title = ""
         if title:
             _bump(diagnostics, "titles_extracted")
+        else:
+            _bump(diagnostics, "cards_missing_title")
+
         company = await _text(card, COMPANY_SELECTORS)
         if not company:
             company = await _logo_company(card)
@@ -842,18 +886,26 @@ async def search(
         location_text = await _location(card, text)
         if location_text:
             _bump(diagnostics, "locations_extracted")
+        else:
+            _bump(diagnostics, "cards_missing_location")
         posted, posted_hours = await _posted(card)
         if posted:
             _bump(diagnostics, "posted_extracted")
+        else:
+            _bump(diagnostics, "cards_missing_posted")
 
         if not company:
             company = _fallback_company(text, title, location_text, posted)
         if company:
             _bump(diagnostics, "companies_extracted")
+        else:
+            _bump(diagnostics, "cards_missing_company")
 
         if not title and not company and not location_text:
             _bump(diagnostics, "rejected_empty")
             continue
+
+        _bump(diagnostics, "cards_parsed")
 
         canonical_href = normalize_job_url(href)
         key = canonical_href.lower()
@@ -861,6 +913,7 @@ async def search(
             key = "|".join(part.strip().lower() for part in (title, company, location_text))
         if key and key in seen:
             _bump(diagnostics, "rejected_duplicate")
+            _bump(diagnostics, "duplicate_count")
             continue
         if key:
             seen.add(key)
@@ -941,12 +994,17 @@ async def search(
         if not job.title or not job.href:
             _bump(diagnostics, "rejected_incomplete")
             continue
+        _bump(diagnostics, "location_candidates")
         if location and not _location_matches_requested(job.location, location):
             _bump(diagnostics, "rejected_location")
+            _bump(diagnostics, "location_rejected")
             continue
         result.append(job)
 
     if diagnostics is not None:
         diagnostics["returned"] = len(result)
         diagnostics["returned_after_location"] = len(result)
+        diagnostics["final_returned"] = len(result)
+        diagnostics["cards_parsed"] = diagnostics.get("cards_parsed", 0)
+        diagnostics["duplicate_count"] = diagnostics.get("duplicate_count", 0)
     return result

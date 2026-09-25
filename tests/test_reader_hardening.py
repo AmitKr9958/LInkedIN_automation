@@ -672,11 +672,21 @@ class _SearchPage:
     async def wait_for_timeout(self, ms):
         return None
 
+    async def wait_for_selector(self, selector, timeout=None):
+        return None
+
     async def title(self):
         return self.title_text
 
     async def evaluate(self, script):
-        return []
+        # Scroll probe expects a dict; empty dict ends scroll after stable passes.
+        return {
+            "moved": False,
+            "maxHeight": 1000,
+            "maxTop": 1000,
+            "jobCount": len(self._cards),
+            "atBottom": True,
+        }
 
     async def inner_text(self, selector="body"):
         return self.detail_body
@@ -690,6 +700,9 @@ class _SearchPage:
         )
 
         if selector in CARD_SELECTORS:
+            return _NodeList(self._cards)
+        # Fallback composite selector used after scroll re-locate.
+        if "a[href*='/jobs/view/']" in selector or selector.startswith("main "):
             return _NodeList(self._cards)
         if selector in DETAIL_COMPANY_SELECTORS:
             return _NodeList([])

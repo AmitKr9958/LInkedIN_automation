@@ -57,8 +57,12 @@ def _filter_jobs_by_freshness(
     if diagnostics is not None:
         diagnostics["freshness_window_hours"] = max_posted_hours
         diagnostics["rejected_freshness"] = rejected
+        diagnostics["freshness_rejected"] = rejected
         diagnostics["unknown_posted_age"] = unknown
+        diagnostics["unknown_age_count"] = unknown
+        diagnostics["freshness_candidates"] = len(data)
         diagnostics["returned_after_freshness"] = len(kept)
+        diagnostics["final_returned"] = len(kept)
         diagnostics["include_unknown_age"] = include_unknown_age
     return kept
 
