@@ -5,17 +5,17 @@ import re
 from urllib.parse import urlparse
 
 APPLICANT_PATTERNS = (
-    re.compile(r"(?i)\\b(\\d{1,3}(?:,\\d{3})*|\\d+)\\+?\\s+applicants?\\b"),
-    re.compile(r"(?i)\\bbe among the first\\s+(\\d{1,3}(?:,\\d{3})*|\\d+)\\s+applicants?\\b"),
+    re.compile(r"(?i)\b(\d{1,3}(?:,\d{3})*|\d+)\+?\s+applicants?\b"),
+    re.compile(r"(?i)\bbe among the first\s+(\d{1,3}(?:,\d{3})*|\d+)\s+applicants?\b"),
 )
 EXPERIENCE_RE = re.compile(
-    r"(?i)\\b(\\d{1,2})\\s*(?:\\+|plus|or more)?\\s*(?:-|–|—|to)\\s*(\\d{1,2})\\s*(?:years?|yrs?)\\b"
+    r"(?i)\b(\d{1,2})\s*(?:\+|plus|or more)?\s*(?:-|–|—|to)\s*(\d{1,2})\s*(?:years?|yrs?)\b"
 )
 EXPERIENCE_SINGLE_RE = re.compile(
-    r"(?i)\\b(\\d{1,2})\\s*(?:\\+|plus|or more)\\s*(?:years?|yrs?)\\b"
+    r"(?i)\b(\d{1,2})\s*(?:\+|plus|or more)\s*(?:years?|yrs?)\b"
 )
 EXPERIENCE_MIN_RE = re.compile(
-    r"(?i)\\b(?:minimum|at least)\\s+(\\d{1,2})\\s*(?:years?|yrs?)\\b"
+    r"(?i)\b(?:minimum|at least)\s+(\d{1,2})\s*(?:years?|yrs?)\b"
 )
 ROLE_EXPERIENCE_HINTS = {
     "senior": (5, 12),
@@ -65,7 +65,7 @@ def parse_experience(text: str, title: str = "") -> ExperienceInfo:
         return ExperienceInfo(int(match.group(1)), None, True, "plus")
     lower_title = (title or "").lower()
     for label, bounds in ROLE_EXPERIENCE_HINTS.items():
-        if re.search(rf"\\b{re.escape(label)}\\b", lower_title):
+        if re.search(rf"\b{re.escape(label)}\b", lower_title):
             return ExperienceInfo(bounds[0], bounds[1], True, f"title:{label}")
     return ExperienceInfo(None, None, False, "")
 
@@ -93,7 +93,7 @@ def extract_application_url(links) -> str | None:
             continue
         if "linkedin.com" in host:
             continue
-        if not re.search(r"\\b(apply|application|apply now)\\b", label):
+        if not re.search(r"\b(apply|application|apply now)\b", label):
             continue
         return href
     return None
