@@ -78,15 +78,22 @@ def experience_matches(info: ExperienceInfo, minimum: int, maximum: int) -> bool
     return low <= maximum and high >= minimum
 
 
-def extract_application_url(text: str, links: list[str] | tuple[str, ...]) -> str | None:
-    for href in links:
-        if not href:
-            continue
+def extract_application_url(links) -> str | None:
+    """Return an explicit external application link, never an arbitrary external URL."""
+    for item in links or []:
+        if isinstance(item, dict):
+            href = str(item.get("href") or "")
+            label = " ".join(str(item.get(key) or "") for key in ("text", "aria", "title")).lower()
+        else:
+            href = str(item or "")
+            label = ""
         parsed = urlparse(href)
         host = parsed.netloc.lower()
         if parsed.scheme not in {"http", "https"} or not host:
             continue
         if "linkedin.com" in host:
+            continue
+        if not re.search(r"\\b(apply|application|apply now)\\b", label):
             continue
         return href
     return None
