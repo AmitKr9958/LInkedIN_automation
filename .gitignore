@@ -1,13 +1,54 @@
+# Virtual environments / local Python
 .venv/
+venv/
+env/
 __pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Tooling caches
 .pytest_cache/
 .ruff_cache/
-*.egg-info/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Secrets and local runtime
 .env
+.env.*
+!.env.example
 .browser-profile/
+*.log
+logs/
+
+# Local data / state (never commit operational SQLite or exports)
 data/*.db
 data/*.sqlite
 data/*.sqlite3
-logs/
+data/applications.json
+data/applications.csv
+data/*.json
+data/*.csv
+!data/.gitkeep
+
+# Browser / test artifacts
 screenshots/
-*.log
+test-results/
+playwright-report/
+trace.zip
+*.webm
+*.png
+!docs/**
+
+# Temporary probe / scratch files
+_sb.*
+_read_probe*.py
+_job_probe*.py
+*.tmp
+*.bak

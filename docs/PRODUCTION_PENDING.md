@@ -180,6 +180,8 @@ pytest -q -m e2e --tracing=retain-on-failure   # no real session in CI
 2. Closing related GitHub issues only after live confirmation.
 3. Optional: broader live fixture capture if LinkedIn DOM changes again.
 
+Repository hygiene (committed probe artifacts and operational sample application exports) has been cleaned; `.gitignore` now excludes local SQLite, exports, caches, and scratch files.
+
 Until (1) succeeds, status remains:
 
 ```text

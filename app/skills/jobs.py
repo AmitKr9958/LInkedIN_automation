@@ -701,6 +701,7 @@ async def _scroll_complete_results_page(page, max_passes: int = 40, stable_passe
     }""";
     previous = None
     stable = 0
+    completed = False
     for pass_number in range(1, max_passes + 1):
         try:
             state = await page.evaluate(script)
@@ -730,9 +731,13 @@ async def _scroll_complete_results_page(page, max_passes: int = 40, stable_passe
         except Exception:
             pass
         if stable >= stable_passes_required:
+            completed = True
             break
+    else:
+        # Exhausted max_passes without early break from evaluate failure.
+        completed = True
     if diagnostics is not None:
-        diagnostics["scroll_completed"] = True
+        diagnostics["scroll_completed"] = completed
 
 
 async def _hydrate(page, cards) -> None:

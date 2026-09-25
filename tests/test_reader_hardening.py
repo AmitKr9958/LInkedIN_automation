@@ -113,6 +113,29 @@ async def test_scroll_complete_results_page_waits_for_stable_bottom():
     assert diagnostics["scroll_passes"] >= 6
 
 
+
+async def test_scroll_complete_results_page_marks_incomplete_on_evaluate_failure():
+    """If page.evaluate fails mid-scroll, scroll_completed must be False."""
+    class _BrokenPage:
+        def __init__(self):
+            self.calls = 0
+
+        async def evaluate(self, script):
+            self.calls += 1
+            if self.calls == 1:
+                return {"maxHeight": 1000, "maxTop": 400, "jobCount": 5, "atBottom": False}
+            raise RuntimeError("page closed")
+
+        async def wait_for_timeout(self, ms):
+            return None
+
+    diagnostics = {}
+    await _scroll_complete_results_page(_BrokenPage(), diagnostics=diagnostics)
+    assert diagnostics.get("scroll_completed") is False
+    assert diagnostics.get("scroll_passes") == 1
+    assert diagnostics.get("scroll_job_count") == 5
+
+
 def test_posted_regex_extracts_relative_time():
     assert _POSTED_RE.search("Lead - Reporting & Analytics 19 hours ago") is not None
 
