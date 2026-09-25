@@ -1,95 +1,46 @@
 # Production Readiness
 
-## Architecture
+## Current architecture
+1. Persistent local browser/session boundary.
+2. Read/research and job-intelligence boundary.
+3. Content/voice/story quality boundary.
+4. Approval gateway for consequential actions.
+5. SQLite history/application/approval/reporting boundary.
+6. Safe scheduler and notification-provider boundary.
 
-The project is divided into five boundaries:
+## 27 skills
+The registry contains exactly 27 governed skills. The self-test now checks the complete expected set rather than only content dispatch.
 
-1. Browser/session — persistent local Playwright profile owned by the user.
-2. Research/intelligence — read operations, normalization, ranking, content analysis and application tracking.
-3. Content quality — Post Audit, central Voice rules and persistent Story Bank.
-4. Draft/approval — consequential actions enter the approval queue through ActionGateway.
-5. Persistence/reporting — SQLite history, application lifecycle, approvals and JSON/CSV exports.
+## Implemented
+- authenticated local browser
+- profile/jobs/people/companies/posts/saved reads
+- job normalization, deduplication and history
+- 48-hour freshness
+- configurable applicant-count signals
+- experience metadata parsing and explainable ranking
+- recruiter/HR/hiring-manager outreach planning
+- follow-up lifecycle
+- application tracking and event audit history
+- Post Audit, Voice Engine, Humanizer, Story Bank and content skills
+- resume/job matching and factual resume tailoring
+- optional console/file/email notification providers
+- safe read-only scheduler
+- smoke-test PASS/WARN/FAIL semantics
 
-## Skill coverage
+## Not yet proven production-ready
+- live applicant-count coverage across current LinkedIn UI
+- all four location live matrix cases
+- live experience coverage
+- end-to-end outreach/application workflow
+- actual provider-backed media generation
+- actual LinkedIn publishing
+- real application form submission
+- continuous scheduler operation on the user's machine
+- GitHub Actions result for the final hardened revision
+- full security/secret-scan release evidence
 
-The registry currently contains 26 governed skills.
+## Safety
+DRY_RUN=true and APPROVAL_REQUIRED=true remain the defaults. No credential/session export, CAPTCHA/MFA bypass, stealth evasion or uncontrolled bulk account actions are implemented.
 
-### Account/workflow skills
-- auth
-- profile
-- jobs
-- people
-- companies
-- posts
-- saved
-- connections
-- messaging
-- engagement
-- leadgen
-- followups
-- outreach
-- outreach
-
-### Content/intelligence skills
-- post_writer
-- content_planner
-- comment_drafter
-- reply_handler
-- post_audit
-- post_audit
-- humanizer
-- hook_extractor
-- repurposer
-- profile_optimizer
-- interviewer
-- story_bank
-- story_bank
-- engager_analytics
-- thread_monitor
-- employee_advocacy
-
-## Release gates
-
-Before a release is considered production-ready:
-
-- python -m compileall -q app tests
-- ruff check app tests --select E9,F63,F7,F82
-- pytest -q -m "not e2e"
-- Playwright browser smoke tests pass
-- no secrets or local browser profile committed
-- action gateway tests pass (queueing and per-run action-limit enforcement)
-- policy tests pass
-- application tracker tests pass
-- Story Bank, outreach and self-test contract tests pass
-- Story Bank, outreach and self-test contract tests pass
-- README/setup instructions are current
-- no stale skill-count assertions or documentation remain
-
-## Operational rules
-
-- Login is manual.
-- The local browser profile is never exported.
-- Credentials, OTPs and session cookies are never requested by the agent.
-- CAPTCHA/security challenges are handled by the user.
-- Consequential actions are approval-gated.
-- Approval records are not treated as proof that LinkedIn completed an action.
-- Approval records are not treated as proof that LinkedIn completed an action.
-- Bulk unsolicited messaging, security bypass and stealth/evasion are disabled.
-- CI never receives a real LinkedIn session.
-
-## Current status
-
-The automated release gates pass locally and in GitHub Actions. Live-account validation has been performed on the authenticated session: session status, job search with posted-time/company extraction, and 48-hour recency filtering were verified. CI intentionally does not use an authenticated LinkedIn session.
-
-## User setup later
-
-No LinkedIn login is needed while developing the application layer.
-
-When ready for browser integration:
-
-1. Install dependencies and Chromium.
-2. Run `python -m app doctor`.
-3. Run `python -m app login`.
-4. Log in manually.
-5. Run `python -m app status`.
-6. Start with read-only skills and validate selectors against the live account.
+## Release gate
+Do not label the project production-ready until automated tests, selftest, doctor, CI and applicable live read-only gates have all passed and documentation matches the implementation.
