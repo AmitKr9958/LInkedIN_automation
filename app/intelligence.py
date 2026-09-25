@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 import re
 
+from .job_metadata import ExperienceInfo, experience_matches, parse_experience
+
 
 @dataclass
 class JobRecord:
@@ -15,6 +17,12 @@ class JobRecord:
     easy_apply: bool = False
     source: str = "manual"
     posted_hours: float | None = None
+    applicant_count: int | None = None
+    applicant_count_text: str | None = None
+    experience_low: int | None = None
+    experience_high: int | None = None
+    experience_detected: bool = False
+    application_url: str | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -99,6 +107,17 @@ def score_job(job: JobRecord, preferences) -> tuple[int, list[str]]:
         score += 10
         reasons.append("Easy Apply")
 
+    if job.applicant_count is not None:
+        if job.applicant_count < getattr(preferences, "preferred_applicant_count", 25):
+            score += 12
+            reasons.append("under preferred applicant threshold")
+        elif job.applicant_count < getattr(preferences, "acceptable_applicant_count", 50):
+            score += 6
+            reasons.append("under acceptable applicant threshold")
+        else:
+            score -= 4
+            reasons.append("high applicant count")
+
     posted_hours = job.posted_hours
     if posted_hours is None:
         posted_hours = _posted_hours(job.posted_text)
@@ -122,19 +141,23 @@ def score_job(job: JobRecord, preferences) -> tuple[int, list[str]]:
             score -= 25
             reasons.append("remote not explicit")
 
-    experience = _experience_years(searchable)
-    if experience:
-        low, high = experience
-        high = preferences.max_experience_years if high is None else high
-        if (
-            low <= preferences.max_experience_years
-            and high >= preferences.min_experience_years
-        ):
-            score += 10
-            reasons.append("experience range matches")
-        else:
-            score -= 15
-            reasons.append("experience range outside preference")
+    if job.experience_detected:
+        experience = ExperienceInfo(job.experience_low, job.experience_high, True, "job")
+    else:
+        experience = parse_experience(searchable, job.title)
+    experience_match = experience_matches(
+        experience,
+        preferences.min_experience_years,
+        preferences.max_experience_years,
+    )
+    if experience_match is True:
+        score += 10
+        reasons.append("experience range matches")
+    elif experience_match is False:
+        score -= 15
+        reasons.append("experience range outside preference")
+    else:
+        reasons.append("experience requirement unknown")
 
     if preferences.exclude_internships and re.search(
         r"\bintern(ship)?\b", searchable, re.IGNORECASE
