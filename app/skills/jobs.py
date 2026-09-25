@@ -10,6 +10,8 @@ import re
 
 from ..job_normalize import normalize_job_url
 from ..config import settings
+from ..job_metadata import extract_application_url, parse_applicant_count, parse_experience
+from ..scrolling import scroll_and_capture, scroll_page_completely
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,12 @@ class Job:
     easy_apply: bool = False
     text: str = ""
     source: str = "linkedin"
+    applicant_count: int | None = None
+    applicant_count_text: str | None = None
+    experience_low: int | None = None
+    experience_high: int | None = None
+    experience_detected: bool = False
+    application_url: str | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -628,6 +636,20 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
         except Exception:
             pass
     main_text = await _main_text(page)
+    applicant = parse_applicant_count(main_text)
+    applicant = parse_applicant_count(main_text)
+    experience = parse_experience(main_text, fields.get("title") or title)
+    try:
+        links = await page.locator("a[href]").evaluate_all("(els) => els.map(e => ({href:e.href, text:e.innerText || '', aria:e.getAttribute('aria-label') || '', title:e.getAttribute('title') || ''}))")
+    except Exception:
+        links = []
+    application_url = extract_application_url(links)
+    fields["applicant_count"] = applicant.count
+    fields["applicant_count_text"] = applicant.text
+    fields["experience_low"] = experience.low
+    fields["experience_high"] = experience.high
+    fields["experience_detected"] = experience.detected
+    fields["application_url"] = application_url
     if not posted:
         posted = _normalize_posted(main_text)
     if posted and posted_hours is None:
@@ -662,11 +684,20 @@ def _merge_detail(job: Job, detail: dict) -> None:
         job.posted_hours = detail["posted_hours"]
     if not job.location and detail.get("location"):
         job.location = detail["location"]
+    if job.applicant_count is None and detail.get("applicant_count") is not None:
+        job.applicant_count = detail["applicant_count"]
+        job.applicant_count_text = detail.get("applicant_count_text")
+    if not job.experience_detected and detail.get("experience_detected"):
+        job.experience_low = detail.get("experience_low")
+        job.experience_high = detail.get("experience_high")
+        job.experience_detected = True
+    if not job.application_url and detail.get("application_url"):
+        job.application_url = detail["application_url"]
 
 
 async def _hydrate(page, cards) -> None:
     try:
-        total = min(await cards.count(), 50)
+        total = min(await cards.count(), 200)
     except Exception:
         return
     for index in range(0, total, 5):
@@ -685,6 +716,100 @@ def _bump(diagnostics: dict | None, key: str) -> None:
     """Increment a safe pipeline-stage counter (no URLs or session data)."""
     if diagnostics is not None:
         diagnostics[key] = diagnostics.get(key, 0) + 1
+
+
+async def _capture_visible_job_snapshots(page) -> list[dict]:
+    """Capture lightweight job snapshots while cards are still mounted."""
+    script = """() => {
+        const selectors = __CARD_SELECTORS__;
+        const nodes = [];
+        const seen = new Set();
+        for (const selector of selectors) {
+            try {
+                for (const el of document.querySelectorAll(selector)) {
+                    if (!seen.has(el)) { seen.add(el); nodes.push(el); }
+                }
+            } catch (_) {}
+        }
+        const clean = v => (v || '').replace(/\\s+/g, ' ').trim();
+        const firstText = (el, selectors) => {
+            for (const s of selectors) {
+                try {
+                    const n = el.querySelector(s);
+                    const t = clean(n && (n.innerText || n.textContent));
+                    if (t) return t;
+                } catch (_) {}
+            }
+            return '';
+        };
+        const titleSelectors = __TITLE_SELECTORS__;
+        const companySelectors = __COMPANY_SELECTORS__;
+        const locationSelectors = __LOCATION_SELECTORS__;
+        const postedSelectors = __POSTED_SELECTORS__;
+        return nodes.map(card => {
+            const links = Array.from(card.querySelectorAll("a[href*='/jobs/']"));
+            const link = links.find(a => /\/jobs\/(view|collections)\//.test(a.href)) || links[0];
+            const href = link ? link.href : (card.href || '');
+            return {
+                href,
+                text: clean(card.innerText || card.textContent),
+                title: firstText(card, titleSelectors),
+                company: firstText(card, companySelectors),
+                location: firstText(card, locationSelectors),
+                posted: firstText(card, postedSelectors),
+                easy_apply: /easy apply/i.test(card.innerText || card.textContent)
+            };
+        }).filter(x => x.href && /\/jobs\//.test(x.href));
+    }"""
+    script = (
+        script.replace("__CARD_SELECTORS__", json.dumps(CARD_SELECTORS))
+        .replace("__TITLE_SELECTORS__", json.dumps(TITLE_SELECTORS))
+        .replace("__COMPANY_SELECTORS__", json.dumps(COMPANY_SELECTORS))
+        .replace("__LOCATION_SELECTORS__", json.dumps(LOCATION_SELECTORS))
+        .replace("__POSTED_SELECTORS__", json.dumps(POSTED_SELECTORS))
+    )
+    try:
+        return await page.evaluate(script)
+    except Exception:
+        return []
+
+
+def _jobs_from_snapshots(snapshots: list[dict], diagnostics: dict | None = None) -> list[Job]:
+    jobs: list[Job] = []
+    seen: set[str] = set()
+    for snapshot in snapshots:
+        href = normalize_job_url(urljoin(settings.linkedin_base_url, str(snapshot.get("href") or "")))
+        if not href:
+            continue
+        key = href.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        text = " ".join(str(snapshot.get("text") or "").split())
+        title = _clean_title(str(snapshot.get("title") or "")) or _clean_title(text)
+        company = _clean_company_attr(str(snapshot.get("company") or ""))
+        location = " ".join(str(snapshot.get("location") or "").split())
+        posted = _normalize_posted(str(snapshot.get("posted") or ""))
+        applicant = parse_applicant_count(text)
+        experience = parse_experience(text, title)
+        jobs.append(Job(
+            title=title,
+            company=company,
+            location=location,
+            href=href,
+            posted=posted,
+            posted_hours=_hours_from_posted(posted),
+            easy_apply=bool(snapshot.get("easy_apply")),
+            text=text,
+            source="linkedin",
+            applicant_count=applicant.count,
+            applicant_count_text=applicant.text,
+            experience_low=experience.low,
+            experience_high=experience.high,
+            experience_detected=experience.detected,
+        ))
+        _bump(diagnostics, "incremental_cards_captured")
+    return jobs
 
 
 async def search(
@@ -717,6 +842,19 @@ async def search(
     except Exception:
         pass
 
+    snapshots, capture_rounds = await scroll_and_capture(
+        page,
+        lambda: _capture_visible_job_snapshots(page),
+        max_rounds=24,
+        pause_ms=700,
+        stable_rounds=3,
+    )
+    scroll_rounds = await scroll_page_completely(page, max_rounds=4, pause_ms=400)
+    if diagnostics is not None:
+        diagnostics["incremental_scroll_rounds"] = capture_rounds
+        diagnostics["scroll_rounds"] = capture_rounds + scroll_rounds
+        diagnostics["unique_cards_seen"] = len(snapshots)
+
     cards = None
     for selector in CARD_SELECTORS:
         candidate = page.locator(selector)
@@ -745,10 +883,10 @@ async def search(
 
     await _hydrate(page, cards)
 
-    parsed: list[Job] = []
-    seen: set[str] = set()
+    parsed: list[Job] = _jobs_from_snapshots(snapshots, diagnostics)
+    seen: set[str] = {normalize_job_url(job.href).lower() for job in parsed if job.href}
 
-    for i in range(min(await cards.count(), 50)):
+    for i in range(min(await cards.count(), 200)):
         card = cards.nth(i)
         _bump(diagnostics, "cards_detected")
         try:
@@ -785,6 +923,17 @@ async def search(
         posted, posted_hours = await _posted(card)
         if posted:
             _bump(diagnostics, "posted_extracted")
+        applicant = parse_applicant_count(text)
+        experience = parse_experience(text, title)
+        try:
+            card_links = await card.locator("a[href]").evaluate_all("(els) => els.map(e => ({href:e.href, text:e.innerText || '', aria:e.getAttribute('aria-label') || '', title:e.getAttribute('title') || ''}))")
+        except Exception:
+            card_links = []
+        application_url = extract_application_url(card_links)
+        if applicant.count is not None:
+            _bump(diagnostics, "applicant_count_extracted")
+        if experience.detected:
+            _bump(diagnostics, "experience_detected")
 
         if not company:
             company = _fallback_company(text, title, location_text, posted)
@@ -833,6 +982,12 @@ async def search(
             easy_apply=easy_apply,
             text=text,
             source="linkedin",
+            applicant_count=applicant.count,
+            applicant_count_text=applicant.text,
+            experience_low=experience.low,
+            experience_high=experience.high,
+            experience_detected=experience.detected,
+            application_url=application_url,
         ))
 
     hydrated = 0
@@ -884,6 +1039,14 @@ async def search(
         if location and not _location_matches_requested(job.location, location):
             _bump(diagnostics, "rejected_location")
             continue
+        if job.applicant_count is not None:
+            _bump(diagnostics, "applicant_count_known")
+        else:
+            _bump(diagnostics, "applicant_count_unknown")
+        if job.experience_detected:
+            _bump(diagnostics, "experience_detected_final")
+        else:
+            _bump(diagnostics, "experience_unknown")
         result.append(job)
 
     if diagnostics is not None:

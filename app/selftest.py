@@ -30,6 +30,13 @@ MODULES = (
     "app.history",
     "app.approval_queue",
     "app.orchestrator",
+    "app.job_metadata",
+    "app.resume_match",
+    "app.resume_tailoring",
+    "app.notifications",
+    "app.scheduler",
+    "app.media_provider",
+    "app.scrolling",
 )
 
 
@@ -45,6 +52,23 @@ def run_selftest() -> list[SelfTestResult]:
     skills = list_skills()
     names = {skill.name for skill in skills}
     results.append(SelfTestResult("skill-registry", len(skills) == 27, f"{len(skills)} skills registered"))
+    expected_names = {
+        "auth", "profile", "jobs", "people", "companies", "posts", "saved",
+        "connections", "messaging", "engagement", "leadgen", "followups", "outreach",
+        "post_writer", "content_planner", "comment_drafter", "reply_handler",
+        "post_audit", "humanizer", "hook_extractor", "repurposer", "profile_optimizer",
+        "interviewer", "story_bank", "engager_analytics", "thread_monitor", "employee_advocacy",
+    }
+    missing_names = expected_names - names
+    unexpected_names = names - expected_names
+    expected_mutating = {"connections", "messaging", "engagement", "followups", "outreach"}
+    actual_mutating = {skill.name for skill in skills if skill.mutating}
+    results.append(SelfTestResult(
+        "skill-contract",
+        len(skills) == 27 and not missing_names and not unexpected_names and actual_mutating == expected_mutating,
+        f"missing={sorted(missing_names)} unexpected={sorted(unexpected_names)} mutating={sorted(actual_mutating)}",
+    ))
+
 
     expected_dispatch = {
         "post_writer", "content_planner", "comment_drafter", "reply_handler",

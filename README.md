@@ -158,6 +158,18 @@ Do not put a real LinkedIn login/session into CI.
 - consequential actions require human approval
 - read/runtime operations fail closed when the LinkedIn session cannot be verified
 
+## Production hardening status
+
+The repository now includes applicant-count metadata, experience parsing, explainable applicant/experience ranking signals, a complete 27-skill self-test contract, factual resume/job matching, factual resume tailoring, safe scheduled read-only discovery, notification providers, and PASS/WARN/FAIL smoke-test semantics. These features still require final automated and applicable live validation before a production-ready declaration.
+
+Useful commands:
+
+```text
+python -m app monitor-jobs --once --query "Power BI Developer" --location "Gurgaon"
+python -m app monitor-jobs --interval-minutes 1440 --query "Power BI Developer" --location "Gurgaon"
+python -m app smoke-test --read-only
+```
+
 ## Roadmap
 
 The remaining engineering layers are release hardening rather than unrestricted account takeover:
@@ -165,7 +177,8 @@ The remaining engineering layers are release hardening rather than unrestricted 
 - improve resilient selectors as LinkedIn UI changes
 - harden resilient selectors and fixture coverage as LinkedIn UI changes
 - add a local dashboard for jobs, applications and approvals
-- add a Windows scheduled **read-only** discovery workflow
+- complete live validation of applicant count, experience and all configured locations
+- add a Windows scheduled **read-only** discovery workflow using the monitor command
 - add optional user-confirmed browser handoff for individual actions
 
 This keeps the tool useful for your job search while avoiding automation patterns that LinkedIn explicitly prohibits.

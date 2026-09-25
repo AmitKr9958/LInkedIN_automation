@@ -5,6 +5,7 @@ from dataclasses import dataclass, asdict
 from urllib.parse import quote_plus
 
 from ..config import settings
+from ..scrolling import scroll_page_completely
 from .parsing import clean_text, dedupe_by, strip_degree
 
 
@@ -149,11 +150,12 @@ async def search(page, query: str, location: str = "") -> list[Person]:
         )
     except Exception:
         pass  # read whatever rendered
+    await scroll_page_completely(page, max_rounds=12, pause_ms=600)
     cards = page.locator("li.reusable-search__result-container, .entity-result")
     if not await cards.count():
         return await _sdui_search(page)
     out = []
-    for i in range(min(await cards.count(), 50)):
+    for i in range(min(await cards.count(), 200)):
         card = cards.nth(i)
         links = card.locator("a[href*='/in/']")
         if not await links.count():

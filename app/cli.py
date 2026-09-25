@@ -23,6 +23,10 @@ from .agent import LinkedInAgent
 from .selftest import run_selftest
 from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
+from .notifications import ConsoleNotificationProvider, FileNotificationProvider, EmailNotificationProvider, build_daily_report
+from .scheduler import ReadOnlyScheduler
+from .resume_match import match_resume_to_job
+from .resume_tailoring import tailor_resume
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
 
@@ -180,12 +184,24 @@ def smoke_test(read_only: bool = typer.Option(True, "--read-only/--all", help="O
             result = fn()
             if name == "auth":
                 ok = bool(result)
+                status = "PASS" if ok else "FAIL"
+                detail = ""
             else:
                 ok = result is not None
-            status = "PASS" if ok else "FAIL"
+                data = getattr(result, "data", None)
+                if name == "jobs":
+                    if not isinstance(data, list):
+                        status, detail, ok = "FAIL", "invalid result structure", False
+                    elif data:
+                        status, detail = "PASS", f"{len(data)} valid jobs"
+                    else:
+                        status, detail = "WARN", "authenticated, but 0 matching jobs"
+                else:
+                    status = "PASS" if ok else "FAIL"
+                    detail = f"{len(data)} records" if isinstance(data, list) else ""
             if not ok:
                 failed += 1
-            typer.echo(f"{name:12} {status}")
+            typer.echo(f"{name:12} {status}" + (f" — {detail}" if detail else ""))
         except Exception as exc:
             failed += 1
             typer.echo(f"{name:12} FAIL  ({type(exc).__name__}: {exc})")
@@ -266,6 +282,12 @@ def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
                 "posted_hours": r.get("posted_hours"),
                 "description": r.get("text", ""),
                 "easy_apply": bool(r.get("easy_apply", False)),
+                "applicant_count": r.get("applicant_count"),
+                "applicant_count_text": r.get("applicant_count_text"),
+                "experience_low": r.get("experience_low"),
+                "experience_high": r.get("experience_high"),
+                "experience_detected": bool(r.get("experience_detected", False)),
+                "application_url": r.get("application_url"),
                 "source": "linkedin",
             }
             for r in rows
@@ -275,6 +297,53 @@ def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
     report = asyncio.run(_run())
     typer.echo(json.dumps(report.ranked, indent=2, default=str))
 
+
+@app.command("match-resume")
+def match_resume(job_text_path: str, resume_path: str, skills: str = ""):
+    """Compare a supplied job description with supplied resume/profile facts."""
+    job_text = open(job_text_path, encoding="utf-8").read()
+    resume_text = open(resume_path, encoding="utf-8").read()
+    skill_list = [x.strip() for x in skills.split(",") if x.strip()]
+    typer.echo(json.dumps(match_resume_to_job(job_text, resume_text, skill_list).to_dict(), indent=2))
+
+@app.command("tailor-resume")
+def tailor_resume_command(job_text_path: str, resume_path: str, skills: str = ""):
+    """Produce factual resume-tailoring suggestions without inventing facts."""
+    job_text = open(job_text_path, encoding="utf-8").read()
+    resume_text = open(resume_path, encoding="utf-8").read()
+    skill_list = [x.strip() for x in skills.split(",") if x.strip()]
+    typer.echo(json.dumps(tailor_resume(job_text, resume_text, skill_list).to_dict(), indent=2))
+
+@app.command("monitor-jobs")
+def monitor_jobs(
+    query: str = "Power BI",
+    location: str = "Gurgaon",
+    interval_minutes: int = 1440,
+    once: bool = typer.Option(False, "--once"),
+    report_path: str = "",
+    email: bool = typer.Option(False, "--email"),
+):
+    """Run safe, read-only job discovery once or on a configurable schedule."""
+    scheduler = ReadOnlyScheduler(interval_minutes)
+    provider = EmailNotificationProvider() if email else (FileNotificationProvider(report_path) if report_path else ConsoleNotificationProvider())
+
+    def run_once():
+        async def _run():
+            data = await run_read("jobs", keywords=query, location=location)
+            rows = [x.to_dict() if hasattr(x, "to_dict") else x for x in data.data]
+            return dedupe_jobs(rows)
+        rows = asyncio.run(_run())
+        provider.send(build_daily_report(rows))
+        return rows
+
+    if once:
+        run_once()
+        return
+
+    while True:
+        run_once()
+        import time
+        time.sleep(scheduler.interval_minutes * 60)
 
 @app.command("history")
 def history(limit: int = 20):
@@ -330,8 +399,20 @@ app.add_typer(intelligence_app, name="intel")
 
 
 @applications.command("add")
-def application_add(job_url: str, title: str = "", company: str = ""):
-    ApplicationTracker().add(job_url, title, company)
+def application_add(
+    job_url: str,
+    title: str = "",
+    company: str = "",
+    source: str = "linkedin",
+    application_url: str = "",
+    recruiter_contact: str = "",
+    follow_up_date: str = "",
+):
+    ApplicationTracker().add(
+        job_url, title, company, source=source,
+        application_url=application_url, recruiter_contact=recruiter_contact,
+        follow_up_date=follow_up_date,
+    )
     typer.echo(f"tracked: {job_url}")
 
 

@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, production-hardening]
   pull_request:
     branches: [main]
 
@@ -18,6 +18,10 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: python -m compileall -q app tests
       - run: ruff check app tests --select E9,F63,F7,F82
+      - run: python -m pip install pip-audit
+      - run: pip-audit --strict --skip-editable
+      - run: python -m pip install detect-secrets
+      - run: detect-secrets scan --all-files
       - run: python -m app selftest
       - run: pytest -q -m "not e2e"
 
