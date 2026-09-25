@@ -41,10 +41,25 @@ def _filter_jobs_by_freshness(
     kept: list[Any] = []
     rejected = 0
     unknown = 0
+    rejection_samples: list[dict[str, Any]] = []
+    unknown_samples: list[dict[str, Any]] = []
+
+    def _sample(job: Any) -> dict[str, Any]:
+        return {
+            "title": str(getattr(job, "title", "") or "")[:120],
+            "company": str(getattr(job, "company", "") or "")[:120],
+            "location": str(getattr(job, "location", "") or "")[:160],
+            "posted": str(getattr(job, "posted", "") or "")[:80],
+            "posted_hours": getattr(job, "posted_hours", None),
+            "href": str(getattr(job, "href", "") or "")[:240],
+        }
+
     for job in data:
         age = getattr(job, "posted_hours", None)
         if age is None:
             unknown += 1
+            if len(unknown_samples) < 5:
+                unknown_samples.append(_sample(job))
             if include_unknown_age:
                 kept.append(job)
             else:
@@ -54,6 +69,8 @@ def _filter_jobs_by_freshness(
             kept.append(job)
         else:
             rejected += 1
+            if len(rejection_samples) < 5:
+                rejection_samples.append(_sample(job))
     if diagnostics is not None:
         diagnostics["freshness_window_hours"] = max_posted_hours
         diagnostics["rejected_freshness"] = rejected
@@ -64,6 +81,8 @@ def _filter_jobs_by_freshness(
         diagnostics["returned_after_freshness"] = len(kept)
         diagnostics["final_returned"] = len(kept)
         diagnostics["include_unknown_age"] = include_unknown_age
+        diagnostics["freshness_rejection_samples"] = rejection_samples
+        diagnostics["unknown_age_samples"] = unknown_samples
     return kept
 
 
