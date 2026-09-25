@@ -30,7 +30,7 @@ class ApplicationTracker:
             db.execute("""CREATE TABLE IF NOT EXISTS applications(
               job_url TEXT PRIMARY KEY, title TEXT, company TEXT, status TEXT NOT NULL,
               updated_at TEXT NOT NULL, notes TEXT DEFAULT '', source TEXT DEFAULT '',
-              application_url TEXT DEFAULT '', recruiter_contact TEXT DEFAULT '', follow_up_date TEXT DEFAULT ''""")
+              application_url TEXT DEFAULT '', recruiter_contact TEXT DEFAULT '', follow_up_date TEXT DEFAULT '')""")
             columns = {row[1] for row in db.execute("PRAGMA table_info(applications)").fetchall()}
             for name in ("source", "application_url", "recruiter_contact", "follow_up_date"):
                 if name not in columns:
