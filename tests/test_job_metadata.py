@@ -24,3 +24,17 @@ def test_experience_match_unknown_is_not_rejected():
 def test_experience_overlap():
     assert experience_matches(parse_experience("5-8 years"), 5, 12) is True
     assert experience_matches(parse_experience("0-1 years"), 5, 12) is False
+
+
+
+def test_incremental_job_snapshot_parser_dedupes_by_normalized_url():
+    from app.skills.jobs import _jobs_from_snapshots
+
+    jobs = _jobs_from_snapshots([
+        {"href": "https://www.linkedin.com/jobs/view/123/?trk=foo", "title": "Power BI Developer", "company": "Example", "location": "Gurgaon, Haryana, India", "posted": "2 hours ago", "text": "Power BI Developer Example Gurgaon 2 hours ago 10 applicants"},
+        {"href": "https://www.linkedin.com/jobs/view/123/?trk=bar", "title": "Power BI Developer", "company": "Example", "location": "Gurgaon, Haryana, India", "posted": "2 hours ago", "text": "Power BI Developer Example Gurgaon 2 hours ago 10 applicants"},
+        {"href": "https://www.linkedin.com/jobs/view/456/", "title": "BI Developer", "company": "Other", "location": "Noida, India", "posted": "1 hour ago", "text": "BI Developer Other Noida 1 hour ago 5 applicants"},
+    ])
+    assert len(jobs) == 2
+    assert jobs[0].applicant_count == 10
+    assert jobs[0].posted_hours == 2.0
