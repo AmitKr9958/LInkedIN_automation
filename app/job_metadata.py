@@ -13,7 +13,7 @@ EXPERIENCE_RE = re.compile(
     r"(?i)\b(\d{1,2})\s*(?:\+|plus|or more)?\s*(?:-|–|—|to)\s*(\d{1,2})\s*(?:years?|yrs?)\b"
 )
 EXPERIENCE_SINGLE_RE = re.compile(
-    r"(?i)\b(\d{1,2})\s*(?:\+|plus|or more)\s*(?:years?|yrs?)\b"
+    r"(?i)\b(\d{1,2})\s*(?:\+|plus|or more)?\s*(?:years?|yrs?)\b"
 )
 EXPERIENCE_MIN_RE = re.compile(
     r"(?i)\b(?:minimum|at least)\s+(\d{1,2})\s*(?:years?|yrs?)\b"
