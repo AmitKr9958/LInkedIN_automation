@@ -20,5 +20,7 @@ class UserJobPreferences:
     remote_only_if_explicit: bool = True
     min_experience_years: int = 5
     max_experience_years: int = 12
+    preferred_applicant_count: int = 25
+    acceptable_applicant_count: int = 50
 
 DEFAULT_JOB_PREFERENCES = UserJobPreferences()
