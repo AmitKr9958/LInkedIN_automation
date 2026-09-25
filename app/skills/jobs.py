@@ -664,7 +664,66 @@ def _merge_detail(job: Job, detail: dict) -> None:
         job.location = detail["location"]
 
 
+async def _scroll_complete_results_page(page, max_passes: int = 40, stable_passes_required: int = 3, diagnostics: dict | None = None) -> None:
+    """Scroll LinkedIn's document and nested jobs-results pane to the end."""
+    script = """() => {
+      const scrollables = [document.scrollingElement, ...Array.from(document.querySelectorAll('*'))]
+        .filter(el => el && el.scrollHeight > el.clientHeight + 8 &&
+          (el === document.scrollingElement ||
+           ['auto','scroll'].includes(getComputedStyle(el).overflowY)));
+      const jobContainers = scrollables.filter(el =>
+        el === document.scrollingElement || !!el.querySelector("a[href*='/jobs/']"));
+      const candidates = [...new Set(jobContainers.length ? jobContainers : scrollables)];
+      candidates.sort((a,b) => {
+        const aj=a.querySelectorAll ? a.querySelectorAll("a[href*='/jobs/']").length : 0;
+        const bj=b.querySelectorAll ? b.querySelectorAll("a[href*='/jobs/']").length : 0;
+        return bj-aj || ((b.scrollHeight-b.clientHeight)-(a.scrollHeight-a.clientHeight));
+      });
+      let moved=false, maxHeight=document.scrollingElement?.scrollHeight||0, maxTop=0;
+      for (const el of candidates.slice(0,8)) {
+        const before=el.scrollTop;
+        el.scrollTop=Math.min(before+Math.max(el.clientHeight*0.85,600),el.scrollHeight);
+        moved ||= el.scrollTop !== before;
+        maxHeight=Math.max(maxHeight,el.scrollHeight||0);
+        maxTop=Math.max(maxTop,el.scrollTop||0);
+      }
+      const doc=document.scrollingElement;
+      if(doc){
+        const before=doc.scrollTop;
+        doc.scrollTop=Math.min(before+Math.max(window.innerHeight*0.85,600),doc.scrollHeight);
+        moved ||= doc.scrollTop !== before;
+        maxHeight=Math.max(maxHeight,doc.scrollHeight||0);
+        maxTop=Math.max(maxTop,doc.scrollTop||0);
+      }
+      return {moved,maxHeight,maxTop,jobCount:document.querySelectorAll("a[href*='/jobs/']").length,
+        atBottom:candidates.every(el=>el.scrollTop+el.clientHeight>=el.scrollHeight-12)};
+    }""";
+    let previous = None;
+    let stable = 0;
+    for pass_number in range(1, max_passes + 1):
+        try:
+            state = await page.evaluate(script)
+        except Exception:
+            break
+        if diagnostics is not None:
+            diagnostics["scroll_passes"] = pass_number
+            diagnostics["scroll_max_height"] = max(diagnostics.get("scroll_max_height", 0), int(state.get("maxHeight") or 0))
+            diagnostics["scroll_job_count"] = max(diagnostics.get("scroll_job_count", 0), int(state.get("jobCount") or 0))
+        signature = (int(state.get("maxHeight") or 0), int(state.get("maxTop") or 0), int(state.get("jobCount") or 0), bool(state.get("atBottom")))
+        stable = stable + 1 if signature == previous and signature[-1] else 0
+        previous = signature
+        try:
+            await page.wait_for_timeout(700)
+        except Exception:
+            pass
+        if stable >= stable_passes_required:
+            break
+    if diagnostics is not None:
+        diagnostics["scroll_completed"] = True
+
+
 async def _hydrate(page, cards) -> None:
+    # Preserve existing card hydration; complete-page scrolling is handled above.
     try:
         total = min(await cards.count(), 50)
     except Exception:
@@ -679,7 +738,6 @@ async def _hydrate(page, cards) -> None:
         await page.wait_for_timeout(400)
     except Exception:
         pass
-
 
 def _bump(diagnostics: dict | None, key: str) -> None:
     """Increment a safe pipeline-stage counter (no URLs or session data)."""
@@ -743,6 +801,8 @@ async def search(
     except Exception:
         pass
 
+    # Scroll the full LinkedIn results surface, including nested infinite-scroll panes.
+    await _scroll_complete_results_page(page, diagnostics=diagnostics)
     await _hydrate(page, cards)
 
     parsed: list[Job] = []
