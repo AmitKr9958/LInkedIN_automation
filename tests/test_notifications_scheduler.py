@@ -11,3 +11,11 @@ def test_daily_report_contains_job_fields(tmp_path):
 
 def test_scheduler_minimum_interval():
     assert ReadOnlyScheduler(60).metadata().interval_minutes == 60
+
+
+def test_mock_media_provider_creates_local_artifact(tmp_path):
+    from app.media import MediaPrompt
+    from app.media_provider import MockMediaProvider
+    artifact = MockMediaProvider().generate(MediaPrompt("test"), tmp_path)
+    assert artifact.provider == "mock"
+    assert artifact.path.endswith(".json")
