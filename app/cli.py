@@ -381,8 +381,20 @@ app.add_typer(intelligence_app, name="intel")
 
 
 @applications.command("add")
-def application_add(job_url: str, title: str = "", company: str = ""):
-    ApplicationTracker().add(job_url, title, company)
+def application_add(
+    job_url: str,
+    title: str = "",
+    company: str = "",
+    source: str = "linkedin",
+    application_url: str = "",
+    recruiter_contact: str = "",
+    follow_up_date: str = "",
+):
+    ApplicationTracker().add(
+        job_url, title, company, source=source,
+        application_url=application_url, recruiter_contact=recruiter_contact,
+        follow_up_date=follow_up_date,
+    )
     typer.echo(f"tracked: {job_url}")
 
 
