@@ -1,5 +1,6 @@
 import asyncio
 import json
+from typing import Optional
 
 import typer
 
@@ -154,15 +155,21 @@ def skills():
 
 
 @app.command("read")
-def read(skill: str, query: str = "", location: str = ""):
-    """Run a read-only skill and print JSON."""
+def read(skill: str, query: str = "", location: str = "", max_posted_hours: Optional[float] = None):
+    """Run a read-only skill and print JSON.
+
+    Job reads include every parsed job; pass --max-posted-hours to apply a
+    freshness window (the discover-jobs workflow applies 48 by default).
+    """
     if skill in {"jobs", "people"} and not query:
         query = "Power BI" if skill == "jobs" else "Power BI recruiter"
     if skill == "companies" and not query:
         query = "technology"
     if skill == "posts" and not query:
         query = "Power BI"
-    data = asyncio.run(run_read(skill, keywords=query, location=location, query=query))
+    data = asyncio.run(run_read(skill, keywords=query, location=location, query=query, max_posted_hours=max_posted_hours))
+    if getattr(data, "diagnostics", None):
+        typer.echo("read-diagnostics: " + json.dumps(data.diagnostics, default=str), err=True)
     payload = data.data
     if hasattr(payload, "to_dict"):
         payload = payload.to_dict()
@@ -175,7 +182,9 @@ def read(skill: str, query: str = "", location: str = ""):
 def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
     """Discover jobs, deduplicate them, rank them, and store local history."""
     async def _run():
-        data = await run_read("jobs", keywords=query, location=location)
+        data = await run_read("jobs", keywords=query, location=location, max_posted_hours=48)
+        if getattr(data, "diagnostics", None):
+            typer.echo("read-diagnostics: " + json.dumps(data.diagnostics, default=str), err=True)
         rows = [x.to_dict() if hasattr(x, "to_dict") else x for x in data.data]
         rows = dedupe_jobs(rows)
         normalized = [

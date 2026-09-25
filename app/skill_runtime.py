@@ -12,18 +12,31 @@ from .skills import companies, jobs, people, posts, profile, saved
 class RuntimeResult:
     skill: str
     data: Any
+    diagnostics: dict | None = None
 
 
-def _filter_jobs_by_freshness(data: list[Any], max_posted_hours: float | None = 48) -> list[Any]:
+def _filter_jobs_by_freshness(
+    data: list[Any],
+    max_posted_hours: float | None = 48,
+    diagnostics: dict | None = None,
+) -> list[Any]:
     """Keep fresh jobs plus records whose posting age could not be determined."""
     if max_posted_hours is None:
+        if diagnostics is not None:
+            diagnostics["freshness_window_hours"] = None
         return data
-    return [
-        job
-        for job in data
-        if getattr(job, "posted_hours", None) is None
-        or job.posted_hours <= max_posted_hours
-    ]
+    kept: list[Any] = []
+    rejected = 0
+    for job in data:
+        if getattr(job, "posted_hours", None) is None or job.posted_hours <= max_posted_hours:
+            kept.append(job)
+        else:
+            rejected += 1
+    if diagnostics is not None:
+        diagnostics["freshness_window_hours"] = max_posted_hours
+        diagnostics["rejected_freshness"] = rejected
+        diagnostics["returned_after_freshness"] = len(kept)
+    return kept
 
 
 async def run_read(skill: str, **kwargs) -> RuntimeResult:
@@ -58,16 +71,23 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
         if skill == "profile":
             data = await profile.read_profile(page)
         elif skill == "jobs":
+            diagnostics: dict = {"skill": "jobs"}
             data = await jobs.search(
                 page,
                 kwargs.get("keywords", "Power BI"),
                 kwargs.get("location", "Gurgaon"),
                 start=kwargs.get("start", 0),
+                diagnostics=diagnostics,
             )
+            # Raw reads report every parsed job with its posting age; the
+            # 48-hour discovery window is applied by the discovery workflow
+            # (discover-jobs) or requested explicitly via max_posted_hours.
             data = _filter_jobs_by_freshness(
                 data,
-                kwargs.get("max_posted_hours", 48),
+                kwargs.get("max_posted_hours"),
+                diagnostics=diagnostics,
             )
+            return RuntimeResult(skill, data, diagnostics)
         elif skill == "people":
             data = await people.search(
                 page,

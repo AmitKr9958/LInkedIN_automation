@@ -24,6 +24,7 @@ class Job:
     posted_hours: float | None = None
     easy_apply: bool = False
     text: str = ""
+    source: str = "linkedin"
 
     def to_dict(self):
         return asdict(self)
@@ -97,6 +98,12 @@ DETAIL_POSTED_SELECTORS = (
     ".job-details-jobs-unified-top-card__posted-date",
     ".jobs-unified-top-card__posted-date",
     ".job-details-jobs-unified-top-card__primary-description-container",
+)
+
+DETAIL_LOCATION_SELECTORS = (
+    ".job-details-jobs-unified-top-card__primary-description-container",
+    ".jobs-unified-top-card__primary-description-container",
+    ".topcard__flavor--bullet-location",
 )
 
 MAX_DETAIL_HYDRATION = 10
@@ -209,6 +216,40 @@ def _looks_like_location(value: str) -> bool:
         or "hybrid" in lower
         or any(token in lower for token in ("india", "delhi", "gurgaon", "gurugram", "noida", "jaipur"))
     )
+
+
+_DOT_SPLIT = re.compile(r"[\u00b7\u2022]")
+
+
+def _location_from_detail_text(text: str, title: str = "") -> str:
+    """Recover the location from the 2026 detail-page top card.
+
+    The visible top card renders as "{title} {City, State, Country} - {posted} - ..."
+    with no dedicated location element, so parse the first dot-separated segment
+    and strip the known card title from it.
+    """
+    if not text:
+        return ""
+    segment = _DOT_SPLIT.split(text, maxsplit=1)[0].strip()
+    if not segment:
+        return ""
+    if title and segment.lower().startswith(title.lower()):
+        segment = segment[len(title):].strip()
+    if not segment:
+        return ""
+    lower = segment.lower()
+    if "," not in segment and not any(
+        token in lower for token in ("remote", "hybrid", "on-site")
+    ):
+        return ""
+    if title and _looks_like_location(segment):
+        return segment
+    comma = segment.find(",")
+    if comma < 1:
+        return segment if _looks_like_location(segment) else ""
+    start = segment.rfind(" ", 0, comma)
+    candidate = segment[start + 1 if start >= 0 else 0:].strip()
+    return candidate if _looks_like_location(candidate) else ""
 
 
 def _looks_like_posted(value: str) -> bool:
@@ -436,7 +477,7 @@ def _walk_nodes(data) -> Iterable[dict]:
 
 
 def _jsonld_job_fields(payloads: Iterable[str]) -> dict:
-    fields: dict = {"company": "", "posted": "", "posted_hours": None}
+    fields: dict = {"company": "", "posted": "", "posted_hours": None, "location": ""}
     for payload in payloads:
         try:
             data = json.loads(payload)
@@ -457,6 +498,22 @@ def _jsonld_job_fields(payloads: Iterable[str]) -> dict:
                 if label:
                     fields["posted"] = label
                     fields["posted_hours"] = _hours_from_datetime(raw_date)
+            raw_location = node.get("jobLocation")
+            location = ""
+            if isinstance(raw_location, dict):
+                address = raw_location.get("address")
+                if isinstance(address, dict):
+                    parts = [
+                        str(address.get(key) or "").strip()
+                        for key in ("addressLocality", "addressRegion", "addressCountry")
+                    ]
+                    location = ", ".join(part for part in parts if part)
+                elif isinstance(address, str):
+                    location = address.strip()
+            elif isinstance(raw_location, str):
+                location = raw_location.strip()
+            if location and not fields["location"]:
+                fields["location"] = location
     return fields
 
 
@@ -514,8 +571,8 @@ async def _main_text(page, limit: int = 2500) -> str:
     return " ".join(text.split())[:limit]
 
 
-async def _detail_fields(page, href: str) -> dict:
-    fields: dict = {"company": "", "posted": "", "posted_hours": None}
+async def _detail_fields(page, href: str, title: str = "") -> dict:
+    fields: dict = {"company": "", "posted": "", "posted_hours": None, "location": ""}
     try:
         await page.goto(href, wait_until="domcontentloaded")
     except Exception:
@@ -548,18 +605,25 @@ async def _detail_fields(page, href: str) -> dict:
                     posted, posted_hours = label, _hours_from_datetime(raw)
         except Exception:
             pass
+    main_text = await _main_text(page)
     if not posted:
-        posted = _normalize_posted(await _main_text(page))
+        posted = _normalize_posted(main_text)
     if posted and posted_hours is None:
         posted_hours = _hours_from_posted(posted)
 
-    fields.update(company=company, posted=posted, posted_hours=posted_hours)
+    location = _location_from_detail_text(await _text(page, DETAIL_LOCATION_SELECTORS), title)
+    if not location:
+        location = _location_from_detail_text(main_text, title)
+
+    fields.update(company=company, posted=posted, posted_hours=posted_hours, location=location)
     structured = _jsonld_job_fields(await _jsonld_texts(page))
     if not fields["company"] and structured["company"]:
         fields["company"] = structured["company"]
     if not fields["posted"] and structured["posted"]:
         fields["posted"] = structured["posted"]
         fields["posted_hours"] = structured["posted_hours"]
+    if not fields["location"] and structured["location"]:
+        fields["location"] = structured["location"]
     return fields
 
 
@@ -570,6 +634,8 @@ def _merge_detail(job: Job, detail: dict) -> None:
         job.posted = detail["posted"]
     if job.posted_hours is None and detail.get("posted_hours") is not None:
         job.posted_hours = detail["posted_hours"]
+    if not job.location and detail.get("location"):
+        job.location = detail["location"]
 
 
 async def _hydrate(page, cards) -> None:
@@ -589,7 +655,19 @@ async def _hydrate(page, cards) -> None:
         pass
 
 
-async def search(page, keywords: str, location: str = "", start: int = 0) -> list[Job]:
+def _bump(diagnostics: dict | None, key: str) -> None:
+    """Increment a safe pipeline-stage counter (no URLs or session data)."""
+    if diagnostics is not None:
+        diagnostics[key] = diagnostics.get(key, 0) + 1
+
+
+async def search(
+    page,
+    keywords: str,
+    location: str = "",
+    start: int = 0,
+    diagnostics: dict | None = None,
+) -> list[Job]:
     params = f"keywords={quote_plus(keywords)}"
     if location:
         params += f"&location={quote_plus(location)}"
@@ -601,6 +679,17 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
         wait_until="domcontentloaded",
         timeout=60_000,
     )
+
+    # SDUI job results render client-side after domcontentloaded; wait for
+    # the first card of any known shape before counting so a slow render is
+    # not mistaken for an empty result set.
+    try:
+        await page.wait_for_selector(
+            ", ".join((*CARD_SELECTORS, "main a[href*='/jobs/']")),
+            timeout=12_000,
+        )
+    except Exception:
+        pass
 
     cards = None
     for selector in CARD_SELECTORS:
@@ -618,6 +707,9 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
         if await link_cards.count():
             cards = link_cards
         else:
+            if diagnostics is not None:
+                diagnostics["cards_detected"] = 0
+                diagnostics["returned"] = 0
             return []
 
     try:
@@ -627,11 +719,12 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
 
     await _hydrate(page, cards)
 
-    result: list[Job] = []
+    parsed: list[Job] = []
     seen: set[str] = set()
 
     for i in range(min(await cards.count(), 50)):
         card = cards.nth(i)
+        _bump(diagnostics, "cards_detected")
         try:
             text = " ".join((await card.inner_text()).split())
         except Exception:
@@ -645,24 +738,35 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
                 raw_href = ""
             if raw_href and "/jobs/" in raw_href:
                 href = normalize_job_url(urljoin(settings.linkedin_base_url, raw_href))
+        if href:
+            _bump(diagnostics, "urls_extracted")
         title = _clean_title(await _text(card, TITLE_SELECTORS))
         if not title and href:
             try:
                 title = _clean_title(await card.inner_text())
             except Exception:
                 title = ""
+        if title:
+            _bump(diagnostics, "titles_extracted")
         company = await _text(card, COMPANY_SELECTORS)
         if not company:
             company = await _logo_company(card)
         if not company:
             company = await _company_from_attributes(card)
         location_text = await _location(card, text)
+        if location_text:
+            _bump(diagnostics, "locations_extracted")
         posted, posted_hours = await _posted(card)
+        if posted:
+            _bump(diagnostics, "posted_extracted")
 
         if not company:
             company = _fallback_company(text, title, location_text, posted)
+        if company:
+            _bump(diagnostics, "companies_extracted")
 
         if not title and not company and not location_text:
+            _bump(diagnostics, "rejected_empty")
             continue
 
         canonical_href = normalize_job_url(href)
@@ -670,12 +774,10 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
         if not key:
             key = "|".join(part.strip().lower() for part in (title, company, location_text))
         if key and key in seen:
+            _bump(diagnostics, "rejected_duplicate")
             continue
         if key:
             seen.add(key)
-
-        if location and not _location_matches_requested(location_text, location):
-            continue
 
         easy_apply = "easy apply" in text.lower()
         if not easy_apply:
@@ -695,7 +797,7 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
             posted or "missing",
         )
 
-        result.append(Job(
+        parsed.append(Job(
             title=title,
             company=company,
             location=location_text,
@@ -704,19 +806,28 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
             posted_hours=posted_hours,
             easy_apply=easy_apply,
             text=text,
+            source="linkedin",
         ))
 
     hydrated = 0
-    for job in result:
+    for job in parsed:
         if hydrated >= MAX_DETAIL_HYDRATION:
             break
-        if (job.company and job.posted) or not job.href:
+        if (job.company and job.posted and job.location) or not job.href:
             continue
         card_company = bool(job.company)
         card_posted = bool(job.posted)
-        detail = await _detail_fields(page, job.href)
+        card_location = bool(job.location)
+        detail = await _detail_fields(page, job.href, title=job.title)
         hydrated += 1
+        _bump(diagnostics, "detail_pages_visited")
         _merge_detail(job, detail)
+        if job.company and not card_company:
+            _bump(diagnostics, "company_filled_from_detail")
+        if job.posted and not card_posted:
+            _bump(diagnostics, "posted_filled_from_detail")
+        if job.location and not card_location:
+            _bump(diagnostics, "location_filled_from_detail")
         logger.debug(
             "JOB %s card company: %s; card posted: %s; detail company: %s; detail posted: %s; "
             "company source: %s; posted source: %s",
@@ -729,4 +840,15 @@ async def search(page, keywords: str, location: str = "", start: int = 0) -> lis
             "card" if card_posted else ("detail-page" if job.posted else "missing"),
         )
 
+    # Apply the requested-location rule only after detail hydration so cards
+    # whose location is not rendered on the list page can still qualify.
+    result: list[Job] = []
+    for job in parsed:
+        if location and not _location_matches_requested(job.location, location):
+            _bump(diagnostics, "rejected_location")
+            continue
+        result.append(job)
+
+    if diagnostics is not None:
+        diagnostics["returned"] = len(result)
     return result
