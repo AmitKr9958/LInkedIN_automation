@@ -63,7 +63,10 @@ def parse_experience(text: str, title: str = "") -> ExperienceInfo:
         return ExperienceInfo(int(match.group(1)), None, True, "minimum")
     match = EXPERIENCE_SINGLE_RE.search(value)
     if match:
-        return ExperienceInfo(int(match.group(1)), None, True, "plus")
+        low = int(match.group(1))
+        fragment = match.group(0).lower()
+        explicit_open = bool(re.search(r"\+|plus|or more", fragment))
+        return ExperienceInfo(low, None if explicit_open else low, True, "plus" if explicit_open else "exact")
     lower_title = (title or "").lower()
     for label, bounds in ROLE_EXPERIENCE_HINTS.items():
         if re.search(rf"\b{re.escape(label)}\b", lower_title):
