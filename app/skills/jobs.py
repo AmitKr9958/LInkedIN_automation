@@ -106,6 +106,15 @@ DETAIL_LOCATION_SELECTORS = (
     ".topcard__flavor--bullet-location",
 )
 
+DETAIL_TITLE_SELECTORS = (
+    ".job-details-jobs-unified-top-card__job-title h1",
+    ".job-details-jobs-unified-top-card__job-title",
+    ".jobs-unified-top-card__job-title h1",
+    ".jobs-unified-top-card__job-title",
+    "h1.t-24",
+    "h1",
+)
+
 MAX_DETAIL_HYDRATION = 10
 
 _POSTED_RE = re.compile(
@@ -477,13 +486,16 @@ def _walk_nodes(data) -> Iterable[dict]:
 
 
 def _jsonld_job_fields(payloads: Iterable[str]) -> dict:
-    fields: dict = {"company": "", "posted": "", "posted_hours": None, "location": ""}
+    fields: dict = {"title": "", "company": "", "posted": "", "posted_hours": None, "location": ""}
     for payload in payloads:
         try:
             data = json.loads(payload)
         except (TypeError, ValueError):
             continue
         for node in _walk_nodes(data):
+            title = str(node.get("title") or node.get("name") or "").strip()
+            if title and not fields["title"]:
+                fields["title"] = title
             organization = node.get("hiringOrganization")
             company = ""
             if isinstance(organization, dict):
@@ -572,7 +584,7 @@ async def _main_text(page, limit: int = 2500) -> str:
 
 
 async def _detail_fields(page, href: str, title: str = "") -> dict:
-    fields: dict = {"company": "", "posted": "", "posted_hours": None, "location": ""}
+    fields: dict = {"title": "", "company": "", "posted": "", "posted_hours": None, "location": ""}
     try:
         await page.goto(href, wait_until="domcontentloaded")
     except Exception:
@@ -581,6 +593,16 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
         await page.wait_for_timeout(1200)
     except Exception:
         pass
+
+    detail_title = _clean_title(await _text(page, DETAIL_TITLE_SELECTORS))
+    if not detail_title:
+        try:
+            page_title = await page.title()
+            # LinkedIn titles often look like "Job Title | Company | LinkedIn"
+            detail_title = _clean_title(page_title.split("|")[0].strip()) if page_title else ""
+        except Exception:
+            detail_title = ""
+    fields["title"] = detail_title
 
     company = await _text(page, DETAIL_COMPANY_SELECTORS)
     if not company:
@@ -617,6 +639,8 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
 
     fields.update(company=company, posted=posted, posted_hours=posted_hours, location=location)
     structured = _jsonld_job_fields(await _jsonld_texts(page))
+    if not fields["title"] and structured.get("title"):
+        fields["title"] = _clean_title(structured["title"])
     if not fields["company"] and structured["company"]:
         fields["company"] = structured["company"]
     if not fields["posted"] and structured["posted"]:
@@ -628,6 +652,8 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
 
 
 def _merge_detail(job: Job, detail: dict) -> None:
+    if not job.title and detail.get("title"):
+        job.title = detail["title"]
     if not job.company and detail.get("company"):
         job.company = detail["company"]
     if not job.posted and detail.get("posted"):
@@ -813,8 +839,11 @@ async def search(
     for job in parsed:
         if hydrated >= MAX_DETAIL_HYDRATION:
             break
-        if (job.company and job.posted and job.location) or not job.href:
+        # Visit detail when any required field is missing (title/company/posted/location).
+        needs_detail = not (job.title and job.company and job.posted and job.location)
+        if not needs_detail or not job.href:
             continue
+        card_title = bool(job.title)
         card_company = bool(job.company)
         card_posted = bool(job.posted)
         card_location = bool(job.location)
@@ -822,6 +851,8 @@ async def search(
         hydrated += 1
         _bump(diagnostics, "detail_pages_visited")
         _merge_detail(job, detail)
+        if job.title and not card_title:
+            _bump(diagnostics, "title_filled_from_detail")
         if job.company and not card_company:
             _bump(diagnostics, "company_filled_from_detail")
         if job.posted and not card_posted:
@@ -842,8 +873,14 @@ async def search(
 
     # Apply the requested-location rule only after detail hydration so cards
     # whose location is not rendered on the list page can still qualify.
+    # Reject incomplete records: a production Job must have at least a title
+    # and a usable href (company/location are strongly preferred but title+href
+    # are the minimum contract for downstream ranking/tracking).
     result: list[Job] = []
     for job in parsed:
+        if not job.title or not job.href:
+            _bump(diagnostics, "rejected_incomplete")
+            continue
         if location and not _location_matches_requested(job.location, location):
             _bump(diagnostics, "rejected_location")
             continue
@@ -851,4 +888,5 @@ async def search(
 
     if diagnostics is not None:
         diagnostics["returned"] = len(result)
+        diagnostics["returned_after_location"] = len(result)
     return result

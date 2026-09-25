@@ -507,3 +507,16 @@ python -m app read jobs --query "Power BI Developer" --location "Gurgaon"
 returns real structured jobs from the authenticated LinkedIn page, and those jobs correctly pass the agreed location, freshness, deduplication, and preference rules.
 
 Only then should the project move to the remaining production-release gates.
+
+## Recent fix (working tree)
+
+- Default 48-hour freshness is now applied automatically for `python -m app read jobs`
+  from centralized `UserJobPreferences.posted_within_hours` (no need to pass
+  `--max-posted-hours 48` every time). Pass a negative value to disable the filter.
+- Unknown posting age (`posted_hours is None`) is **excluded** under the strict
+  48-hour policy (no longer treated as fresh). Diagnostics report `unknown_posted_age`.
+- Incomplete Job records (missing title or href) are rejected after detail hydration.
+  Detail pages are visited when title/company/posted/location is missing so titles
+  can be recovered.
+- Read-only smoke test: `python -m app smoke-test --read-only`
+

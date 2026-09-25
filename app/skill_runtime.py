@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .browser import linkedin_browser
+from .job_preferences import DEFAULT_JOB_PREFERENCES
 from .linkedin_reader import current_session_state
 from .skills import companies, jobs, people, posts, profile, saved
 
@@ -19,23 +20,46 @@ def _filter_jobs_by_freshness(
     data: list[Any],
     max_posted_hours: float | None = 48,
     diagnostics: dict | None = None,
+    *,
+    include_unknown_age: bool = False,
 ) -> list[Any]:
-    """Keep fresh jobs plus records whose posting age could not be determined."""
+    """Apply a maximum posting-age window.
+
+    When ``max_posted_hours`` is None, no freshness filter is applied.
+
+    When a window is active:
+    - Jobs with ``posted_hours`` <= window are kept.
+    - Jobs with ``posted_hours`` > window are rejected.
+    - Jobs with unknown age (``posted_hours is None``) are excluded by
+      default (strict job-alert policy). Set ``include_unknown_age=True``
+      to keep them instead.
+    """
     if max_posted_hours is None:
         if diagnostics is not None:
             diagnostics["freshness_window_hours"] = None
         return data
     kept: list[Any] = []
     rejected = 0
+    unknown = 0
     for job in data:
-        if getattr(job, "posted_hours", None) is None or job.posted_hours <= max_posted_hours:
+        age = getattr(job, "posted_hours", None)
+        if age is None:
+            unknown += 1
+            if include_unknown_age:
+                kept.append(job)
+            else:
+                rejected += 1
+            continue
+        if age <= max_posted_hours:
             kept.append(job)
         else:
             rejected += 1
     if diagnostics is not None:
         diagnostics["freshness_window_hours"] = max_posted_hours
         diagnostics["rejected_freshness"] = rejected
+        diagnostics["unknown_posted_age"] = unknown
         diagnostics["returned_after_freshness"] = len(kept)
+        diagnostics["include_unknown_age"] = include_unknown_age
     return kept
 
 
@@ -79,13 +103,18 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
                 start=kwargs.get("start", 0),
                 diagnostics=diagnostics,
             )
-            # Raw reads report every parsed job with its posting age; the
-            # 48-hour discovery window is applied by the discovery workflow
-            # (discover-jobs) or requested explicitly via max_posted_hours.
+            # Prefer the explicit CLI/workflow value when provided; otherwise
+            # use the centralized job preference (posted_within_hours=48).
+            # Passing max_posted_hours=None disables the filter intentionally.
+            if "max_posted_hours" in kwargs:
+                window = kwargs["max_posted_hours"]
+            else:
+                window = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
             data = _filter_jobs_by_freshness(
                 data,
-                kwargs.get("max_posted_hours"),
+                window,
                 diagnostics=diagnostics,
+                include_unknown_age=bool(kwargs.get("include_unknown_age", False)),
             )
             return RuntimeResult(skill, data, diagnostics)
         elif skill == "people":

@@ -123,7 +123,7 @@ Orchestrator ---- optional LLM provider
 
 ## Current implementation status
 
-All 26 skills are registered/governed. Their implementation boundaries are explicit:
+All 27 skills are registered/governed. Their implementation boundaries are explicit:
 
 - **Live read layer:** profile, jobs, people, companies, posts and saved items.
 - **Content/intelligence layer:** 13 content/analysis skills plus the Story Bank.

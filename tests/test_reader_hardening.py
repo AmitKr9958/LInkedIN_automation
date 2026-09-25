@@ -279,7 +279,7 @@ def test_jsonld_job_fields_extract_location():
 
 
 def test_jsonld_job_fields_tolerate_missing_data():
-    empty = {"company": "", "posted": "", "posted_hours": None, "location": ""}
+    empty = {"title": "", "company": "", "posted": "", "posted_hours": None, "location": ""}
     assert _jsonld_job_fields([]) == empty
     assert _jsonld_job_fields(["{}"]) == empty
 
@@ -359,8 +359,13 @@ class _DetailPage:
             DETAIL_COMPANY_SELECTORS,
             DETAIL_LOCATION_SELECTORS,
             DETAIL_POSTED_SELECTORS,
+            DETAIL_TITLE_SELECTORS,
         )
 
+        if selector in DETAIL_TITLE_SELECTORS and self.title_text:
+            # Prefer the explicit job title over the full browser tab title.
+            job_title = self.title_text.split("|")[0].strip() if "|" in self.title_text else self.title_text
+            return _DetailNode(job_title)
         if selector in DETAIL_COMPANY_SELECTORS:
             return _DetailNode(self.company)
         if selector in DETAIL_LOCATION_SELECTORS and self.location:
@@ -401,7 +406,7 @@ async def test_detail_fields_survive_navigation_errors():
             raise RuntimeError("navigation failed")
 
     fields = await _detail_fields(_BrokenPage(), "https://www.linkedin.com/jobs/view/1")
-    assert fields == {"company": "", "posted": "", "posted_hours": None, "location": ""}
+    assert fields == {"title": "", "company": "", "posted": "", "posted_hours": None, "location": ""}
 
 
 def test_merge_detail_fills_only_missing_card_fields():
@@ -731,3 +736,24 @@ async def test_search_hydrates_location_from_detail_page_before_location_filter(
     assert diagnostics["location_filled_from_detail"] == 1
     assert diagnostics.get("rejected_location", 0) == 0
     assert diagnostics["returned"] == 1
+
+
+async def test_detail_fields_recover_missing_title():
+    """Card missing title must be recoverable from the detail page / page title."""
+    page = _DetailPage(
+        company="Comviva",
+        posted="4 months ago",
+        location="Gurugram, Haryana, India (On-site)",
+        title_text="Power BI Developer | Comviva | LinkedIn",
+    )
+    fields = await _detail_fields(page, "https://www.linkedin.com/jobs/view/12345")
+    assert fields["title"] == "Power BI Developer"
+    assert fields["company"] == "Comviva"
+
+
+def test_merge_detail_fills_missing_title():
+    job = Job(title="", company="Comviva", href="https://www.linkedin.com/jobs/view/1")
+    _merge_detail(job, {"title": "Power BI Developer", "company": "Comviva"})
+    assert job.title == "Power BI Developer"
+    # Existing company must not be overwritten
+    assert job.company == "Comviva"

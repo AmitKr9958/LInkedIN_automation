@@ -154,12 +154,76 @@ def skills():
         typer.echo(f"- {skill.name}: {skill.description} [{mode}]")
 
 
+@app.command("smoke-test")
+def smoke_test(read_only: bool = typer.Option(True, "--read-only/--all", help="Only run read-only live checks")):
+    """Run a read-only live smoke test against the authenticated browser profile.
+
+    Does NOT perform connection requests, messages, likes, comments, or other
+    mutating actions. Reports PASS/FAIL per supported read skill.
+    """
+    if not read_only:
+        typer.echo("Only --read-only mode is supported. Mutating actions stay approval-gated.")
+        raise typer.Exit(code=2)
+
+    checks = [
+        ("auth", lambda: asyncio.run(_smoke_auth())),
+        ("profile", lambda: asyncio.run(run_read("profile"))),
+        ("jobs", lambda: asyncio.run(run_read("jobs", keywords="Power BI", location="Gurgaon"))),
+        ("people", lambda: asyncio.run(run_read("people", query="Power BI"))),
+        ("companies", lambda: asyncio.run(run_read("companies", query="Power BI"))),
+        ("posts", lambda: asyncio.run(run_read("posts", query="Power BI"))),
+        ("saved", lambda: asyncio.run(run_read("saved"))),
+    ]
+    failed = 0
+    for name, fn in checks:
+        try:
+            result = fn()
+            if name == "auth":
+                ok = bool(result)
+            else:
+                ok = result is not None
+            status = "PASS" if ok else "FAIL"
+            if not ok:
+                failed += 1
+            typer.echo(f"{name:12} {status}")
+        except Exception as exc:
+            failed += 1
+            typer.echo(f"{name:12} FAIL  ({type(exc).__name__}: {exc})")
+    raise typer.Exit(code=1 if failed else 0)
+
+
+async def _smoke_auth() -> bool:
+    from .browser import linkedin_browser
+    from .linkedin_reader import current_session_state
+
+    async with linkedin_browser() as browser:
+        page = browser.pages[0] if browser.pages else await browser.new_page()
+        if not page.url or "linkedin.com" not in page.url:
+            await page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=60_000)
+            await page.wait_for_timeout(2000)
+        state = await current_session_state(page)
+        return bool(state.get("authenticated"))
+
+
 @app.command("read")
-def read(skill: str, query: str = "", location: str = "", max_posted_hours: Optional[float] = None):
+def read(
+    skill: str,
+    query: str = "",
+    location: str = "",
+    max_posted_hours: Optional[float] = typer.Option(
+        None,
+        help=(
+            "Maximum job posting age in hours. Defaults to the configured "
+            "job preference (48). Pass a negative value to disable the "
+            "freshness filter and return all ages."
+        ),
+    ),
+):
     """Run a read-only skill and print JSON.
 
-    Job reads include every parsed job; pass --max-posted-hours to apply a
-    freshness window (the discover-jobs workflow applies 48 by default).
+    For jobs, the centralized preference posted_within_hours (48) is applied
+    by default. Pass --max-posted-hours <N> to override, or a negative value
+    to disable freshness filtering.
     """
     if skill in {"jobs", "people"} and not query:
         query = "Power BI" if skill == "jobs" else "Power BI recruiter"
@@ -167,7 +231,12 @@ def read(skill: str, query: str = "", location: str = "", max_posted_hours: Opti
         query = "technology"
     if skill == "posts" and not query:
         query = "Power BI"
-    data = asyncio.run(run_read(skill, keywords=query, location=location, query=query, max_posted_hours=max_posted_hours))
+    # None (flag omitted) → use preference default inside run_read.
+    # Negative → explicitly disable freshness filter.
+    kwargs = dict(keywords=query, location=location, query=query)
+    if max_posted_hours is not None:
+        kwargs["max_posted_hours"] = None if max_posted_hours < 0 else max_posted_hours
+    data = asyncio.run(run_read(skill, **kwargs))
     if getattr(data, "diagnostics", None):
         typer.echo("read-diagnostics: " + json.dumps(data.diagnostics, default=str), err=True)
     payload = data.data
