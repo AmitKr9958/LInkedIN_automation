@@ -216,16 +216,42 @@ def _location_matches_requested(location: str, requested: str) -> bool:
     return True
 
 
+_LOCATION_CITY_RE = re.compile(
+    r"(?i)\\b(?:new\\s+delhi|delhi|gurgaon|gurugram|noida|jaipur)\\b"
+)
+
+
 def _looks_like_location(value: str) -> bool:
     lower = value.lower()
     return (
-        "," in value
+        bool(_LOCATION_CITY_RE.search(value))
+        or "," in value
         or "(remote)" in lower
         or "remote" in lower
         or "on-site" in lower
         or "hybrid" in lower
-        or any(token in lower for token in ("india", "delhi", "gurgaon", "gurugram", "noida", "jaipur"))
     )
+
+
+def _location_score(value: str) -> int:
+    """Score likely LinkedIn location strings; higher is more location-specific."""
+    if not value:
+        return -1
+    lower = value.lower()
+    score = 0
+    if _LOCATION_CITY_RE.search(value):
+        score += 6
+    if "," in value:
+        score += 3
+    if any(token in lower for token in ("remote", "hybrid", "on-site")):
+        score += 2
+    if "india" in lower:
+        score += 1
+    if len(value) > 160:
+        score -= 4
+    if any(token in lower for token in ("connection", "alumni", "applicant", "works here")):
+        score -= 5
+    return score
 
 
 _DOT_SPLIT = re.compile(r"[\u00b7\u2022]")
@@ -432,18 +458,41 @@ async def _attribute_text(locator) -> str:
 
 
 async def _location(card, raw_text: str) -> str:
-    value = await _text(card, LOCATION_SELECTORS)
-    if value and _looks_like_location(value):
-        return value
-    # Current SDUI cards sometimes expose location as plain text rather than
-    # a dedicated metadata element. Recover it from visible card lines.
-    for line in _lines(raw_text):
-        if _looks_like_location(line):
-            return line
-    return value
+    candidates: list[str] = []
+    # Collect every candidate instead of trusting the first matching selector.
+    # LinkedIn's SDUI markup can expose connection/alumni metadata in elements
+    # whose class names also contain "caption" or "location".
+    for selector in LOCATION_SELECTORS:
+        loc = card.locator(selector).first
+        try:
+            if not await loc.count():
+                continue
+            value = " ".join(((await loc.text_content()) or "").split())
+        except Exception:
+            continue
+        if value:
+            candidates.append(value)
+
+    # Current SDUI cards sometimes expose location only as plain text lines.
+    candidates.extend(_lines(raw_text))
+    valid = [value for value in candidates if _looks_like_location(value)]
+    if valid:
+        return max(valid, key=_location_score)
+    return candidates[0] if candidates else ""
 
 
 async def _posted(card) -> tuple[str, float | None]:
+    # Prefer semantic datetime metadata over rendered text. A card can contain
+    # several relative-time strings from promoted/related-job UI.
+    try:
+        node = card.locator("time[datetime]").first
+        if await node.count():
+            raw = await node.get_attribute("datetime") or ""
+            value = _relative_from_datetime(raw)
+            if value:
+                return value, _hours_from_datetime(raw)
+    except Exception:
+        pass
     value = _normalize_posted(await _text(card, POSTED_SELECTORS))
     if value:
         return value, _hours_from_posted(value)
@@ -457,15 +506,6 @@ async def _posted(card) -> tuple[str, float | None]:
         value = _normalize_posted(await _attribute_text(loc))
         if value:
             return value, _hours_from_posted(value)
-    try:
-        node = card.locator("time[datetime]").first
-        if await node.count():
-            raw = await node.get_attribute("datetime") or ""
-            value = _relative_from_datetime(raw)
-            if value:
-                return value, _hours_from_datetime(raw)
-    except Exception:
-        pass
     try:
         text = await card.inner_text()
     except Exception:
@@ -617,17 +657,20 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
             company = ""
 
     posted_hours = None
-    posted = _normalize_posted(await _text(page, DETAIL_POSTED_SELECTORS))
+    posted = ""
+    # Prefer the semantic datetime node before broad top-card text. The latter
+    # may contain multiple relative-time strings from related UI.
+    try:
+        node = page.locator("time[datetime]").first
+        if await node.count():
+            raw = await node.get_attribute("datetime") or ""
+            label = _relative_from_datetime(raw)
+            if label:
+                posted, posted_hours = label, _hours_from_datetime(raw)
+    except Exception:
+        pass
     if not posted:
-        try:
-            node = page.locator("time[datetime]").first
-            if await node.count():
-                raw = await node.get_attribute("datetime") or ""
-                label = _relative_from_datetime(raw)
-                if label:
-                    posted, posted_hours = label, _hours_from_datetime(raw)
-        except Exception:
-            pass
+        posted = _normalize_posted(await _text(page, DETAIL_POSTED_SELECTORS))
     main_text = await _main_text(page)
     if not posted:
         posted = _normalize_posted(main_text)
