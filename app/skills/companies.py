@@ -4,6 +4,7 @@ from dataclasses import dataclass, asdict
 from urllib.parse import quote_plus
 
 from ..config import settings
+from ..scrolling import scroll_page_completely
 from .parsing import clean_text, dedupe_by
 
 
@@ -22,7 +23,7 @@ class Company:
 async def _legacy_search(page) -> list[Company]:
     cards = page.locator("li.reusable-search__result-container, .entity-result")
     out = []
-    for i in range(min(await cards.count(), 50)):
+    for i in range(min(await cards.count(), 200)):
         card = cards.nth(i)
         text = clean_text(await card.inner_text())
         link = card.locator("a[href*='/company/']").first
@@ -102,6 +103,7 @@ async def search(page, query: str) -> list[Company]:
         )
     except Exception:
         pass  # read whatever rendered
+    await scroll_page_completely(page, max_rounds=12, pause_ms=600)
     if await page.locator("li.reusable-search__result-container, .entity-result").count():
         legacy = await _legacy_search(page)
         if legacy:
