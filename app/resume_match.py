@@ -25,9 +25,10 @@ def match_resume_to_job(job_text: str, resume_text: str, skills: list[str] | Non
     job = _tokens(job_text)
     candidates = [s.strip() for s in (skills or []) if s.strip()]
     matched, missing = [], []
+    resume_normalized = " ".join((resume_text or "").lower().split())
     for skill in candidates:
-        key = skill.lower()
-        (matched if key in resume else missing).append(skill)
+        key = " ".join(skill.lower().split())
+        (matched if key in resume_normalized else missing).append(skill)
     terms = sorted(job & resume)
     gaps = sorted((job - resume) & {x.lower() for x in candidates})
     talking = [f"{skill}: present in supplied profile" for skill in matched]
