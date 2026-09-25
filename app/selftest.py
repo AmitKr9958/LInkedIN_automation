@@ -35,6 +35,7 @@ MODULES = (
     "app.resume_tailoring",
     "app.notifications",
     "app.scheduler",
+    "app.media_provider",
 )
 
 
