@@ -812,6 +812,11 @@ async def search(
             _bump(diagnostics, "posted_extracted")
         applicant = parse_applicant_count(text)
         experience = parse_experience(text, title)
+        try:
+            card_links = await card.locator("a[href]").evaluate_all("(els) => els.map(e => ({href:e.href, text:e.innerText || '', aria:e.getAttribute('aria-label') || '', title:e.getAttribute('title') || ''}))")
+        except Exception:
+            card_links = []
+        application_url = extract_application_url(card_links)
         if applicant.count is not None:
             _bump(diagnostics, "applicant_count_extracted")
         if experience.detected:
@@ -869,6 +874,7 @@ async def search(
             experience_low=experience.low,
             experience_high=experience.high,
             experience_detected=experience.detected,
+            application_url=application_url,
         ))
 
     hydrated = 0
