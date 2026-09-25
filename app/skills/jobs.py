@@ -644,6 +644,12 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
     except Exception:
         links = []
     application_url = extract_application_url(links)
+    fields["applicant_count"] = applicant.count
+    fields["applicant_count_text"] = applicant.text
+    fields["experience_low"] = experience.low
+    fields["experience_high"] = experience.high
+    fields["experience_detected"] = experience.detected
+    fields["application_url"] = application_url
     if not posted:
         posted = _normalize_posted(main_text)
     if posted and posted_hours is None:
