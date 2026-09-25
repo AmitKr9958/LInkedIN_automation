@@ -11,7 +11,7 @@ TRANSITIONS = {
     "new": {"shortlisted", "drafted", "discovered", "closed"},
     "drafted": {"applied", "application_ready", "closed"},
     "discovered": {"shortlisted", "application_ready", "closed"},
-    "shortlisted": {"application_ready", "applied", "closed"},
+    "shortlisted": {"application_ready", "applied", "drafted", "closed"},
     "application_ready": {"applied", "closed"},
     "applied": {"recruiter_contacted", "follow_up_due", "response_received", "screening", "rejected", "withdrawn", "closed"},
     "recruiter_contacted": {"follow_up_due", "response_received", "screening", "rejected", "withdrawn", "closed"},
