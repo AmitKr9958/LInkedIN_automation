@@ -9,20 +9,20 @@ class FakeJob:
     posted_hours: float | None
 
 
-def test_default_preference_is_48_hours():
-    assert DEFAULT_JOB_PREFERENCES.posted_within_hours == 48
+def test_default_preference_is_1_hour():
+    assert DEFAULT_JOB_PREFERENCES.posted_within_hours == 1
 
 
-def test_default_job_freshness_keeps_jobs_within_48_hours():
+def test_default_job_freshness_keeps_jobs_within_1_hour():
     """Strict policy: known ages within window are kept; unknown ages are excluded."""
     result = _filter_jobs_by_freshness([
-        FakeJob(2),
-        FakeJob(47.99),
-        FakeJob(48),
-        FakeJob(48.01),
+        FakeJob(0),
+        FakeJob(0.99),
+        FakeJob(1),
+        FakeJob(1.01),
         FakeJob(None),
-    ])
-    assert [job.posted_hours for job in result] == [2, 47.99, 48]
+    ], DEFAULT_JOB_PREFERENCES.posted_within_hours)
+    assert [job.posted_hours for job in result] == [0, 0.99, 1]
 
 
 def test_job_freshness_excludes_unknown_age_by_default():
