@@ -63,6 +63,7 @@ async def _live_read(skill: str):
         "companies": {"query": "data analytics"},
         "posts": {"query": "Power BI"},
         "saved": {},
+        "notifications": {},
     }[skill]
     return await run_read(skill, **kwargs)
 
@@ -173,7 +174,7 @@ async def run_live_read_test() -> list[AgentTestResult]:
         results.append(AgentTestResult("auth", "live", False, f"{type(exc).__name__}: {exc}"))
         return results
 
-    for skill in ("profile", "jobs", "people", "companies", "posts", "saved"):
+    for skill in ("profile", "jobs", "people", "companies", "posts", "saved", "notifications"):
         try:
             data = await _live_read(skill)
             if data.skill != skill:
