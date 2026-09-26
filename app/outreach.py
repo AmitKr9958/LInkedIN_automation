@@ -36,10 +36,20 @@ def classify_target(title: str) -> str:
     return "other"
 
 
+def _person_value(person, key: str, default: str = "") -> str:
+    if isinstance(person, dict):
+        return str(person.get(key, default) or default)
+    return str(getattr(person, key, default) or default)
+
+
 def score_target(person, job_title: str = "", company: str = "") -> OutreachTarget:
-    title = getattr(person, "headline", "") or ""
+    title = _person_value(person, "headline")
     target_type = classify_target(title)
-    text = " ".join([getattr(person, "name", ""), title, getattr(person, "text", "")]).lower()
+    text = " ".join([
+        _person_value(person, "name"),
+        title,
+        _person_value(person, "text"),
+    ]).lower()
     score = 0
     if target_type != "other":
         score += 3
@@ -49,8 +59,8 @@ def score_target(person, job_title: str = "", company: str = "") -> OutreachTarg
         score += 1
     reason = f"target_type={target_type}; relevance_score={score}"
     target = OutreachTarget(
-        name=getattr(person, "name", ""),
-        profile_url=getattr(person, "href", ""),
+        name=_person_value(person, "name"),
+        profile_url=_person_value(person, "href"),
         title=title,
         company=company,
         target_type=target_type,
