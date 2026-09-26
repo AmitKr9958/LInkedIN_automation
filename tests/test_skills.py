@@ -4,7 +4,7 @@ from app.skill_registry import Skill, list_skills
 from app.skill_dispatcher import dispatch, READ_CONTENT, DRAFT_CONTENT
 
 EXPECTED = {
-    "auth", "profile", "jobs", "people", "companies", "posts", "saved",
+    "auth", "profile", "jobs", "people", "companies", "posts", "saved", "notifications",
     "connections", "messaging", "engagement", "leadgen", "followups", "outreach",
     "post_writer", "content_planner", "comment_drafter", "reply_handler",
     "post_audit", "humanizer", "hook_extractor", "repurposer", "profile_optimizer",
@@ -22,9 +22,9 @@ READ_ONLY_BROWSER = {
 CONTENT_DISPATCHED = set(READ_CONTENT) | set(DRAFT_CONTENT) | {"story_bank"}
 
 
-def test_skill_registry_has_exactly_27_skills():
+def test_skill_registry_has_exactly_28_skills():
     skills = list_skills()
-    assert len(skills) == 27
+    assert len(skills) == 28
     assert {s.name for s in skills} == EXPECTED
 
 
