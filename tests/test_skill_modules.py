@@ -8,7 +8,7 @@ import app.skills.leadgen as leadgen
 import app.skills.messaging as messaging
 
 def test_all_skill_modules_are_registered():
-    expected = {"auth","profile","jobs","people","companies","posts","saved","connections","messaging","engagement","leadgen","followups","post_writer","content_planner","comment_drafter","reply_handler","humanizer","hook_extractor","repurposer","profile_optimizer","interviewer","engager_analytics","thread_monitor","employee_advocacy","outreach","post_audit","story_bank"}
+    expected = {"auth","profile","jobs","people","companies","posts","saved","notifications","connections","messaging","engagement","leadgen","followups","post_writer","content_planner","comment_drafter","reply_handler","humanizer","hook_extractor","repurposer","profile_optimizer","interviewer","engager_analytics","thread_monitor","employee_advocacy","outreach","post_audit","story_bank"}
     assert {s.name for s in list_skills()} == expected
 
 def test_mutating_skills_are_not_auto_executed():
