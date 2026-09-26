@@ -6,7 +6,7 @@ from typing import Any
 from .browser import linkedin_browser
 from .job_preferences import DEFAULT_JOB_PREFERENCES
 from .linkedin_reader import current_session_state
-from .skills import companies, jobs, people, posts, profile, saved
+from .skills import companies, jobs, notifications, people, posts, profile, saved
 
 
 @dataclass
@@ -230,6 +230,8 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
             data = await posts.search(page, kwargs.get("query", "Power BI"))
         elif skill == "saved":
             data = await saved.read_saved_posts(page)
+        elif skill == "notifications":
+            data = await notifications.search(page)
         else:
             raise ValueError(f"Unsupported read skill: {skill}")
 
