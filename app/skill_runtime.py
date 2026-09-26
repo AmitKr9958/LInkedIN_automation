@@ -30,6 +30,7 @@ def _job_title_matches_preferences(
     keywords: list[str] | None = None,
 ) -> bool:
     """Match the configured target job families without accepting unrelated managers."""
+    import re
     title_norm = _normalize_job_title(title)
     if not title_norm:
         return False
@@ -39,24 +40,21 @@ def _job_title_matches_preferences(
             return True
 
     leadership_terms = ("lead", "manager", "assistant manager", "senior manager")
-    domain_terms = (
-        "power bi",
-        "business intelligence",
-        " bi ",
-        "data",
-        "analytics",
-        "reporting",
-        "mis",
+    domain_patterns = (
+        r"\bpower bi\b",
+        r"\bbusiness intelligence\b",
+        r"\bbi\b",
+        r"\bdata\b",
+        r"\banalytics\b",
+        r"\breporting\b",
+        r"\bmis\b",
     )
     if any(term in title_norm for term in leadership_terms):
-        if any(
-            term.strip() in title_norm
-            for term in domain_terms
-        ):
+        if any(re.search(pattern, title_norm) for pattern in domain_patterns):
             return True
     text_norm = _normalize_job_title(job_text)
     if "assistant manager" in title_norm and any(
-        term.strip() in text_norm for term in domain_terms
+        re.search(pattern, text_norm) for pattern in domain_patterns
     ):
         return True
     return False
