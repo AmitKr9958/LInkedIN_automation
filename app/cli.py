@@ -131,6 +131,37 @@ def request_publish(text: str, scheduled_for: str = ""):
     typer.echo(f"queued approval: {item}")
 
 
+@app.command("release-check")
+def release_check():
+    """Run the deterministic local release gate without touching LinkedIn."""
+    from .agent_test import run_safe_workflow_test
+
+    checks = run_doctor()
+    failed = [check.name for check in checks if check.blocking and not check.ok]
+    for check in checks:
+        label = "PASS" if check.ok else "FAIL"
+        typer.echo(f"[{label}] doctor:{check.name}: {check.detail}")
+
+    self_results = run_selftest()
+    for result in self_results:
+        label = "PASS" if result.ok else "FAIL"
+        typer.echo(f"[{label}] selftest:{result.name}: {result.detail}")
+        if not result.ok:
+            failed.append(f"selftest:{result.name}")
+
+    workflow_results = run_safe_workflow_test()
+    for result in workflow_results:
+        label = "PASS" if result.ok else "FAIL"
+        typer.echo(f"[{label}] workflow:{result.skill}: {result.detail}")
+        if not result.ok:
+            failed.append(f"workflow:{result.skill}")
+
+    total = len(checks) + len(self_results) + len(workflow_results)
+    passed = total - len(failed)
+    typer.echo(f"release-summary: {passed} passed, {len(failed)} failed, {total} total")
+    raise typer.Exit(code=1 if failed else 0)
+
+
 @app.command()
 def doctor():
     """Run local production-readiness checks."""
