@@ -49,7 +49,7 @@ def test_job_freshness_custom_window():
     assert [job.posted_hours for job in result] == [23, 24]
 
 
-def test_job_freshness_boundary_exactly_48():
+def test_job_freshness_boundary_exactly_48_hours_custom_window():
     result = _filter_jobs_by_freshness([FakeJob(48.0), FakeJob(48.01)], 48)
     assert [job.posted_hours for job in result] == [48.0]
 
