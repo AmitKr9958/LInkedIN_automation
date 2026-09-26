@@ -67,6 +67,8 @@ python -m app read people --query "Power BI recruiter"
 python -m app read companies --query "data analytics"
 python -m app read posts --query "Power BI"
 python -m app read saved
+python -m app read notifications
+python -m app dashboard
 
 python -m app applications add "<job-url>" "Power BI Developer" "Company"
 python -m app applications transition "<job-url>" shortlisted
@@ -124,7 +126,7 @@ Orchestrator ---- optional LLM provider
 
 ## Current implementation status
 
-All 27 skills are registered/governed. Their implementation boundaries are explicit:
+All 28 skills are registered/governed. Their implementation boundaries are explicit:
 
 - **Live read layer:** profile, jobs, people, companies, posts and saved items.
 - **Content/intelligence layer:** 13 content/analysis skills plus the Story Bank.
@@ -169,6 +171,7 @@ Before using the local workflow on a new machine, run:
 
 ```powershell
 python -m app release-check
+.\scripts\install-readonly-scheduler.ps1
 ```
 
 `release-check` combines the blocking local `doctor` checks, deterministic self-tests, and the safe end-to-end workflow test. It never performs a LinkedIn action. `doctor` verifies the core modules, writable local profile, policy configuration, approval mode, project root, LinkedIn HTTPS endpoint, and the installed Chromium runtime. Consequential requests are also restricted to a known action allowlist and bounded payload size before they can enter the approval queue.
@@ -191,8 +194,8 @@ The remaining engineering layers are release hardening rather than unrestricted 
 
 - improve resilient selectors as LinkedIn UI changes
 - harden resilient selectors and fixture coverage as LinkedIn UI changes
-- add a local dashboard for jobs, applications and approvals
-- add a Windows scheduled **read-only** discovery workflow
+- [x] local dashboard for jobs, applications and approvals
+- [x] Windows scheduled **read-only** discovery workflow
 - add optional user-confirmed browser handoff for individual actions
 
 This keeps the tool useful for your job search while avoiding automation patterns that LinkedIn explicitly prohibits.
