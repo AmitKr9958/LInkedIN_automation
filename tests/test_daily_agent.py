@@ -84,3 +84,30 @@ def test_run_agent_once_uses_all_requested_locations():
         "Delhi",
         "Gurgaon",
     ]
+
+
+def test_build_agent_report_handles_normalized_people_dicts(monkeypatch):
+    from app.outreach import build_outreach_plan
+
+    people = [
+        {
+            "name": "Priya Recruiter",
+            "headline": "Technical Recruiter - Data & Analytics",
+            "location": "Gurgaon, India",
+            "href": "https://linkedin.test/in/priya",
+            "text": "Technical Recruiter - Data & Analytics",
+        }
+    ]
+    job = {
+        "title": "Power BI Developer",
+        "company": "Example",
+        "url": "https://linkedin.test/jobs/1",
+    }
+
+    targets = build_outreach_plan(people, job)
+
+    assert len(targets) == 1
+    assert targets[0].name == "Priya Recruiter"
+    assert targets[0].target_type == "recruiter"
+    assert targets[0].profile_url.endswith("/priya")
+    assert targets[0].job_url.endswith("/1")
