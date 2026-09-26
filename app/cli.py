@@ -7,6 +7,7 @@ import typer
 from .application_tracker import ApplicationTracker, STATUSES
 from .cli_intelligence import app as intelligence_app
 from .job_normalize import dedupe_jobs
+from .job_preferences import DEFAULT_JOB_PREFERENCES, DEFAULT_JOB_SEARCH_QUERY
 from .history import History
 from .doctor import run_doctor
 from .orchestrator import build_discovery_report
@@ -214,19 +215,19 @@ def read(
         None,
         help=(
             "Maximum job posting age in hours. Defaults to the configured "
-            "job preference (48). Pass a negative value to disable the "
+            "job preference (1). Pass a negative value to disable the "
             "freshness filter and return all ages."
         ),
     ),
 ):
     """Run a read-only skill and print JSON.
 
-    For jobs, the centralized preference posted_within_hours (48) is applied
+    For jobs, the centralized preference posted_within_hours (1) is applied
     by default. Pass --max-posted-hours <N> to override, or a negative value
     to disable freshness filtering.
     """
     if skill in {"jobs", "people"} and not query:
-        query = "Power BI" if skill == "jobs" else "Power BI recruiter"
+        query = DEFAULT_JOB_SEARCH_QUERY if skill == "jobs" else "Power BI recruiter"
     if skill == "companies" and not query:
         query = "technology"
     if skill == "posts" and not query:
@@ -248,10 +249,10 @@ def read(
 
 
 @app.command("discover-jobs")
-def discover_jobs(query: str = "Power BI", location: str = "Gurgaon"):
+def discover_jobs(query: str = DEFAULT_JOB_SEARCH_QUERY, location: str = "Gurgaon"):
     """Discover jobs, deduplicate them, rank them, and store local history."""
     async def _run():
-        data = await run_read("jobs", keywords=query, location=location, max_posted_hours=48)
+        data = await run_read("jobs", keywords=query, location=location)
         if getattr(data, "diagnostics", None):
             typer.echo("read-diagnostics: " + json.dumps(data.diagnostics, default=str), err=True)
         rows = [x.to_dict() if hasattr(x, "to_dict") else x for x in data.data]
