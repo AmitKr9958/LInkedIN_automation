@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,16 +19,25 @@ TRANSITIONS = {
     "rejected": set(), "withdrawn": set(), "closed": set(),
 }
 
+
 class ApplicationTracker:
     def __init__(self, path: str | Path | None = None):
         db_path = Path(path) if path is not None else ROOT / "data" / "activity.sqlite3"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.path = str(db_path)
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS applications(
               job_url TEXT PRIMARY KEY, title TEXT, company TEXT, status TEXT NOT NULL,
               updated_at TEXT NOT NULL, notes TEXT DEFAULT '')""")
             db.commit()
+
+    @contextmanager
+    def _connect(self):
+        db = sqlite3.connect(self.path)
+        try:
+            yield db
+        finally:
+            db.close()
 
     def add(self, job_url, title="", company="", status="new"):
         job_url = str(job_url or "").strip()
@@ -35,7 +45,7 @@ class ApplicationTracker:
             raise ValueError("job_url is required")
         if status not in STATUSES:
             raise ValueError("invalid status")
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             db.execute("""INSERT OR IGNORE INTO applications
               (job_url,title,company,status,updated_at) VALUES(?,?,?,?,?)""",
               (job_url, title, company, status, datetime.now(timezone.utc).isoformat()))
@@ -47,7 +57,7 @@ class ApplicationTracker:
             raise ValueError("job_url is required")
         if new_status not in STATUSES:
             raise ValueError("invalid status")
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             row = db.execute("SELECT status FROM applications WHERE job_url=?", (job_url,)).fetchone()
             if not row:
                 raise KeyError(job_url)
@@ -58,7 +68,7 @@ class ApplicationTracker:
             db.commit()
 
     def list(self, status=None):
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             if status:
                 return db.execute("SELECT * FROM applications WHERE status=? ORDER BY updated_at DESC", (status,)).fetchall()
             return db.execute("SELECT * FROM applications ORDER BY updated_at DESC").fetchall()
