@@ -478,7 +478,10 @@ async def _location(card, raw_text: str) -> str:
     valid = [value for value in candidates if _looks_like_location(value)]
     if valid:
         return max(valid, key=_location_score)
-    return candidates[0] if candidates else ""
+    # Do not treat arbitrary card text as a location. A card may omit its
+    # location entirely; returning title/company/posted text here would make
+    # the field look populated and prevent detail-page hydration.
+    return ""
 
 
 async def _posted(card) -> tuple[str, float | None]:
