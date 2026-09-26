@@ -45,6 +45,18 @@ def test_clean_title_removes_duplicate_rendering_and_verification():
     ) == "Senior Power BI Developer"
 
 
+def test_location_matching_requires_country_for_india_cities():
+    assert _location_matches_requested("Delhi, India", "Delhi") is True
+    assert _location_matches_requested("New Delhi, Delhi, India", "Delhi") is True
+    assert _location_matches_requested("Delhi, India (Hybrid)", "Delhi") is True
+    assert _location_matches_requested("United States (Remote)", "Delhi") is False
+    assert _location_matches_requested("London, United Kingdom", "Delhi") is False
+    assert _location_matches_requested("Gurugram, Haryana, India", "Gurgaon") is True
+    assert _location_matches_requested("Gurugram, Haryana, United States", "Gurgaon") is False
+    assert _location_matches_requested("Noida, Uttar Pradesh, India", "Noida") is True
+    assert _location_matches_requested("Jaipur, Rajasthan, India", "Jaipur") is True
+
+
 def test_clean_title_removes_concatenated_duplicate_rendering():
     # Live cards sometimes concatenate the duplicate title with no separator.
     assert _clean_title(
