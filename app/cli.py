@@ -25,6 +25,7 @@ from .selftest import run_selftest
 from .agent_test import run_agent_test
 from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
+from .daily_agent import run_agent_once
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
 
@@ -308,6 +309,47 @@ def read(
     elif isinstance(payload, list):
         payload = [x.to_dict() if hasattr(x, "to_dict") else x for x in payload]
     typer.echo(json.dumps(payload, indent=2, default=str))
+
+
+@app.command("agent")
+def agent(
+    locations: str = typer.Option(
+        "",
+        "--locations",
+        help="Comma-separated locations. Defaults to Delhi,Gurgaon,Noida,Jaipur.",
+    ),
+    max_posted_hours: Optional[float] = typer.Option(
+        None,
+        "--max-posted-hours",
+        help="Override the 1-hour job freshness window. Use a negative value to disable it.",
+    ),
+):
+    """Run the governed end-to-end workflow: discover, rank, track, target and draft."""
+    requested_locations = [x.strip() for x in locations.split(",") if x.strip()] if locations else None
+    window = None if max_posted_hours is None else (
+        None if max_posted_hours < 0 else max_posted_hours
+    )
+    try:
+        report = asyncio.run(
+            run_agent_once(
+                locations=requested_locations,
+                max_posted_hours=window,
+            )
+        )
+    except Exception as exc:
+        typer.echo(f"agent: FAIL ({type(exc).__name__}: {exc})", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(json.dumps(report.to_dict(), indent=2, default=str))
+    typer.echo(
+        f"agent-summary: jobs={report.jobs_found} new={report.new_jobs} "
+        f"tracked={report.tracked_jobs} recruiter_targets={len(report.recruiter_targets)} "
+        f"connection_drafts={len(report.connection_drafts)}"
+    )
+    typer.echo(
+        "No LinkedIn account-changing action was executed. "
+        "Connection/message/publish actions remain approval-gated."
+    )
 
 
 @app.command("discover-jobs")
