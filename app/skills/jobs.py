@@ -1063,6 +1063,13 @@ async def search(
         result.append(job)
 
     if diagnostics is not None:
+        diagnostics["location_candidate_samples"] = [
+            {
+                "title": str(job.title or "")[:120],
+                "location": str(job.location or "")[:160],
+            }
+            for job in parsed[:5]
+        ]
         diagnostics["returned"] = len(result)
         diagnostics["returned_after_location"] = len(result)
         diagnostics["final_returned"] = len(result)
