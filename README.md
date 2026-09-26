@@ -168,12 +168,10 @@ Do not put a real LinkedIn login/session into CI.
 Before using the local workflow on a new machine, run:
 
 ```powershell
-python -m app doctor
-python -m app selftest
-python -m app agent-workflow-test
+python -m app release-check
 ```
 
-`doctor` verifies the core modules, writable local profile, policy configuration, approval mode, project root, LinkedIn HTTPS endpoint, and the installed Chromium runtime. Consequential requests are also restricted to a known action allowlist and bounded payload size before they can enter the approval queue.
+`release-check` combines the blocking local `doctor` checks, deterministic self-tests, and the safe end-to-end workflow test. It never performs a LinkedIn action. `doctor` verifies the core modules, writable local profile, policy configuration, approval mode, project root, LinkedIn HTTPS endpoint, and the installed Chromium runtime. Consequential requests are also restricted to a known action allowlist and bounded payload size before they can enter the approval queue.
 
 ## Security model
 
