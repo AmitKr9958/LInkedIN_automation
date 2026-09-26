@@ -102,3 +102,65 @@ def run_agent_test(live: bool = False) -> list[AgentTestResult]:
     if live:
         results.extend(asyncio.run(run_live_read_test()))
     return results
+
+
+def run_safe_workflow_test() -> list[AgentTestResult]:
+    """Exercise job, recruiter, application and content workflows without LinkedIn mutations."""
+    from tempfile import TemporaryDirectory
+    from pathlib import Path
+    import json
+    from types import SimpleNamespace
+
+    from .application_tracker import ApplicationTracker
+    from .approval_queue import ApprovalQueue
+    from .content_skills import content_plan, write_post
+    from .intelligence import JobRecord, rank_jobs
+    from .job_preferences import DEFAULT_JOB_PREFERENCES
+    from .outreach import build_outreach_plan, draft_connection, draft_followup
+
+    results: list[AgentTestResult] = []
+    with TemporaryDirectory() as tmp:
+        job = JobRecord(
+            title="Senior Power BI Developer",
+            company="Example Analytics",
+            location="Delhi, India (On-site)",
+            url="https://www.linkedin.com/jobs/view/test",
+            posted_text="30 minutes ago",
+            easy_apply=True,
+            source="test",
+            posted_hours=0.5,
+        )
+        ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+        results.append(AgentTestResult("job-ranking", "workflow", bool(ranked and ranked[0]["score"] > 0), "ranked test job"))
+
+        person = SimpleNamespace(
+            name="Test Recruiter",
+            headline="Technical Recruiter - Example Analytics",
+            href="https://www.linkedin.com/in/example-recruiter",
+            text="Power BI hiring",
+        )
+        targets = build_outreach_plan([person], job.to_dict())
+        results.append(AgentTestResult("recruiter-plan", "workflow", len(targets) == 1, f"{len(targets)} target(s)"))
+
+        connection = draft_connection(targets[0], "Senior Power BI Developer", ["Power BI", "SQL"])
+        followup = draft_followup(targets[0], "Thanks for connecting about the Power BI opportunity.")
+        results.append(AgentTestResult("outreach-drafts", "workflow", connection["status"] == "drafted" and followup["status"] == "drafted", "drafts created"))
+
+        queue = ApprovalQueue(str(Path(tmp) / "approvals.sqlite3"))
+        connection_id = queue.add("connection_request", targets[0].profile_url, json.dumps(connection))
+        followup_id = queue.add("followup_message", targets[0].profile_url, json.dumps(followup))
+        pending = queue.list_pending()
+        results.append(AgentTestResult("approval-queue", "workflow", len(pending) == 2 and {x.id for x in pending} == {connection_id, followup_id}, "two actions queued"))
+
+        tracker = ApplicationTracker(Path(tmp) / "applications.sqlite3")
+        tracker.add(job.url, job.title, job.company)
+        tracker.transition(job.url, "shortlisted")
+        tracker.transition(job.url, "drafted")
+        tracked = tracker.list()
+        results.append(AgentTestResult("application-tracker", "workflow", bool(tracked and tracked[0][3] == "drafted"), "tracked through drafted"))
+
+        draft = write_post("Power BI automation", "Share a measured 30% reduction in manual workload.")
+        plan = content_plan("Power BI", "recruiters", days=3)
+        results.append(AgentTestResult("content-workflow", "workflow", bool(draft.text and len(plan) == 3), "post draft and plan created"))
+
+    return results
