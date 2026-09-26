@@ -189,6 +189,15 @@ def _lines(value: str) -> list[str]:
     return [line.strip() for line in value.splitlines() if line.strip()]
 
 
+_INDIA_LOCATION_ALIASES = {
+    "delhi": ("delhi", "new delhi"),
+    "gurgaon": ("gurgaon", "gurugram"),
+    "noida": ("noida",),
+    "jaipur": ("jaipur",),
+}
+_INDIA_COUNTRY_ALIASES = ("india",)
+
+
 def _normalize_location_text(value: str) -> str:
     """Normalize punctuation/aliases while preserving words for token matching."""
     normalized = (value or "").lower()
@@ -202,17 +211,28 @@ def _normalize_location_text(value: str) -> str:
 
 
 def _location_matches_requested(location: str, requested: str) -> bool:
-    """Return whether a LinkedIn result explicitly contains the requested city."""
+    """Match requested Indian cities only when the listing is explicitly in India."""
     requested_token = _normalize_location_text(requested)
     actual = _normalize_location_text(location)
     if not requested_token:
         return True
     if not actual:
         return False
+
     requested_words = requested_token.split()
     actual_words = set(actual.split())
     if not all(word in actual_words for word in requested_words):
         return False
+
+    # Delhi/Gurgaon/Noida/Jaipur are intentionally country-scoped. A bare
+    # city token is not enough because LinkedIn can surface remote/global jobs
+    # whose text contains a matching term elsewhere.
+    aliases = _INDIA_LOCATION_ALIASES.get(requested_token)
+    if aliases:
+        if "india" not in actual_words:
+            return False
+        if not any(alias in actual for alias in aliases):
+            return False
     return True
 
 
