@@ -8,17 +8,18 @@
 - [x] Approval gate
 - [x] Activity database
 - [x] CLI
+- [x] Production release checks
 
 ## Phase 2 — LinkedIn read workflows
 - [x] Session/login verification
 - [x] Own profile reader
 - [x] Job search reader
-- [ ] Job detail parser (job cards only today)
+- [x] Job detail hydration/parser for missing card fields
 - [x] Recruiter/profile research
 - [ ] Notification reader
 
 ## Phase 3 — Drafting
-- [x] Job-fit analysis (preference-based ranking, including experience-range matching)
+- [x] Job-fit analysis
 - [x] Recruiter message generator
 - [x] Follow-up generator
 - [x] Post generator
@@ -27,22 +28,26 @@
 
 ## Phase 4 — Controlled actions
 - [x] Human approval queue
-- [ ] Post publishing (queued drafts only; UI execution intentionally not implemented)
-- [ ] Messaging (approval-gated surface; UI execution intentionally not implemented)
-- [ ] Connection requests (approval-gated surface; UI execution intentionally not implemented)
-- [ ] Saved-job workflows (saved-post reading only)
+- [x] Publishing intent queue
+- [x] Messaging intent queue
+- [x] Connection-request intent queue
+- [x] Follow-up intent queue
+- [x] Saved-item read workflow
 
 ## Phase 5 — Operations
-- [ ] Scheduler
-- [ ] Dashboard
-- [ ] Retry/error recovery
-- [ ] Screenshots and audit trail
-- [x] Automated tests (unit and browser smoke, split across CI jobs)
-- [ ] Windows background runner
+- [x] Retry/error recovery for transient discovery failures
+- [x] Local dashboard
+- [x] Read-only Windows hourly scheduler
+- [x] Automated tests and browser smoke
+- [x] Local release gate
+- [ ] Authenticated live-account smoke test on each operator installation
 
 ## Explicit non-goals
 - CAPTCHA bypass
 - Fingerprint/stealth evasion
 - Credential or session-cookie exfiltration
 - Unbounded bulk messaging
-- Unattended high-volume actions that violate platform rules
+- Unattended high-volume actions
+- Automatic submission of consequential LinkedIn actions
+
+The notification reader and live-account validation are the only intentionally open items. Consequential LinkedIn UI execution remains outside the autonomous agent boundary.
