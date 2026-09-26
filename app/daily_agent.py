@@ -1,4 +1,4 @@
-from __future__ import annotations
+import asyncio\nfrom __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any, Awaitable, Callable
@@ -97,19 +97,36 @@ async def run_agent_once(
     diagnostics: dict[str, Any] = {}
 
     for location in locations:
-        result = await read_fn(
-            "jobs",
-            keywords=query,
-            location=location,
-            max_posted_hours=(
-                float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
-                if max_posted_hours is None
-                else max_posted_hours
-            ),
-        )
-        batches.append(_job_rows(result.data))
-        if getattr(result, "diagnostics", None):
-            diagnostics[location] = result.diagnostics
+        last_error = None
+        for attempt in range(1, 3):
+            try:
+                result = await read_fn(
+                    "jobs",
+                    keywords=query,
+                    location=location,
+                    max_posted_hours=(
+                        float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+                        if max_posted_hours is None
+                        else max_posted_hours
+                    ),
+                )
+                batches.append(_job_rows(result.data))
+                if getattr(result, "diagnostics", None):
+                    diagnostics[location] = result.diagnostics
+                break
+            except Exception as exc:
+                last_error = exc
+                if "session is not verified" in str(exc).lower():
+                    raise
+                if attempt < 2:
+                    await asyncio.sleep(1)
+        else:
+            diagnostics[location] = {
+                "skill": "jobs",
+                "error": f"{type(last_error).__name__}: {last_error}",
+                "retries": 1,
+                "final_returned": 0,
+            }
 
     people: list[Any] = []
     # Recruiter discovery is read-only and only runs when there are matching jobs.
