@@ -111,3 +111,23 @@ def test_build_agent_report_handles_normalized_people_dicts(monkeypatch):
     assert targets[0].target_type == "recruiter"
     assert targets[0].profile_url.endswith("/priya")
     assert targets[0].job_url.endswith("/1")
+
+
+def test_run_agent_once_retries_transient_location_failure():
+    calls = []
+    async def flaky_read(skill, **kwargs):
+        calls.append(kwargs.get("location"))
+        if len([x for x in calls if x == "Delhi"]) == 1:
+            raise TimeoutError("temporary browser timeout")
+        return SimpleNamespace(data=[], diagnostics={"final_returned": 0})
+
+    report = __import__("asyncio").run(
+        daily_agent.run_agent_once(
+            locations=["Delhi"],
+            read_fn=flaky_read,
+            tracker=FakeTracker(),
+        )
+    )
+
+    assert report.jobs_found == 0
+    assert calls == ["Delhi", "Delhi"]
