@@ -22,6 +22,7 @@ from .story_bank import Story, StoryBank
 from .outreach import OutreachTarget, draft_connection, draft_followup
 from .agent import LinkedInAgent
 from .selftest import run_selftest
+from .agent_test import run_agent_test
 from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
 
@@ -35,6 +36,20 @@ def selftest():
         label = "PASS" if result.ok else "FAIL"
         typer.echo(f"[{label}] {result.name}: {result.detail}")
     raise typer.Exit(code=0 if all(r.ok for r in results) else 1)
+
+
+@app.command("agent-test")
+def agent_test(live: bool = typer.Option(False, "--live", help="Also run authenticated, read-only LinkedIn browser checks.")):
+    """Run the complete agent skill contract test, optionally followed by live read-skill checks."""
+    results = run_agent_test(live=live)
+    failed = 0
+    for result in results:
+        label = "PASS" if result.ok else "FAIL"
+        if not result.ok:
+            failed += 1
+        typer.echo(f"[{label}] {result.mode:8} {result.skill}: {result.detail}")
+    typer.echo(f"summary: {len(results) - failed} passed, {failed} failed, {len(results)} total")
+    raise typer.Exit(code=1 if failed else 0)
 
 
 @app.command("audit-post")
