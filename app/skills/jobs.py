@@ -115,7 +115,7 @@ DETAIL_TITLE_SELECTORS = (
     "h1",
 )
 
-MAX_DETAIL_HYDRATION = 10
+MAX_DETAIL_HYDRATION = 25
 
 _POSTED_RE = re.compile(
     r"(?i)\b(?:just now|\d+\+?\s+(?:minute|hour|day|week|month|year)s?\s+ago|"
@@ -277,14 +277,43 @@ _LOCATION_CITY_RE = re.compile(
 
 def _looks_like_location(value: str) -> bool:
     lower = value.lower()
+    if not value or len(value) > 120:
+        return False
+    if any(token in lower for token in ("connection", "alumni", "applicant", "works here", "viewed", "easy apply")):
+        return False
     return (
         bool(_LOCATION_CITY_RE.search(value))
-        or "," in value
+        or bool(re.search(r"\\bindia\\b", lower))
         or "(remote)" in lower
         or "remote" in lower
         or "on-site" in lower
         or "hybrid" in lower
     )
+
+
+def _clean_location_candidate(value: str) -> str:
+    """Extract a concise location from LinkedIn metadata sentences."""
+    value = " ".join((value or "").split()).strip(" -|•·")
+    if not value:
+        return ""
+    # Prefer an explicit supported-city + India location, even when LinkedIn
+    # prepends title/company/alumni metadata to the same text node.
+    match = re.search(
+        r"(?i)\\b(?:new\\s+delhi|delhi|gurgaon|gurugram|noida|jaipur)\\b"
+        r"(?:\\s*,\\s*[^,·•|]+){0,2}\\s*,\\s*india\\b"
+        r"(?:\\s*\\([^)]*\\))?",
+        value,
+    )
+    if match:
+        return " ".join(match.group(0).split())
+    # Preserve explicit India-wide remote/hybrid listings as a legitimate
+    # location, but never return the surrounding job-card sentence.
+    remote_match = re.search(r"(?i)\\bindia\\s*\\((?:remote|hybrid|on-site)\\)", value)
+    if remote_match:
+        return remote_match.group(0).strip()
+    if _looks_like_location(value):
+        return value
+    return ""
 
 
 def _location_score(value: str) -> int:
@@ -529,7 +558,8 @@ async def _location(card, raw_text: str) -> str:
 
     # Current SDUI cards sometimes expose location only as plain text lines.
     candidates.extend(_lines(raw_text))
-    valid = [value for value in candidates if _looks_like_location(value)]
+    cleaned = [_clean_location_candidate(value) for value in candidates]
+    valid = [value for value in cleaned if value]
     if valid:
         return max(valid, key=_location_score)
     # Do not treat arbitrary card text as a location. A card may omit its
