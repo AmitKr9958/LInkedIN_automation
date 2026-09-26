@@ -12,6 +12,17 @@ class AutomationPolicy:
     dry_run: bool = True
     require_human_approval: bool = True
     max_actions_per_run: int = 5
+    max_payload_bytes: int = 64 * 1024
+    allowed_actions: frozenset[str] = frozenset({
+        "connection_request",
+        "message",
+        "followup_message",
+        "comment",
+        "reply",
+        "like",
+        "publish_post",
+        "job_application",
+    })
     allow_unsolicited_bulk_messaging: bool = False
     allow_scraping: bool = False
     allow_security_bypass: bool = False
@@ -20,6 +31,10 @@ class AutomationPolicy:
     def validate(self) -> None:
         if self.max_actions_per_run < 1:
             raise ValueError("max_actions_per_run must be >= 1")
+        if self.max_payload_bytes < 1024:
+            raise ValueError("max_payload_bytes must be >= 1024")
+        if not self.allowed_actions:
+            raise ValueError("allowed_actions must not be empty")
         if self.allow_unsolicited_bulk_messaging:
             raise ValueError("Bulk unsolicited messaging is disabled by policy")
         if self.allow_scraping:
