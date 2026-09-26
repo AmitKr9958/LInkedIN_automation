@@ -14,6 +14,7 @@ SKILLS = [
     Skill("companies", "Company page research"),
     Skill("posts", "Post extraction and content workflows"),
     Skill("saved", "Saved-post extraction and organization"),
+    Skill("notifications", "Read-only LinkedIn notification extraction"),
     Skill("connections", "Connection discovery and controlled requests", True),
     Skill("messaging", "Message drafting and controlled sending", True),
     Skill("engagement", "Comments, replies and likes", True),
