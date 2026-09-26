@@ -283,7 +283,7 @@ def _looks_like_location(value: str) -> bool:
         return False
     return (
         bool(_LOCATION_CITY_RE.search(value))
-        or bool(re.search(r"\\bindia\\b", lower))
+        or bool(re.search(r"\bindia\b", lower))
         or "(remote)" in lower
         or "remote" in lower
         or "on-site" in lower
@@ -299,16 +299,16 @@ def _clean_location_candidate(value: str) -> str:
     # Prefer an explicit supported-city + India location, even when LinkedIn
     # prepends title/company/alumni metadata to the same text node.
     match = re.search(
-        r"(?i)\\b(?:new\\s+delhi|delhi|gurgaon|gurugram|noida|jaipur)\\b"
-        r"(?:\\s*,\\s*[^,·•|]+){0,2}\\s*,\\s*india\\b"
-        r"(?:\\s*\\([^)]*\\))?",
+        r"(?i)\b(?:new\s+delhi|delhi|gurgaon|gurugram|noida|jaipur)\b"
+        r"(?:\s*,\s*[^,·•|]+){0,2}\s*,\s*india\b"
+        r"(?:\s*\([^)]*\))?",
         value,
     )
     if match:
         return " ".join(match.group(0).split())
     # Preserve explicit India-wide remote/hybrid listings as a legitimate
     # location, but never return the surrounding job-card sentence.
-    remote_match = re.search(r"(?i)\\bindia\\s*\\((?:remote|hybrid|on-site)\\)", value)
+    remote_match = re.search(r"(?i)\bindia\s*\((?:remote|hybrid|on-site)\)", value)
     if remote_match:
         return remote_match.group(0).strip()
     if _looks_like_location(value):
