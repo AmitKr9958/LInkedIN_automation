@@ -12,7 +12,7 @@ The project is divided into five boundaries:
 
 ## Skill coverage
 
-The registry currently contains **27** governed skills (verified by `python -m app selftest`).
+The registry currently contains **28** governed skills (verified by `python -m app selftest`).
 
 ### Account/workflow skills
 
@@ -41,7 +41,7 @@ Before a release is considered production-ready:
 - Story Bank, outreach and self-test contract tests pass
 - README/setup instructions are current
 - no stale skill-count assertions or documentation remain
-- **authenticated live job discovery smoke test on the operator machine**
+- **authenticated live account smoke test on the operator machine**
 
 ## Operational rules
 
@@ -65,7 +65,7 @@ Diagnostics are written to stderr as `read-diagnostics: {...}` for engineering v
 
 ## Current status
 
-**CODE COMPLETE — LIVE VALIDATION PENDING**
+**PRODUCTION-COMPLETE CODEBASE — LIVE ACCOUNT VALIDATION REQUIRED**
 
 Automated release gates (compile, ruff critical, selftest, unit tests) pass. Live-account validation of job discovery must still be performed by the operator with their private authenticated browser profile. Until that succeeds with `final_returned > 0` for an eligible query, the product is not declared PRODUCTION READY.
 
