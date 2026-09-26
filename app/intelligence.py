@@ -55,6 +55,36 @@ def _is_remote(location: str, title: str, description: str) -> bool:
     return "remote" in text
 
 
+def _normalize_location(value: str) -> str:
+    value = (value or "").lower().replace("–", "-").replace("—", "-")
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    value = re.sub(r"\bnew delhi\b", "delhi", value)
+    value = re.sub(r"\bgurugram\b", "gurgaon", value)
+    return value
+
+
+def _matches_preferred_location(location: str, preferences) -> bool:
+    """Use the same strict India-scoped city rule as live job filtering."""
+    actual = _normalize_location(location)
+    if not actual:
+        return False
+    words = set(actual.split())
+    for requested in preferences.locations:
+        target = _normalize_location(requested)
+        if not target:
+            continue
+        aliases = {
+            "delhi": {"delhi"},
+            "gurgaon": {"gurgaon"},
+            "noida": {"noida"},
+            "jaipur": {"jaipur"},
+        }.get(target, {target})
+        if aliases.intersection(words) and "india" in words:
+            return True
+    return False
+
+
 _EXPERIENCE_RE = re.compile(
     r"(\d{1,2})\s*(?:\+|plus\b|or more)?\s*(?:(?:-|–|—|to)\s*(\d{1,2})\s*\+?)?\s*(?:years?|yrs?)\b",
     re.IGNORECASE,
@@ -91,7 +121,7 @@ def score_job(job: JobRecord, preferences) -> tuple[int, list[str]]:
         score += 20
         reasons.append("target skill keyword")
 
-    if any(x.lower() in job.location.lower() for x in preferences.locations):
+    if _matches_preferred_location(job.location, preferences):
         score += 25
         reasons.append("preferred location")
 
