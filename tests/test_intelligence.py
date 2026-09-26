@@ -3,7 +3,7 @@ from app.job_preferences import DEFAULT_JOB_PREFERENCES
 
 
 def test_power_bi_gurgaon_job_ranks_high():
-    job = JobRecord("Senior Power BI Developer", "Example", "Gurgaon", easy_apply=True)
+    job = JobRecord("Senior Power BI Developer", "Example", "Gurgaon, Haryana, India", easy_apply=True)
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
     assert ranked[0]["score"] > 50
 
