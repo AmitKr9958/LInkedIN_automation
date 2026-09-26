@@ -26,6 +26,7 @@ from .agent_test import run_agent_test
 from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
 from .daily_agent import run_agent_once
+from .dashboard import serve as serve_dashboard
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
 
@@ -309,6 +310,14 @@ def read(
     elif isinstance(payload, list):
         payload = [x.to_dict() if hasattr(x, "to_dict") else x for x in payload]
     typer.echo(json.dumps(payload, indent=2, default=str))
+
+
+@app.command("dashboard")
+def dashboard(host: str = "127.0.0.1", port: int = 8765):
+    """Start the local control-center dashboard; binds to localhost by default."""
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        raise typer.BadParameter("dashboard must bind to localhost")
+    serve_dashboard(host, port)
 
 
 @app.command("agent")
