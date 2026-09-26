@@ -231,17 +231,10 @@ def _location_matches_requested(location: str, requested: str) -> bool:
     if aliases:
         if not any(alias in actual for alias in aliases):
             return False
-
-        # LinkedIn sometimes omits the country from an otherwise explicit
-        # city/state location (for example "GURGAON, Haryana"). Preserve that
-        # established normalization contract, but reject locations that
-        # explicitly name a different country. An explicit "Remote" location
-        # without the requested city is already rejected above.
-        explicit_country = re.search(
-            r"(?i)\\b(?:india|united states|usa|uk|united kingdom|canada|australia|singapore|germany|france|ireland|uae|united arab emirates)\\b",
-            actual,
-        )
-        if explicit_country and explicit_country.group(0).lower() != "india":
+        # Supported search locations are India-scoped. Require the country
+        # explicitly so a Delhi/Gurgaon/Noida/Jaipur search never admits a
+        # same-named or remote listing from another country.
+        if "india" not in actual_words:
             return False
     return True
 
