@@ -77,3 +77,15 @@ def test_bare_years_treated_as_exact_expectation():
     )
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
     assert "experience range outside preference" in ranked[0]["reasons"]
+
+
+def test_preferred_location_requires_india_scope():
+    job = JobRecord("Power BI Developer", "Example", "Gurgaon, United States")
+    ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+    assert "preferred location" not in ranked[0]["reasons"]
+
+
+def test_preferred_location_accepts_india_scoped_gurugram():
+    job = JobRecord("Power BI Developer", "Example", "Gurugram, Haryana, India")
+    ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
+    assert "preferred location" in ranked[0]["reasons"]
