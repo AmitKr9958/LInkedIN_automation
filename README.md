@@ -53,6 +53,7 @@ python -m playwright install chromium
 Copy-Item .env.example .env
 python -m app login
 python -m app status
+python -m app doctor
 ```
 
 ## Useful commands
@@ -161,6 +162,18 @@ pytest -q -m e2e --tracing=retain-on-failure
 ```
 
 Do not put a real LinkedIn login/session into CI.
+
+## Production preflight
+
+Before using the local workflow on a new machine, run:
+
+```powershell
+python -m app doctor
+python -m app selftest
+python -m app agent-workflow-test
+```
+
+`doctor` verifies the core modules, writable local profile, policy configuration, approval mode, project root, LinkedIn HTTPS endpoint, and the installed Chromium runtime. Consequential requests are also restricted to a known action allowlist and bounded payload size before they can enter the approval queue.
 
 ## Security model
 
