@@ -18,7 +18,7 @@ def test_new_delhi_request_matches_delhi_card():
 
 
 def test_case_and_whitespace_insensitive():
-    assert _location_matches_requested("  GURGAON , Haryana ", "gurgaon")
+    assert _location_matches_requested("  GURGAON , Haryana, India ", "gurgaon")
 
 
 def test_noida_does_not_match_gurgaon():
