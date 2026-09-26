@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,7 +26,7 @@ class ApprovalQueue:
         db_path = str(ROOT / "data" / "activity.sqlite3") if path is None else path
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.path = db_path
-        with sqlite3.connect(db_path) as db:
+        with self._connect() as db:
             db.execute(
                 """CREATE TABLE IF NOT EXISTS approval_queue(
                     id TEXT PRIMARY KEY,
@@ -45,12 +46,20 @@ class ApprovalQueue:
                 db.execute("ALTER TABLE approval_queue ADD COLUMN decided_at TEXT")
             db.commit()
 
+    @contextmanager
+    def _connect(self):
+        db = sqlite3.connect(self.path)
+        try:
+            yield db
+        finally:
+            db.close()
+
     def add(self, action: str, target: str, payload: str) -> str:
         if not action.strip() or not target.strip():
             raise ValueError("action and target are required")
         item_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             db.execute(
                 "INSERT INTO approval_queue VALUES(?,?,?,?,?,?,NULL)",
                 (item_id, action, target, payload, "pending", now),
@@ -66,7 +75,7 @@ class ApprovalQueue:
         return item_id
 
     def list_pending(self) -> list[ApprovalItem]:
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             rows = db.execute(
                 "SELECT id,action,target,payload,status,created_at "
                 "FROM approval_queue WHERE status='pending' ORDER BY created_at"
@@ -78,7 +87,7 @@ class ApprovalQueue:
         if not item_id.strip():
             raise ValueError("item_id is required")
         status = "approved" if approved else "rejected"
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             cursor = db.execute(
                 "UPDATE approval_queue SET status=?, decided_at=? "
                 "WHERE id=? AND status='pending'",
