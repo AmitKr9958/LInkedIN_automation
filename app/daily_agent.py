@@ -113,8 +113,10 @@ async def run_agent_once(
 
     people: list[Any] = []
     # Recruiter discovery is read-only and only runs when there are matching jobs.
+    # Keep the query broad across the configured BI/data role families; scoring
+    # below performs job-specific relevance filtering.
     if any(batches):
-        result = await read_fn("people", query="Power BI recruiter")
+        result = await read_fn("people", query="recruiter Power BI Data Analyst")
         people = list(result.data or [])
 
     report = build_agent_report(batches, people, tracker=tracker)
