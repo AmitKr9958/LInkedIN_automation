@@ -239,6 +239,36 @@ def _location_matches_requested(location: str, requested: str) -> bool:
     return True
 
 
+_INDIA_SEARCH_LOCATION_ALIASES = {
+    "delhi": "Delhi, India",
+    "new delhi": "Delhi, India",
+    "gurgaon": "Gurgaon, India",
+    "gurugram": "Gurgaon, India",
+    "noida": "Noida, India",
+    "jaipur": "Jaipur, India",
+}
+
+
+def _search_location_value(location: str) -> str:
+    """Build a country-scoped LinkedIn search location for supported Indian cities."""
+    normalized = _normalize_location_text(location)
+    if normalized in _INDIA_SEARCH_LOCATION_ALIASES:
+        return _INDIA_SEARCH_LOCATION_ALIASES[normalized]
+    if normalized and "india" not in normalized.split():
+        return f"{location.strip()}, India"
+    return location.strip()
+
+
+def _build_jobs_search_url(keywords: str, location: str = "", start: int = 0) -> str:
+    """Build a LinkedIn jobs URL with an explicit India scope for local searches."""
+    params = [f"keywords={quote_plus(keywords)}"]
+    if location:
+        params.append(f"location={quote_plus(_search_location_value(location))}")
+    if start:
+        params.append(f"start={start}")
+    return f"{settings.linkedin_base_url}/jobs/search/?{"&".join(params)}"
+
+
 _LOCATION_CITY_RE = re.compile(
     r"(?i)\b(?:new\s+delhi|delhi|gurgaon|gurugram|noida|jaipur)\b"
 )
@@ -849,14 +879,8 @@ async def search(
     start: int = 0,
     diagnostics: dict | None = None,
 ) -> list[Job]:
-    params = f"keywords={quote_plus(keywords)}"
-    if location:
-        params += f"&location={quote_plus(location)}"
-    if start:
-        params += f"&start={start}"
-
     await page.goto(
-        f"{settings.linkedin_base_url}/jobs/search/?{params}",
+        _build_jobs_search_url(keywords, location, start),
         wait_until="domcontentloaded",
         timeout=60_000,
     )
