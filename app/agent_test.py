@@ -108,6 +108,7 @@ def run_safe_workflow_test() -> list[AgentTestResult]:
     """Exercise job, recruiter, application and content workflows without LinkedIn mutations."""
     from tempfile import TemporaryDirectory
     from pathlib import Path
+    import gc
     import json
     from types import SimpleNamespace
 
@@ -162,5 +163,11 @@ def run_safe_workflow_test() -> list[AgentTestResult]:
         draft = write_post("Power BI automation", "Share a measured 30% reduction in manual workload.")
         plan = content_plan("Power BI", "recruiters", days=3)
         results.append(AgentTestResult("content-workflow", "workflow", bool(draft.text and len(plan) == 3), "post draft and plan created"))
+
+        # Windows can retain sqlite file handles briefly after connection
+        # cleanup. Release all test objects and collect before TemporaryDirectory
+        # attempts to remove the database files.
+        del tracker, queue, pending, tracked
+        gc.collect()
 
     return results
