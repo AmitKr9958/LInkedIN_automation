@@ -15,7 +15,7 @@ def test_internship_is_excluded():
 
 
 def test_recent_job_gets_recency_signal():
-    job = JobRecord("Power BI Developer", "Example", "Gurgaon", posted_text="12 hours ago")
+    job = JobRecord("Power BI Developer", "Example", "Gurgaon", posted_text="30 minutes ago")
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
     assert "recent posting" in ranked[0]["reasons"]
 
@@ -23,17 +23,17 @@ def test_recent_job_gets_recency_signal():
 def test_numeric_posted_hours_drive_recency_signal():
     job = JobRecord(
         "Power BI Developer", "Example", "Gurgaon",
-        posted_text="22 hours ago", posted_hours=22.0,
+        posted_text="45 minutes ago", posted_hours=0.75,
     )
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
     assert "recent posting" in ranked[0]["reasons"]
-    assert ranked[0]["job"]["posted_hours"] == 22.0
+    assert ranked[0]["job"]["posted_hours"] == 0.75
 
 
 def test_numeric_recency_wins_over_text_estimate():
     job = JobRecord(
         "Power BI Developer", "Example", "Gurgaon",
-        posted_text="3 days ago", posted_hours=18.0,
+        posted_text="3 days ago", posted_hours=0.5,
     )
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
     assert "recent posting" in ranked[0]["reasons"]
