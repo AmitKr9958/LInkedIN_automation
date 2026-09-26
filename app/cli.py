@@ -52,6 +52,22 @@ def agent_test(live: bool = typer.Option(False, "--live", help="Also run authent
     raise typer.Exit(code=1 if failed else 0)
 
 
+@app.command("agent-workflow-test")
+def agent_workflow_test():
+    """Run a safe end-to-end workflow test without changing LinkedIn."""
+    from .agent_test import run_safe_workflow_test
+
+    results = run_safe_workflow_test()
+    failed = 0
+    for result in results:
+        label = "PASS" if result.ok else "FAIL"
+        if not result.ok:
+            failed += 1
+        typer.echo(f"[{label}] {result.mode:8} {result.skill}: {result.detail}")
+    typer.echo(f"summary: {len(results) - failed} passed, {failed} failed, {len(results)} total")
+    raise typer.Exit(code=1 if failed else 0)
+
+
 @app.command("audit-post")
 def audit_post_command(path: str = "", text: str = ""):
     """Audit a post draft without publishing it."""
