@@ -131,6 +131,22 @@ All 27 skills are registered/governed. Their implementation boundaries are expli
 
 Application tracking, job normalization, discovery reporting, and JSON/CSV export are local and independent of LinkedIn.
 
+## Unified skill testing
+
+The repository now provides one command for the complete deterministic skill/dispatcher validation:
+
+```powershell
+python -m app agent-test
+```
+
+For the authenticated local LinkedIn browser, add `--live`. This runs the deterministic checks first and then read-only live checks for authentication, profile, jobs, people, companies, posts, and saved items:
+
+```powershell
+python -m app agent-test --live
+```
+
+The live mode does not send connection requests, messages, comments, likes, publish posts, or submit job applications. Those consequential workflows remain approval-gated.
+
 ## Testing
 
 Unit tests are separated from browser smoke tests. CI installs Chromium for the smoke job and retains browser test artifacts on failure.
