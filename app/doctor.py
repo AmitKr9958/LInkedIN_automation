@@ -73,5 +73,27 @@ def run_doctor() -> list[Check]:
             blocking=True,
         )
     )
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            executable = pw.chromium.executable_path
+        browser_ok = bool(executable) and __import__("pathlib").Path(executable).exists()
+        checks.append(
+            Check(
+                "chromium-runtime",
+                browser_ok,
+                executable if executable else "Chromium executable path unavailable",
+            )
+        )
+    except Exception as exc:
+        checks.append(Check("chromium-runtime", False, f"{type(exc).__name__}: {exc}"))
+
+    checks.append(
+        Check(
+            "linkedin-url",
+            settings.linkedin_base_url.startswith("https://www.linkedin.com"),
+            settings.linkedin_base_url,
+        )
+    )
     checks.append(Check("project-root", ROOT.exists(), str(ROOT)))
     return checks
