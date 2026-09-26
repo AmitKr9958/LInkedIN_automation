@@ -266,7 +266,8 @@ def _build_jobs_search_url(keywords: str, location: str = "", start: int = 0) ->
         params.append(f"location={quote_plus(_search_location_value(location))}")
     if start:
         params.append(f"start={start}")
-    return f"{settings.linkedin_base_url}/jobs/search/?{"&".join(params)}"
+    query = "&".join(params)
+    return f"{settings.linkedin_base_url}/jobs/search/?{query}"
 
 
 _LOCATION_CITY_RE = re.compile(
