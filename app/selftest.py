@@ -30,6 +30,7 @@ MODULES = (
     "app.history",
     "app.approval_queue",
     "app.orchestrator",
+    "app.dashboard",
 )
 
 
