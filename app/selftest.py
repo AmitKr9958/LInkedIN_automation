@@ -45,7 +45,7 @@ def run_selftest() -> list[SelfTestResult]:
 
     skills = list_skills()
     names = {skill.name for skill in skills}
-    results.append(SelfTestResult("skill-registry", len(skills) == 27, f"{len(skills)} skills registered"))
+    results.append(SelfTestResult("skill-registry", len(skills) == 28, f"{len(skills)} skills registered"))
 
     expected_dispatch = {
         "post_writer", "content_planner", "comment_drafter", "reply_handler",
