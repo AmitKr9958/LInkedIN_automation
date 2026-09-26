@@ -679,7 +679,17 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
 
     location = _location_from_detail_text(await _text(page, DETAIL_LOCATION_SELECTORS), title)
     if not location:
+        # The live 2026 SDUI often exposes the location only in the rendered
+        # main/body text rather than a dedicated top-card selector. This also
+        # keeps the test double contract aligned with the live fallback.
         location = _location_from_detail_text(main_text, title)
+    if not location:
+        try:
+            body_text = " ".join((await page.inner_text("body")).split())
+        except Exception:
+            body_text = ""
+        if body_text and body_text != main_text:
+            location = _location_from_detail_text(body_text, title)
 
     fields.update(company=company, posted=posted, posted_hours=posted_hours, location=location)
     structured = _jsonld_job_fields(await _jsonld_texts(page))
