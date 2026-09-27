@@ -342,7 +342,7 @@ def read(
         None,
         help=(
             "Maximum job posting age in hours. Defaults to the configured "
-            "job preference (48). Pass a negative value to disable the "
+            "job preference (0.5 hours). Pass a negative value to disable the "
             "freshness filter and return all ages."
         ),
     ),
@@ -388,12 +388,12 @@ def agent(
     locations: str = typer.Option(
         "",
         "--locations",
-        help="Comma-separated locations. Defaults to Delhi,Gurgaon,Noida,Jaipur.",
+        help="Comma-separated locations. Defaults to Delhi,Gurgaon,Noida.",
     ),
     max_posted_hours: Optional[float] = typer.Option(
         None,
         "--max-posted-hours",
-        help="Override the 48-hour job freshness window. Use a negative value to disable it.",
+        help="Override the 0.5-hour job freshness window. Use a negative value to disable it.",
     ),
 ):
     """Run the governed end-to-end workflow: discover, rank, track, target and draft."""
@@ -409,7 +409,7 @@ def agent(
     started_at = datetime.now(timezone.utc).isoformat()
     typer.echo(
         f"agent: starting (headless={settings.headless}, dry_run={settings.dry_run}, "
-        f"max_posted_hours={window if window is not None else 'default-48'})",
+        f"max_posted_hours={window if window is not None else 'default-0.5'})",
         err=True,
     )
     try:
