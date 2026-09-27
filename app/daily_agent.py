@@ -351,17 +351,12 @@ async def run_agent_once(
             })
         timing["feed_scan"] = round(_time.monotonic() - feed_started, 2)
 
+        # People/profile search is intentionally disabled in the scheduled
+        # post-restriction agent. Job discovery and hiring-post discovery remain
+        # enabled, while automated member-result enumeration is avoided.
         people: list[Any] = []
-        people_started = _time.monotonic()
-        if any(batches):
-            try:
-                result = await _dispatch("people", query="recruiter Power BI Data Analyst")
-                people = list(result.data or [])
-            except Exception as exc:
-                if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
-                    raise
-                diagnostics["people_error"] = f"{type(exc).__name__}: {exc}"
-        timing["people_search"] = round(_time.monotonic() - people_started, 2)
+        diagnostics["people_search_enabled"] = False
+        timing["people_search"] = 0.0
 
         report = build_agent_report(
             batches,
