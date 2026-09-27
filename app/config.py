@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     browser_profile_dir: str = ".browser-profile"
     log_level: str = "INFO"
     approval_required: bool = True
+    # End-to-end agent execution is opt-in. The scheduled runner explicitly enables it.
+    agent_enabled: bool = False
     llm_provider: str = "none"
     openai_api_key: str | None = None
     linkedin_base_url: str = "https://www.linkedin.com"
