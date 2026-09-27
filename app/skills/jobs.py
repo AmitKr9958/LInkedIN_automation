@@ -115,7 +115,7 @@ DETAIL_TITLE_SELECTORS = (
     "h1",
 )
 
-MAX_DETAIL_HYDRATION = 25
+MAX_DETAIL_HYDRATION = 8
 
 _POSTED_RE = re.compile(
     r"(?i)\b(?:just now|\d+\+?\s+(?:minute|hour|day|week|month|year)s?\s+ago|"
