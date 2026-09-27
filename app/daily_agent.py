@@ -216,7 +216,8 @@ async def run_agent_once(
                 "final_returned": 0,
             }
 
-    # Scan LinkedIn posts for people publicly advertising target roles.
+    # Scan LinkedIn content-search results and the authenticated personalized
+    # home feed for people publicly advertising target roles.
     # This is read-only; it never contacts the author or interacts with the post.
     post_queries = [
         f"hiring {keyword} {location}"
@@ -226,15 +227,43 @@ async def run_agent_once(
     post_queries.extend(
         f"hiring {keyword}" for keyword in DEFAULT_JOB_PREFERENCES.keywords[:3]
     )
-    for post_query in dict.fromkeys(post_queries):
+    post_window = (
+        float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+        if max_posted_hours is None
+        else max_posted_hours
+    )
+    unique_post_queries = list(dict.fromkeys(post_queries))
+    for post_query in unique_post_queries:
         try:
-            result = await read_fn("posts", query=post_query)
+            result = await read_fn(
+                "posts",
+                query=post_query,
+                max_posted_hours=post_window,
+            )
             post_batches.append(_post_rows(result.data))
         except Exception as exc:
             diagnostics.setdefault("posts", []).append({
+                "source": "content-search",
                 "query": post_query,
                 "error": f"{type(exc).__name__}: {exc}",
             })
+
+    try:
+        feed_result = await read_fn(
+            "posts",
+            feed=True,
+            max_posted_hours=post_window,
+            max_scrolls=8,
+        )
+        post_batches.append(_post_rows(feed_result.data))
+        diagnostics["feed_scan_candidates"] = len(feed_result.data or [])
+        if getattr(feed_result, "diagnostics", None):
+            diagnostics["feed_scan"] = feed_result.diagnostics
+    except Exception as exc:
+        diagnostics.setdefault("posts", []).append({
+            "source": "personalized-feed",
+            "error": f"{type(exc).__name__}: {exc}",
+        })
 
     people: list[Any] = []
     # Recruiter discovery is read-only and only runs when there are matching jobs.
@@ -250,8 +279,10 @@ async def run_agent_once(
         tracker=tracker,
         post_batches=post_batches,
     )
-    diagnostics["post_scan_queries"] = len(dict.fromkeys(post_queries))
+    diagnostics["post_scan_queries"] = len(unique_post_queries)
     diagnostics["post_scan_candidates"] = sum(len(batch) for batch in post_batches)
+    diagnostics["post_scan_window_hours"] = post_window
+    diagnostics["feed_scan_enabled"] = True
     diagnostics["hiring_posts_matched"] = len(report.hiring_posts)
     report.diagnostics = diagnostics
     return report
