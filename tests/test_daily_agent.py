@@ -184,3 +184,34 @@ def test_run_agent_once_scans_hiring_posts():
     assert report.hiring_posts
     assert report.hiring_post_targets[0]["target"]["name"] == "Recruiter"
     assert report.diagnostics["post_scan_queries"] > 0
+
+
+
+def test_run_agent_once_scans_personalized_feed_with_48_hour_window():
+    calls = []
+
+    async def fake_read(skill, **kwargs):
+        calls.append((skill, kwargs))
+        if skill == "jobs":
+            return SimpleNamespace(data=[], diagnostics={"final_returned": 0})
+        if skill == "posts" and kwargs.get("feed"):
+            return SimpleNamespace(data=[{
+                "author": "Feed Recruiter",
+                "text": "We are hiring a Senior Power BI Developer in Gurgaon. 1 day ago",
+                "href": "https://linkedin.test/in/feed-recruiter",
+            }])
+        return SimpleNamespace(data=[])
+
+    report = __import__("asyncio").run(
+        daily_agent.run_agent_once(
+            locations=["Gurgaon"],
+            read_fn=fake_read,
+            tracker=FakeTracker(),
+        )
+    )
+
+    feed_calls = [kwargs for skill, kwargs in calls if skill == "posts" and kwargs.get("feed")]
+    assert feed_calls
+    assert feed_calls[0]["max_posted_hours"] == 48
+    assert feed_calls[0]["max_scrolls"] == 8
+    assert report.diagnostics["feed_scan_enabled"] is True
