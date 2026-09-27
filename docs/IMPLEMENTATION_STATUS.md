@@ -44,10 +44,10 @@
 - Follow-up lifecycle records (create, list, duplicate-safe, validated status transitions)
 
 ### Skills
-- 24 registered/governed skills
-- 6 live read skills: profile, jobs, people, companies, posts, saved
-- 12 content/intelligence skills implemented locally
-- 6 account/workflow skills remain approval-gated workflow surfaces rather than autonomous UI executors
+- 28 registered/governed skills
+- Live read skills: profile, jobs, people, companies, posts, saved, notifications
+- Content/intelligence and outreach skills implemented locally
+- Mutating account actions remain approval-gated workflow surfaces rather than autonomous UI executors
 
 ## Validation
 

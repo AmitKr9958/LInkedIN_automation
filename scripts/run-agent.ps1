@@ -21,6 +21,9 @@ if (Test-Path ".venv\Scripts\python.exe") {
 
 $env:HEADLESS = "true"
 $env:DRY_RUN = "true"
+# Ensure Python stdout/stderr are not fully buffered so partial progress appears
+# in the log even if the process is killed by the Task Scheduler timeout.
+$env:PYTHONUNBUFFERED = "1"
 
 $Start = Get-Date
 "[$Start] agent cycle start (max-posted-hours=48, HEADLESS=true, DRY_RUN=true)" |
@@ -29,6 +32,7 @@ $Start = Get-Date
 & $python -m app agent --max-posted-hours 48 2>&1 |
     Tee-Object -FilePath $LogFile -Append | Out-Null
 $Code = $LASTEXITCODE
+if ($null -eq $Code) { $Code = 1 }
 
 $End = Get-Date
 $Duration = [math]::Round(($End - $Start).TotalSeconds, 1)

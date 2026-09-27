@@ -224,9 +224,34 @@ def debug_auth():
 
 @app.command()
 def login():
-    typer.echo("A visible browser will open. Log in manually; credentials are never requested or exported.")
-    result = asyncio.run(login_check(keep_open=True))
+    """Open a visible Chromium window using the persistent local profile.
+
+    Log in to LinkedIn yourself (password, OTP, CAPTCHA). The agent never
+    requests or exports credentials. After the feed is detected as
+    authenticated the profile is settled and closed so the session persists
+    for subsequent headless runs.
+    """
+    typer.echo(
+        "A visible browser will open using the local profile at:\n"
+        f"  {settings.profile_path}\n"
+        "Log in to LinkedIn manually in that window (password / OTP / CAPTCHA).\n"
+        "Credentials are never requested or exported by this tool.\n"
+        "Waiting up to 15 minutes for an authenticated feed..."
+    )
+    result = asyncio.run(login_check(keep_open=True, force_headed=True))
     typer.echo(f"{result.status}: {result.details}")
+    if result.status == "authenticated":
+        typer.echo(
+            "Session saved to the persistent browser profile. "
+            "Verify with: python -m app debug-auth"
+        )
+    else:
+        typer.echo(
+            "Authentication was not confirmed. Keep the browser open until the "
+            "LinkedIn home feed is fully loaded, then re-run: python -m app login",
+            err=True,
+        )
+        raise typer.Exit(code=1)
 
 
 @app.command("skills")
@@ -351,6 +376,7 @@ def agent(
     ),
 ):
     """Run the governed end-to-end workflow: discover, rank, track, target and draft."""
+    import sys
     import time as _time
 
     requested_locations = [x.strip() for x in locations.split(",") if x.strip()] if locations else None
@@ -358,6 +384,11 @@ def agent(
         None if max_posted_hours < 0 else max_posted_hours
     )
     started = _time.monotonic()
+    typer.echo(
+        f"agent: starting (headless={settings.headless}, dry_run={settings.dry_run}, "
+        f"max_posted_hours={window if window is not None else 'default-48'})",
+        err=True,
+    )
     try:
         with agent_lock():
             report = asyncio.run(
@@ -372,12 +403,22 @@ def agent(
         raise typer.Exit(code=2)
     except Exception as exc:
         duration = _time.monotonic() - started
-        typer.echo(f"agent: FAIL ({type(exc).__name__}: {exc})", err=True)
+        message = f"{type(exc).__name__}: {exc}"
+        typer.echo(f"agent: FAIL ({message})", err=True)
+        if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
+            typer.echo(
+                "Authentication failure. Run: python -m app login  (HEADLESS=false), "
+                "complete LinkedIn sign-in in the visible browser, then "
+                "python -m app debug-auth",
+                err=True,
+            )
         write_run_status(
             success=False,
             duration_seconds=round(duration, 2),
-            error=f"{type(exc).__name__}: {exc}",
+            error=message,
         )
+        sys.stderr.flush()
+        sys.stdout.flush()
         raise typer.Exit(code=1)
 
     duration = _time.monotonic() - started

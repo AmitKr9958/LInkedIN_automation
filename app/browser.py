@@ -11,6 +11,11 @@ async def linkedin_browser():
 
     Authentication is performed by the user in the visible browser. This
     helper never reads or exports passwords, cookies, or session tokens.
+
+    The context is always closed on exit so Chromium can flush the user-data
+    directory (cookies, local storage) to disk. Callers that perform an
+    interactive login should settle on an authenticated page and wait a few
+    seconds before exiting this context manager.
     """
     async with async_playwright() as pw:
         try:
@@ -23,11 +28,15 @@ async def linkedin_browser():
                 # while scrolling, which makes manual navigation confusing.
                 args=["--disable-features=OverlayScrollbar"],
                 timeout=30_000,
+                accept_downloads=False,
             )
         except PlaywrightError as exc:
             detail = str(exc).lower()
             if "user data directory is already in use" in detail or "singleton" in detail:
-                reason = "the local browser profile is already in use"
+                reason = (
+                    "the local browser profile is already in use "
+                    f"(profile: {settings.profile_path})"
+                )
             elif "executable doesn't exist" in detail or "browserType.launch" in detail:
                 reason = "Chromium is not installed"
             else:
@@ -39,4 +48,19 @@ async def linkedin_browser():
         try:
             yield context
         finally:
-            await context.close()
+            # Close pages first so pending navigations finish, then close the
+            # context so the persistent profile is flushed to disk.
+            try:
+                for page in list(context.pages):
+                    try:
+                        if not page.is_closed():
+                            await page.close()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            try:
+                await context.close()
+            except Exception:
+                # Avoid masking the original error from the with-block body.
+                pass

@@ -5,9 +5,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_scheduler_runner_is_hidden_and_non_interactive():
-    text = (ROOT / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
-    assert "-NonInteractive" in text
-    assert "-NoLogo" in text
+    """Hidden path is wscript -> VBS -> PowerShell -WindowStyle Hidden -NonInteractive."""
+    installer = (ROOT / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
+    launcher = (ROOT / "scripts" / "run-agent-hidden.vbs").read_text(encoding="utf-8")
+    assert "wscript.exe" in installer.lower()
+    assert "-Hidden" in installer
+    assert "-NonInteractive" in launcher
+    assert "-NoLogo" in launcher
+    assert "-WindowStyle Hidden" in launcher
 
 
 def test_scheduler_is_hidden_and_single_instance():
