@@ -342,14 +342,14 @@ def read(
         None,
         help=(
             "Maximum job posting age in hours. Defaults to the configured "
-            "job preference (0.5 hours). Pass a negative value to disable the "
+            "job preference (48 hours). Pass a negative value to disable the "
             "freshness filter and return all ages."
         ),
     ),
 ):
     """Run a read-only skill and print JSON.
 
-    For jobs, the centralized preference posted_within_hours (0.5 hours) is applied
+    For jobs, the centralized preference posted_within_hours (48 hours) is applied
     by default. Pass --max-posted-hours <N> to override, or a negative value
     to disable freshness filtering.
     """

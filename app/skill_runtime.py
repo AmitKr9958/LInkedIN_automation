@@ -91,7 +91,7 @@ def _filter_jobs_by_title(
 
 def _filter_posts_by_freshness(
     data: list[Any],
-    max_posted_hours: float | None = 0.5,
+    max_posted_hours: float | None = 48,
     diagnostics: dict | None = None,
 ) -> list[Any]:
     """Keep only posts whose parsed age is within the configured window."""
@@ -122,7 +122,7 @@ def _filter_posts_by_freshness(
 
 def _filter_jobs_by_freshness(
     data: list[Any],
-    max_posted_hours: float | None = 0.5,
+    max_posted_hours: float | None = 48,
     diagnostics: dict | None = None,
     *,
     include_unknown_age: bool = False,
@@ -277,7 +277,7 @@ async def run_read_on_page(page, skill: str, **kwargs) -> RuntimeResult:
             data = await posts.search(page, kwargs.get("query", "Power BI"))
         data = _filter_posts_by_freshness(
             data,
-            kwargs.get("max_posted_hours", 0.5),
+            kwargs.get("max_posted_hours", 48),
             diagnostics=diagnostics,
         )
         if hasattr(data, "to_dict"):
