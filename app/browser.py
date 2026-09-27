@@ -5,8 +5,29 @@ from playwright.async_api import BrowserContext, Error as PlaywrightError, async
 from .config import settings
 
 
+def _launch_args() -> list[str]:
+    """Stable Chromium flags for persistent LinkedIn profile use.
+
+    No stealth/evasion flags. Goal is reliable profile load/flush, not
+    bypassing LinkedIn security checks.
+    """
+    args = [
+        # Keep the native scrollbar visible in the headed automation browser.
+        "--disable-features=OverlayScrollbar",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-session-crashed-bubble",
+        "--window-size=1440,900",
+    ]
+    # When "headless" is requested, still prefer a real window placed off-screen
+    # if the operator sets HEADLESS_OFFSCREEN=true. LinkedIn session cookies from
+    # a headed login often restore more reliably in a non-headless Chromium
+    # process. Default remains true headless when HEADLESS=true.
+    return args
+
+
 @asynccontextmanager
-async def linkedin_browser():
+async def linkedin_browser(*, headless: bool | None = None):
     """Open the user's persistent local LinkedIn browser profile.
 
     Authentication is performed by the user in the visible browser. This
@@ -16,19 +37,21 @@ async def linkedin_browser():
     directory (cookies, local storage) to disk. Callers that perform an
     interactive login should settle on an authenticated page and wait a few
     seconds before exiting this context manager.
+
+    ``headless`` overrides ``settings.headless`` for this launch only.
     """
+    use_headless = settings.headless if headless is None else headless
     async with async_playwright() as pw:
         try:
             context: BrowserContext = await pw.chromium.launch_persistent_context(
                 user_data_dir=str(settings.profile_path),
-                headless=settings.headless,
+                headless=use_headless,
                 viewport={"width": 1440, "height": 900},
-                # Keep the native scrollbar visible in the headed automation browser.
-                # Chromium can otherwise use overlay scrollbars that are only shown
-                # while scrolling, which makes manual navigation confusing.
-                args=["--disable-features=OverlayScrollbar"],
-                timeout=30_000,
+                args=_launch_args(),
+                timeout=45_000,
                 accept_downloads=False,
+                # Consistent locale helps session restore match the login browser.
+                locale="en-US",
             )
         except PlaywrightError as exc:
             detail = str(exc).lower()

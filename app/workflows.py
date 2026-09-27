@@ -10,7 +10,8 @@ from .linkedin_reader import current_session_state
 LOGIN_WAIT_SECONDS = 15 * 60
 # Extra settle time after auth is detected so Chromium can flush cookies/storage
 # into the persistent user-data directory before the context closes.
-SESSION_SETTLE_MS = 8_000
+# Headless relaunch after a short settle was a common failure mode; 15s is safer.
+SESSION_SETTLE_MS = 15_000
 
 
 async def login_check(
@@ -78,18 +79,37 @@ async def login_check(
             if state["authenticated"] and keep_open:
                 # Land on the feed so LinkedIn finishes writing session cookies,
                 # then wait long enough for Chromium to flush the profile.
+                # A second navigation improves cookie durability for the next
+                # headless launch of the same user-data directory.
                 try:
                     if page.is_closed():
                         pass
                     else:
+                        feed_url = f"{settings.linkedin_base_url.rstrip('/')}/feed/"
                         url_lower = (page.url or "").lower()
                         if "/feed" not in url_lower:
                             await page.goto(
-                                f"{settings.linkedin_base_url.rstrip('/')}/feed/",
+                                feed_url,
                                 wait_until="domcontentloaded",
                                 timeout=60_000,
                             )
-                        await page.wait_for_timeout(SESSION_SETTLE_MS)
+                        await page.wait_for_timeout(SESSION_SETTLE_MS // 2)
+                        # Soft second hop: jobs page then back to feed.
+                        try:
+                            await page.goto(
+                                f"{settings.linkedin_base_url.rstrip('/')}/jobs/",
+                                wait_until="domcontentloaded",
+                                timeout=60_000,
+                            )
+                            await page.wait_for_timeout(2_000)
+                            await page.goto(
+                                feed_url,
+                                wait_until="domcontentloaded",
+                                timeout=60_000,
+                            )
+                        except Exception:
+                            pass
+                        await page.wait_for_timeout(SESSION_SETTLE_MS // 2)
                         state = await current_session_state(page)
                 except Exception:
                     # Best-effort settle; still report the last known state.

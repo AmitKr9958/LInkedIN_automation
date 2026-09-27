@@ -190,96 +190,118 @@ def _filter_jobs_by_freshness(
     return kept
 
 
-async def run_read(skill: str, **kwargs) -> RuntimeResult:
-    async with linkedin_browser() as browser:
-        page = browser.pages[0] if browser.pages else await browser.new_page()
+async def ensure_authenticated(page, *, settle_ms: int = 5_000, attempts: int = 3) -> dict:
+    """Navigate to the feed and verify the local session is authenticated.
 
-        # Never assume authentication merely because LinkedIn did not redirect
-        # to /login. Fail closed when the local session cannot be verified.
-        # Start from the authenticated feed so LinkedIn can restore the
-        # persistent session before we inspect authentication state.
-        if not page.url or "linkedin.com" not in page.url or "/feed/" not in page.url:
-            for attempt in range(2):
-                try:
-                    await page.goto(
-                        "https://www.linkedin.com/feed/",
-                        wait_until="domcontentloaded",
-                        timeout=60_000,
-                    )
-                    break
-                except Exception:
-                    if attempt == 1:
-                        raise
-                    await page.wait_for_timeout(2000)
-        await page.wait_for_timeout(3000)
-        state = await current_session_state(page)
-        if not state["authenticated"]:
-            raise RuntimeError(
-                "LinkedIn session is not verified. Run 'python -m app login' "
-                "with HEADLESS=false and sign in manually."
+    Retries briefly because persistent-profile cookie restore can lag on the
+    first headless launch after a headed login. Never bypasses LinkedIn login
+    or security challenges — fails closed when the session is not verified.
+    """
+    last_state: dict = {}
+    for attempt in range(1, attempts + 1):
+        try:
+            await page.goto(
+                "https://www.linkedin.com/feed/",
+                wait_until="domcontentloaded",
+                timeout=60_000,
             )
+        except Exception:
+            if attempt >= attempts:
+                raise
+            await page.wait_for_timeout(2_000 * attempt)
+            continue
+        await page.wait_for_timeout(settle_ms if attempt == 1 else 2_000)
+        last_state = await current_session_state(page)
+        if last_state.get("authenticated"):
+            return last_state
+        # Soft retry: LinkedIn sometimes shows an interstitial before the feed.
+        await page.wait_for_timeout(2_000 * attempt)
+    raise RuntimeError(
+        "LinkedIn session is not verified. Run 'python -m app login' "
+        "with HEADLESS=false and sign in manually. "
+        f"Last page: url={last_state.get('url', '')!r} "
+        f"title={last_state.get('title', '')!r} "
+        f"confidence={last_state.get('confidence', '')!r}."
+    )
 
-        if skill == "profile":
-            data = await profile.read_profile(page)
-        elif skill == "jobs":
-            diagnostics: dict = {"skill": "jobs"}
-            data = await jobs.search(
-                page,
-                kwargs.get("keywords", DEFAULT_JOB_PREFERENCES.keywords[0]),
-                kwargs.get("location", "Gurgaon"),
-                start=kwargs.get("start", 0),
-                diagnostics=diagnostics,
-            )
-            data = _filter_jobs_by_title(
-                data,
-                DEFAULT_JOB_PREFERENCES.keywords,
-                diagnostics=diagnostics,
-            )
-            # Prefer the explicit CLI/workflow value when provided; otherwise
-            # use the centralized job preference (posted_within_hours=48).
-            # Passing max_posted_hours=None disables the filter intentionally.
-            if "max_posted_hours" in kwargs:
-                window = kwargs["max_posted_hours"]
-            else:
-                window = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
-            data = _filter_jobs_by_freshness(
-                data,
-                window,
-                diagnostics=diagnostics,
-                include_unknown_age=bool(kwargs.get("include_unknown_age", False)),
-            )
-            return RuntimeResult(skill, data, diagnostics)
-        elif skill == "people":
-            data = await people.search(
-                page,
-                kwargs.get("query", "Power BI recruiter"),
-                kwargs.get("location", ""),
-            )
-        elif skill == "companies":
-            data = await companies.search(page, kwargs.get("query", "technology"))
-        elif skill == "posts":
-            diagnostics = {}
-            if kwargs.get("feed", False):
-                data = await posts.read_feed(
-                    page,
-                    max_scrolls=int(kwargs.get("max_scrolls", 6)),
-                )
-            else:
-                data = await posts.search(page, kwargs.get("query", "Power BI"))
-            data = _filter_posts_by_freshness(
-                data,
-                kwargs.get("max_posted_hours", 48),
-                diagnostics=diagnostics,
-            )
-        elif skill == "saved":
-            data = await saved.read_saved_posts(page)
-        elif skill == "notifications":
-            data = await notifications.search(page)
+
+async def run_read_on_page(page, skill: str, **kwargs) -> RuntimeResult:
+    """Execute a read skill on an already-open authenticated page.
+
+    Used by the agent cycle so the persistent profile is opened once per
+    cycle instead of once per location/query (faster and more reliable).
+    """
+    if skill == "profile":
+        data = await profile.read_profile(page)
+    elif skill == "jobs":
+        diagnostics: dict = {"skill": "jobs"}
+        data = await jobs.search(
+            page,
+            kwargs.get("keywords", DEFAULT_JOB_PREFERENCES.keywords[0]),
+            kwargs.get("location", "Gurgaon"),
+            start=kwargs.get("start", 0),
+            diagnostics=diagnostics,
+        )
+        data = _filter_jobs_by_title(
+            data,
+            DEFAULT_JOB_PREFERENCES.keywords,
+            diagnostics=diagnostics,
+        )
+        if "max_posted_hours" in kwargs:
+            window = kwargs["max_posted_hours"]
         else:
-            raise ValueError(f"Unsupported read skill: {skill}")
-
+            window = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+        data = _filter_jobs_by_freshness(
+            data,
+            window,
+            diagnostics=diagnostics,
+            include_unknown_age=bool(kwargs.get("include_unknown_age", False)),
+        )
+        return RuntimeResult(skill, data, diagnostics)
+    elif skill == "people":
+        data = await people.search(
+            page,
+            kwargs.get("query", "Power BI recruiter"),
+            kwargs.get("location", ""),
+        )
+    elif skill == "companies":
+        data = await companies.search(page, kwargs.get("query", "technology"))
+    elif skill == "posts":
+        diagnostics = {}
+        if kwargs.get("feed", False):
+            data = await posts.read_feed(
+                page,
+                max_scrolls=int(kwargs.get("max_scrolls", 6)),
+            )
+        else:
+            data = await posts.search(page, kwargs.get("query", "Power BI"))
+        data = _filter_posts_by_freshness(
+            data,
+            kwargs.get("max_posted_hours", 48),
+            diagnostics=diagnostics,
+        )
         if hasattr(data, "to_dict"):
             data = data.to_dict()
         elif isinstance(data, list):
             data = [x.to_dict() if hasattr(x, "to_dict") else x for x in data]
-        return RuntimeResult(skill, data)
+        return RuntimeResult(skill, data, diagnostics)
+    elif skill == "saved":
+        data = await saved.read_saved_posts(page)
+    elif skill == "notifications":
+        data = await notifications.search(page)
+    else:
+        raise ValueError(f"Unsupported read skill: {skill}")
+
+    if hasattr(data, "to_dict"):
+        data = data.to_dict()
+    elif isinstance(data, list):
+        data = [x.to_dict() if hasattr(x, "to_dict") else x for x in data]
+    return RuntimeResult(skill, data)
+
+
+async def run_read(skill: str, **kwargs) -> RuntimeResult:
+    """Open the persistent profile, verify auth, run one read skill, then close."""
+    async with linkedin_browser() as browser:
+        page = browser.pages[0] if browser.pages else await browser.new_page()
+        await ensure_authenticated(page)
+        return await run_read_on_page(page, skill, **kwargs)

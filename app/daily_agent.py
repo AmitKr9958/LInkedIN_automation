@@ -6,11 +6,12 @@ from dataclasses import asdict, dataclass
 from typing import Any, Awaitable, Callable
 
 from .application_tracker import ApplicationTracker
+from .browser import linkedin_browser
 from .job_normalize import dedupe_jobs
 from .job_preferences import DEFAULT_JOB_PREFERENCES, DEFAULT_JOB_SEARCH_QUERY
 from .orchestrator import build_discovery_report
 from .outreach import OutreachTarget, build_outreach_plan, draft_connection
-from .skill_runtime import run_read
+from .skill_runtime import ensure_authenticated, run_read, run_read_on_page
 
 
 HIRING_INTENT_PHRASES = (
@@ -235,135 +236,154 @@ async def run_agent_once(
     infrastructure_errors: list[BaseException] = []
     timing = diagnostics["timings_seconds"]
 
-    for location in locations:
-        last_error = None
-        loc_started = _time.monotonic()
-        for attempt in range(1, 3):
+    # Prefer a single shared browser session for the whole cycle when using the
+    # default read path. Opening the persistent profile once per location was
+    # slow and could lose the headed-login session under headless relaunch.
+    use_shared = read_fn is run_read
+
+    async def _dispatch(skill: str, **kwargs: Any):
+        if use_shared:
+            return await run_read_on_page(shared_page, skill, **kwargs)
+        return await read_fn(skill, **kwargs)
+
+    async def _run_body() -> AgentRunReport:
+        nonlocal batches, post_batches, infrastructure_errors
+
+        for location in locations:
+            last_error = None
+            loc_started = _time.monotonic()
+            for attempt in range(1, 3):
+                try:
+                    result = await _dispatch(
+                        "jobs",
+                        keywords=query,
+                        location=location,
+                        max_posted_hours=(
+                            float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+                            if max_posted_hours is None
+                            else max_posted_hours
+                        ),
+                    )
+                    batches.append(_job_rows(result.data))
+                    if getattr(result, "diagnostics", None):
+                        diagnostics[location] = result.diagnostics
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    # Auth failures always fail closed immediately — not transient.
+                    if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
+                        raise
+                    if attempt < 2:
+                        await asyncio.sleep(1.5 * attempt)
+            else:
+                diagnostics[location] = {
+                    "skill": "jobs",
+                    "error": f"{type(last_error).__name__}: {last_error}",
+                    "retries": 1,
+                    "final_returned": 0,
+                }
+                if last_error is not None and _is_infrastructure_error(last_error):
+                    infrastructure_errors.append(last_error)
+            timing[f"jobs_{location}"] = round(_time.monotonic() - loc_started, 2)
+
+        # If every location failed with browser/profile/auth infrastructure errors,
+        # fail closed so scheduler and run_status report a real failure instead of
+        # a false-success empty cycle.
+        if not batches and infrastructure_errors and len(infrastructure_errors) >= len(locations):
+            raise RuntimeError(
+                f"Job discovery blocked by infrastructure failure on all locations "
+                f"({len(locations)}): {infrastructure_errors[0]}"
+            ) from infrastructure_errors[0]
+
+        # Scan LinkedIn content-search results and the authenticated personalized
+        # home feed for people publicly advertising target roles.
+        # This is read-only; it never contacts the author or interacts with the post.
+        unique_post_queries = _build_post_queries(
+            locations, list(DEFAULT_JOB_PREFERENCES.keywords)
+        )
+        post_window = (
+            float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+            if max_posted_hours is None
+            else max_posted_hours
+        )
+        posts_started = _time.monotonic()
+        for post_query in unique_post_queries:
+            q_started = _time.monotonic()
             try:
-                result = await read_fn(
-                    "jobs",
-                    keywords=query,
-                    location=location,
-                    max_posted_hours=(
-                        float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
-                        if max_posted_hours is None
-                        else max_posted_hours
-                    ),
+                result = await _dispatch(
+                    "posts",
+                    query=post_query,
+                    max_posted_hours=post_window,
                 )
-                batches.append(_job_rows(result.data))
-                if getattr(result, "diagnostics", None):
-                    diagnostics[location] = result.diagnostics
-                break
+                post_batches.append(_post_rows(result.data))
             except Exception as exc:
-                last_error = exc
-                # Auth failures always fail closed immediately — not transient.
                 if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
                     raise
-                if attempt < 2:
-                    await asyncio.sleep(1.5 * attempt)
-        else:
-            diagnostics[location] = {
-                "skill": "jobs",
-                "error": f"{type(last_error).__name__}: {last_error}",
-                "retries": 1,
-                "final_returned": 0,
-            }
-            if last_error is not None and _is_infrastructure_error(last_error):
-                infrastructure_errors.append(last_error)
-        timing[f"jobs_{location}"] = round(_time.monotonic() - loc_started, 2)
+                diagnostics.setdefault("posts", []).append({
+                    "source": "content-search",
+                    "query": post_query,
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
+            timing.setdefault("post_query_details", []).append({
+                "query": post_query,
+                "seconds": round(_time.monotonic() - q_started, 2),
+            })
+        timing["post_queries_total"] = round(_time.monotonic() - posts_started, 2)
 
-    # If every location failed with browser/profile/auth infrastructure errors,
-    # fail closed so scheduler and run_status report a real failure instead of
-    # a false-success empty cycle.
-    if not batches and infrastructure_errors and len(infrastructure_errors) >= len(locations):
-        raise RuntimeError(
-            f"Job discovery blocked by infrastructure failure on all locations "
-            f"({len(locations)}): {infrastructure_errors[0]}"
-        ) from infrastructure_errors[0]
-
-    # Scan LinkedIn content-search results and the authenticated personalized
-    # home feed for people publicly advertising target roles.
-    # This is read-only; it never contacts the author or interacts with the post.
-    unique_post_queries = _build_post_queries(
-        locations, list(DEFAULT_JOB_PREFERENCES.keywords)
-    )
-    post_window = (
-        float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
-        if max_posted_hours is None
-        else max_posted_hours
-    )
-    posts_started = _time.monotonic()
-    for post_query in unique_post_queries:
-        q_started = _time.monotonic()
+        feed_started = _time.monotonic()
         try:
-            result = await read_fn(
+            feed_result = await _dispatch(
                 "posts",
-                query=post_query,
+                feed=True,
                 max_posted_hours=post_window,
+                max_scrolls=6,
             )
-            post_batches.append(_post_rows(result.data))
+            post_batches.append(_post_rows(feed_result.data))
+            diagnostics["feed_scan_candidates"] = len(feed_result.data or [])
+            if getattr(feed_result, "diagnostics", None):
+                diagnostics["feed_scan"] = feed_result.diagnostics
         except Exception as exc:
-            # Auth failures propagate; other post failures are soft.
             if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
                 raise
             diagnostics.setdefault("posts", []).append({
-                "source": "content-search",
-                "query": post_query,
+                "source": "personalized-feed",
                 "error": f"{type(exc).__name__}: {exc}",
             })
-        timing.setdefault("post_query_details", []).append({
-            "query": post_query,
-            "seconds": round(_time.monotonic() - q_started, 2),
-        })
-    timing["post_queries_total"] = round(_time.monotonic() - posts_started, 2)
+        timing["feed_scan"] = round(_time.monotonic() - feed_started, 2)
 
-    feed_started = _time.monotonic()
-    try:
-        feed_result = await read_fn(
-            "posts",
-            feed=True,
-            max_posted_hours=post_window,
-            max_scrolls=6,  # was 8; 6 is sufficient for recent hiring signals
+        people: list[Any] = []
+        people_started = _time.monotonic()
+        if any(batches):
+            try:
+                result = await _dispatch("people", query="recruiter Power BI Data Analyst")
+                people = list(result.data or [])
+            except Exception as exc:
+                if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
+                    raise
+                diagnostics["people_error"] = f"{type(exc).__name__}: {exc}"
+        timing["people_search"] = round(_time.monotonic() - people_started, 2)
+
+        report = build_agent_report(
+            batches,
+            people,
+            tracker=tracker,
+            post_batches=post_batches,
         )
-        post_batches.append(_post_rows(feed_result.data))
-        diagnostics["feed_scan_candidates"] = len(feed_result.data or [])
-        if getattr(feed_result, "diagnostics", None):
-            diagnostics["feed_scan"] = feed_result.diagnostics
-    except Exception as exc:
-        if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
-            raise
-        diagnostics.setdefault("posts", []).append({
-            "source": "personalized-feed",
-            "error": f"{type(exc).__name__}: {exc}",
-        })
-    timing["feed_scan"] = round(_time.monotonic() - feed_started, 2)
+        diagnostics["post_scan_queries"] = len(unique_post_queries)
+        diagnostics["post_scan_candidates"] = sum(len(batch) for batch in post_batches)
+        diagnostics["post_scan_window_hours"] = post_window
+        diagnostics["feed_scan_enabled"] = True
+        diagnostics["hiring_posts_matched"] = len(report.hiring_posts)
+        diagnostics["shared_browser_session"] = use_shared
+        timing["cycle_total"] = round(_time.monotonic() - cycle_started, 2)
+        report.diagnostics = diagnostics
+        return report
 
-    people: list[Any] = []
-    # Recruiter discovery is read-only and only runs when there are matching jobs.
-    # Keep the query broad across the configured BI/data role families; scoring
-    # below performs job-specific relevance filtering.
-    people_started = _time.monotonic()
-    if any(batches):
-        try:
-            result = await read_fn("people", query="recruiter Power BI Data Analyst")
-            people = list(result.data or [])
-        except Exception as exc:
-            if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
-                raise
-            diagnostics["people_error"] = f"{type(exc).__name__}: {exc}"
-    timing["people_search"] = round(_time.monotonic() - people_started, 2)
-
-    report = build_agent_report(
-        batches,
-        people,
-        tracker=tracker,
-        post_batches=post_batches,
-    )
-    diagnostics["post_scan_queries"] = len(unique_post_queries)
-    diagnostics["post_scan_candidates"] = sum(len(batch) for batch in post_batches)
-    diagnostics["post_scan_window_hours"] = post_window
-    diagnostics["feed_scan_enabled"] = True
-    diagnostics["hiring_posts_matched"] = len(report.hiring_posts)
-    timing["cycle_total"] = round(_time.monotonic() - cycle_started, 2)
-    report.diagnostics = diagnostics
-    return report
+    if use_shared:
+        auth_started = _time.monotonic()
+        async with linkedin_browser() as browser:
+            shared_page = browser.pages[0] if browser.pages else await browser.new_page()
+            await ensure_authenticated(shared_page)
+            timing["auth_verify"] = round(_time.monotonic() - auth_started, 2)
+            return await _run_body()
+    return await _run_body()

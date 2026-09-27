@@ -209,20 +209,32 @@ def debug_auth():
     """Show non-secret browser/session diagnostics for troubleshooting."""
     async def _run():
         from .browser import linkedin_browser
-        from .linkedin_reader import current_session_state
+        from .skill_runtime import ensure_authenticated
 
         async with linkedin_browser() as browser:
             pages = browser.pages
             page = pages[0] if pages else await browser.new_page()
-            await page.goto(settings.linkedin_base_url, wait_until="domcontentloaded")
-            await page.wait_for_timeout(3000)
-            state = await current_session_state(page)
+            try:
+                state = await ensure_authenticated(page, settle_ms=4_000, attempts=3)
+                auth_ok = True
+                note = None
+            except Exception as exc:
+                auth_ok = False
+                note = f"{type(exc).__name__}: {exc}"
+                from .linkedin_reader import current_session_state
+                try:
+                    state = await current_session_state(page)
+                except Exception:
+                    state = {"authenticated": False, "url": page.url, "title": ""}
             return {
                 "profile_path": str(settings.profile_path),
+                "headless": settings.headless,
                 "page_count": len(browser.pages),
                 "url": page.url,
-                "title": await page.title(),
+                "title": await page.title() if not page.is_closed() else "",
+                "authenticated": auth_ok,
                 "state": state,
+                "note": note,
             }
 
     typer.echo(json.dumps(asyncio.run(_run()), indent=2, default=str))
@@ -248,8 +260,11 @@ def login():
     typer.echo(f"{result.status}: {result.details}")
     if result.status == "authenticated":
         typer.echo(
-            "Session saved to the persistent browser profile. "
-            "Verify with: python -m app debug-auth"
+            "Session saved to the persistent browser profile.\n"
+            "Verify headless restore with:\n"
+            "  $env:HEADLESS='true'; python -m app debug-auth\n"
+            "If that still reports unauthenticated, re-run login and leave the "
+            "feed fully loaded for ~15 seconds before the window closes."
         )
     else:
         typer.echo(
