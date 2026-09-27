@@ -89,6 +89,37 @@ def _filter_jobs_by_title(
     return kept
 
 
+def _filter_posts_by_freshness(
+    data: list[Any],
+    max_posted_hours: float | None = 48,
+    diagnostics: dict | None = None,
+) -> list[Any]:
+    """Keep only posts whose parsed age is within the configured window."""
+    if max_posted_hours is None:
+        if diagnostics is not None:
+            diagnostics["post_freshness_window_hours"] = None
+        return data
+    kept: list[Any] = []
+    unknown = 0
+    rejected = 0
+    for post in data:
+        age = getattr(post, "posted_hours", None)
+        if age is None:
+            unknown += 1
+            continue
+        if age <= max_posted_hours:
+            kept.append(post)
+        else:
+            rejected += 1
+    if diagnostics is not None:
+        diagnostics["post_freshness_window_hours"] = max_posted_hours
+        diagnostics["post_freshness_candidates"] = len(data)
+        diagnostics["post_freshness_rejected"] = rejected
+        diagnostics["post_unknown_age"] = unknown
+        diagnostics["post_returned_after_freshness"] = len(kept)
+    return kept
+
+
 def _filter_jobs_by_freshness(
     data: list[Any],
     max_posted_hours: float | None = 48,
@@ -227,7 +258,19 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
         elif skill == "companies":
             data = await companies.search(page, kwargs.get("query", "technology"))
         elif skill == "posts":
-            data = await posts.search(page, kwargs.get("query", "Power BI"))
+            diagnostics = {}
+            if kwargs.get("feed", False):
+                data = await posts.read_feed(
+                    page,
+                    max_scrolls=int(kwargs.get("max_scrolls", 6)),
+                )
+            else:
+                data = await posts.search(page, kwargs.get("query", "Power BI"))
+            data = _filter_posts_by_freshness(
+                data,
+                kwargs.get("max_posted_hours", 48),
+                diagnostics=diagnostics,
+            )
         elif skill == "saved":
             data = await saved.read_saved_posts(page)
         elif skill == "notifications":
