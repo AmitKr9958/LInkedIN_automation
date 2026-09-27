@@ -27,7 +27,7 @@ $Start = Get-Date
     Tee-Object -FilePath $LogFile -Append | Out-Null
 
 & $python -m app agent --max-posted-hours 48 2>&1 |
-    Tee-Object -FilePath $LogFile -Append | Out-Host
+    Tee-Object -FilePath $LogFile -Append | Out-Null
 $Code = $LASTEXITCODE
 
 $End = Get-Date
