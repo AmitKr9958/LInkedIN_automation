@@ -19,10 +19,8 @@ def _launch_args() -> list[str]:
         "--disable-session-crashed-bubble",
         "--window-size=1440,900",
     ]
-    # When "headless" is requested, still prefer a real window placed off-screen
-    # if the operator sets HEADLESS_OFFSCREEN=true. LinkedIn session cookies from
-    # a headed login often restore more reliably in a non-headless Chromium
-    # process. Default remains true headless when HEADLESS=true.
+    # Scheduled runs use genuine headless Chromium. Interactive authentication
+    # is performed separately with HEADLESS=false via the login command.
     return args
 
 
