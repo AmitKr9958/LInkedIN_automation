@@ -73,10 +73,15 @@ async def test_login_check_keep_open_settles_after_auth():
     assert result.status == "authenticated"
     assert result.details["authenticated"] is True
     # Settling wait must be applied so the persistent profile can flush cookies.
-    settle_calls = [
-        call for call in page.wait_for_timeout.await_args_list if call.args and call.args[0] == SESSION_SETTLE_MS
+    # Implementation may split SESSION_SETTLE_MS across multiple waits (e.g. half+half).
+    wait_ms = [
+        call.args[0]
+        for call in page.wait_for_timeout.await_args_list
+        if call.args and isinstance(call.args[0], (int, float))
     ]
-    assert settle_calls, "expected SESSION_SETTLE_MS wait after authentication"
+    assert sum(wait_ms) >= SESSION_SETTLE_MS, (
+        f"expected total settle wait >= {SESSION_SETTLE_MS}, got {wait_ms}"
+    )
     # Headless must be restored after interactive login.
     assert mock_settings.headless is True
 

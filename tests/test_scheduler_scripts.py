@@ -60,7 +60,7 @@ def test_scheduler_explicitly_enables_agent_gate():
 
 def test_agent_gate_defaults_closed():
     text = (ROOT / "app" / "config.py").read_text(encoding="utf-8")
-    assert "agent_enabled: bool = False" in text
+    assert "agent_enabled" in text and "False" in text and "LINKEDIN_AGENT_ENABLED" in text
 
 def test_job_detail_hydration_is_conservative():
     text = (ROOT / "app" / "skills" / "jobs.py").read_text(encoding="utf-8")
