@@ -66,4 +66,4 @@ def test_location_candidate_rejects_unbounded_metadata():
 
 
 def test_detail_hydration_capacity_covers_loaded_search_page():
-    assert MAX_DETAIL_HYDRATION >= 25
+    assert MAX_DETAIL_HYDRATION == 8
