@@ -10,7 +10,7 @@ The agent is designed as a **personal LinkedIn productivity control layer**:
 - lets you log in manually once and reuse that local browser session
 - verifies the session instead of assuming that a non-login URL means authentication
 - discovers jobs, people, companies, posts, saved items and profile information
-- scans LinkedIn posts for public hiring signals matching your target roles and locations
+- scans LinkedIn content-search results and your authenticated personalized home feed for public hiring signals matching your target roles and locations; by default it considers posts from the last 48 hours
 - identifies recruiter, HR and hiring-manager outreach targets for a job or hiring post
 - maintains a local Story Bank and content-quality audit layer
 - normalizes job URLs and stores job/application history locally
@@ -130,7 +130,7 @@ Orchestrator ---- optional LLM provider
 All 28 skills are registered/governed. Their implementation boundaries are explicit:
 
 - **Live read layer:** profile, jobs, people, companies, posts, saved items and notifications.
-- **Hiring-post intelligence:** the agent searches LinkedIn content for hiring/looking-for signals, matches them to the configured role families and locations, ranks the resulting posts, and identifies the post author as a potential lead. This remains read-only and does not automatically contact or engage with the author.
+- **Hiring-post intelligence:** the agent searches LinkedIn content-search results **and the authenticated personalized home feed** for hiring/looking-for signals, matches them to the configured role families and locations, filters posts to the configured 48-hour freshness window, ranks the resulting posts, and identifies the post author as a potential lead. This remains read-only and does not automatically contact or engage with the author.
 - **Content/intelligence layer:** 13 content/analysis skills plus the Story Bank.
 - **Account/workflow layer:** authentication, connections, messaging, engagement, lead generation and follow-ups are governed workflow surfaces; consequential account-changing execution remains behind the approval gateway and is not an autonomous UI executor.
 
