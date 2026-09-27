@@ -116,7 +116,8 @@ def test_build_agent_report_handles_normalized_people_dicts(monkeypatch):
 def test_run_agent_once_retries_transient_location_failure():
     calls = []
     async def flaky_read(skill, **kwargs):
-        calls.append(kwargs.get("location"))
+        if skill == "jobs":
+            calls.append(kwargs.get("location"))
         if len([x for x in calls if x == "Delhi"]) == 1:
             raise TimeoutError("temporary browser timeout")
         return SimpleNamespace(data=[], diagnostics={"final_returned": 0})
