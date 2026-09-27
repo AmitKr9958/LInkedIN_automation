@@ -9,12 +9,12 @@ from .parsing import clean_text, dedupe_by, strip_degree
 
 
 _POST_AGE_RE = re.compile(
-    r"(?i)\\b(?:"
+    r"(?i)\b(?:"
     r"just now|now|today|yesterday|"
-    r"(\\d+)\\s*(minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months)"
-    r"\\s*(?:ago)?|"
-    r"(\\d+)\\s*(m|h|d|w)"
-    r")\\b"
+    r"(\d+)\s*(minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months)"
+    r"\s*(?:ago)?|"
+    r"(\d+)\s*(m|h|d|w)"
+    r")\b"
 )
 
 
