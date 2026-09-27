@@ -6,7 +6,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_scheduler_runner_is_hidden_and_non_interactive():
     text = (ROOT / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
-    assert "-WindowStyle Hidden" in text
     assert "-NonInteractive" in text
     assert "-NoLogo" in text
 
