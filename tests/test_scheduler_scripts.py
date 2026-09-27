@@ -19,12 +19,13 @@ def test_scheduler_is_hidden_and_single_instance():
     text = (ROOT / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
     assert " -Hidden" in text
     assert "-MultipleInstances IgnoreNew" in text
+    assert "-RepetitionInterval (New-TimeSpan -Hours 2)" in text
 
 
-def test_scheduler_uses_48_hour_agent_window():
+def test_scheduler_uses_30_minute_agent_window():
     text = (ROOT / "scripts" / "run-agent.ps1").read_text(encoding="utf-8")
-    assert "--max-posted-hours 48" in text
-    assert "--max-posted-hours 1" not in text
+    assert "--max-posted-hours 0.5" in text
+    assert "--max-posted-hours 48" not in text
 
 
 def test_scheduler_uses_wscript_hidden_launcher():
