@@ -122,7 +122,7 @@ def _filter_posts_by_freshness(
 
 def _filter_jobs_by_freshness(
     data: list[Any],
-    max_posted_hours: float | None = 48,
+    max_posted_hours: float | None = 0.5,
     diagnostics: dict | None = None,
     *,
     include_unknown_age: bool = False,
