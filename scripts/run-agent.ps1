@@ -24,7 +24,7 @@ $env:DRY_RUN = "true"
 
 $Start = Get-Date
 "[$Start] agent cycle start (max-posted-hours=48, HEADLESS=true, DRY_RUN=true)" |
-    Tee-Object -FilePath $LogFile -Append | Out-Host
+    Tee-Object -FilePath $LogFile -Append | Out-Null
 
 & $python -m app agent --max-posted-hours 48 2>&1 |
     Tee-Object -FilePath $LogFile -Append | Out-Host
@@ -33,6 +33,6 @@ $Code = $LASTEXITCODE
 $End = Get-Date
 $Duration = [math]::Round(($End - $Start).TotalSeconds, 1)
 "[$End] agent cycle end exit=$Code duration=${Duration}s" |
-    Tee-Object -FilePath $LogFile -Append | Out-Host
+    Tee-Object -FilePath $LogFile -Append | Out-Null
 
 if ($Code -ne 0) { exit $Code }
