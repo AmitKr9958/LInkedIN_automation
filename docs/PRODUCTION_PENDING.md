@@ -1,6 +1,6 @@
 # Production Pending
 
-The repository's automated production gates are green. The remaining validation that cannot be performed in CI is an authenticated live-account smoke test on the operator's private Windows browser profile.
+The repository's automated production gates are green. Manual LinkedIn login persistence has been verified on the operator machine (`debug-auth` → authenticated). The remaining validation that cannot be performed in CI is a **headless live agent + scheduler completion** run against the private Windows browser profile.
 
 ## Completed
 - Complete-page job scrolling and post-scroll card re-location
@@ -19,18 +19,21 @@ The repository's automated production gates are green. The remaining validation 
 - Last-run health status persistence (`data/last_run.json`)
 - Scheduler log rotation under `data/logs/` (keeps newest 30 files)
 - Transient discovery retry/recovery
+- Interactive login persistence (settle + flush before context close)
+- Fail-closed agent cycles when browser/profile/auth infrastructure blocks all locations
 - CI compile, critical lint, dependency audit, secret scan, unit and browser-smoke gates
 
 ## Live operator validation
 Run on the Windows machine with the private authenticated profile:
 ```powershell
-python -m app release-check
-python -m app agent-test --live
-python -m app agent
+python -m app debug-auth
+$env:HEADLESS="true"; $env:DRY_RUN="true"
+python -m app agent --max-posted-hours 48
 python -m app status
+python -m app agent-test --live
 ```
 
-The live run should report authenticated status and show eligible jobs when LinkedIn has postings matching the configured **48-hour** window. Zero results is valid when no eligible posting exists; inspect the emitted diagnostics rather than weakening the filters.
+The live run should report authenticated status and show eligible jobs when LinkedIn has postings matching the configured **48-hour** window. Zero results is valid when no eligible posting exists; inspect the emitted diagnostics rather than weakening the filters. Infrastructure failures (missing Chromium, locked profile, unauthenticated session) must exit non-zero and update `data/last_run.json` with `last_status=failure`.
 
 ## Scheduler (local Windows automatic mode)
 ```powershell

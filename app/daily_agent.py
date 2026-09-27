@@ -171,6 +171,21 @@ def build_agent_report(
     )
 
 
+def _is_infrastructure_error(exc: BaseException) -> bool:
+    """True when discovery cannot proceed (auth, browser, profile lock)."""
+    text = str(exc).lower()
+    markers = (
+        "session is not verified",
+        "chromium is not installed",
+        "browser profile is already in use",
+        "user data directory is already in use",
+        "could not be started",
+        "executable doesn't exist",
+        "not authenticated",
+    )
+    return any(marker in text for marker in markers)
+
+
 async def run_agent_once(
     *,
     locations: list[str] | None = None,
@@ -183,6 +198,7 @@ async def run_agent_once(
     batches: list[list[dict]] = []
     post_batches: list[list[dict]] = []
     diagnostics: dict[str, Any] = {}
+    infrastructure_errors: list[BaseException] = []
 
     for location in locations:
         last_error = None
@@ -204,7 +220,8 @@ async def run_agent_once(
                 break
             except Exception as exc:
                 last_error = exc
-                if "session is not verified" in str(exc).lower():
+                # Auth failures always fail closed immediately.
+                if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
                     raise
                 if attempt < 2:
                     await asyncio.sleep(1)
@@ -215,6 +232,17 @@ async def run_agent_once(
                 "retries": 1,
                 "final_returned": 0,
             }
+            if last_error is not None and _is_infrastructure_error(last_error):
+                infrastructure_errors.append(last_error)
+
+    # If every location failed with browser/profile/auth infrastructure errors,
+    # fail closed so scheduler and run_status report a real failure instead of
+    # a false-success empty cycle.
+    if not batches and infrastructure_errors and len(infrastructure_errors) >= len(locations):
+        raise RuntimeError(
+            f"Job discovery blocked by infrastructure failure on all locations "
+            f"({len(locations)}): {infrastructure_errors[0]}"
+        ) from infrastructure_errors[0]
 
     # Scan LinkedIn content-search results and the authenticated personalized
     # home feed for people publicly advertising target roles.

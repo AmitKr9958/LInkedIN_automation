@@ -134,6 +134,51 @@ def test_run_agent_once_retries_transient_location_failure():
     assert calls == ["Delhi", "Delhi"]
 
 
+def test_run_agent_once_fails_closed_on_chromium_missing():
+    """Infrastructure browser failures must not report as successful empty cycles."""
+    async def broken_read(skill, **kwargs):
+        raise RuntimeError(
+            "Chromium is not installed. Close other agent/Chromium instances "
+            "using this profile or run 'python -m playwright install chromium'."
+        )
+
+    try:
+        __import__("asyncio").run(
+            daily_agent.run_agent_once(
+                locations=["Delhi", "Gurgaon"],
+                read_fn=broken_read,
+                tracker=FakeTracker(),
+            )
+        )
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "infrastructure failure" in str(exc).lower() or "chromium" in str(exc).lower()
+    assert raised, "expected infrastructure failure to fail closed"
+
+
+def test_run_agent_once_fails_closed_on_auth_failure():
+    async def unauth_read(skill, **kwargs):
+        raise RuntimeError(
+            "LinkedIn session is not verified. Run 'python -m app login' "
+            "with HEADLESS=false and sign in manually."
+        )
+
+    try:
+        __import__("asyncio").run(
+            daily_agent.run_agent_once(
+                locations=["Delhi"],
+                read_fn=unauth_read,
+                tracker=FakeTracker(),
+            )
+        )
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "session is not verified" in str(exc).lower()
+    assert raised
+
+
 def test_build_agent_report_ranks_hiring_posts():
     report = daily_agent.build_agent_report(
         [[]],
