@@ -51,3 +51,12 @@ def test_scheduler_status_exposes_diagnostics():
     assert "MultipleInstances" in text
     assert "StartWhenAvailable" in text
     assert "Execute:" in text
+
+def test_scheduler_explicitly_enables_agent_gate():
+    text = (ROOT / "scripts" / "run-agent.ps1").read_text(encoding="utf-8")
+    assert '$env:LINKEDIN_AGENT_ENABLED = "true"' in text
+
+
+def test_agent_gate_defaults_closed():
+    text = (ROOT / "app" / "config.py").read_text(encoding="utf-8")
+    assert "agent_enabled: bool = False" in text
