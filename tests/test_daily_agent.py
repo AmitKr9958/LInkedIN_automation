@@ -131,3 +131,56 @@ def test_run_agent_once_retries_transient_location_failure():
 
     assert report.jobs_found == 0
     assert calls == ["Delhi", "Delhi"]
+
+
+def test_build_agent_report_ranks_hiring_posts():
+    report = daily_agent.build_agent_report(
+        [[]],
+        tracker=FakeTracker(),
+        post_batches=[[
+            {
+                "author": "Hiring Manager",
+                "text": "We are hiring a Power BI Developer in Gurgaon. Apply now!",
+                "profile_url": "https://linkedin.test/in/hiring-manager",
+            },
+            {
+                "author": "Unrelated",
+                "text": "We are hiring a Finance Manager in Delhi.",
+                "profile_url": "https://linkedin.test/in/unrelated",
+            },
+        ]],
+    )
+
+    assert len(report.hiring_posts) == 1
+    assert report.hiring_posts[0]["post"]["author"] == "Hiring Manager"
+    assert report.hiring_posts[0]["score"] >= 60
+    assert report.hiring_post_targets[0]["target"]["name"] == "Hiring Manager"
+
+
+def test_run_agent_once_scans_hiring_posts():
+    calls = []
+
+    async def fake_read(skill, **kwargs):
+        calls.append((skill, kwargs))
+        if skill == "jobs":
+            return SimpleNamespace(data=[], diagnostics={"final_returned": 0})
+        if skill == "posts":
+            return SimpleNamespace(data=[{
+                "author": "Recruiter",
+                "text": "Looking for a Data Analyst in Noida. Applications open.",
+                "href": "https://linkedin.test/in/recruiter",
+            }])
+        return SimpleNamespace(data=[])
+
+    report = __import__("asyncio").run(
+        daily_agent.run_agent_once(
+            locations=["Noida"],
+            read_fn=fake_read,
+            tracker=FakeTracker(),
+        )
+    )
+
+    assert any(skill == "posts" for skill, _ in calls)
+    assert report.hiring_posts
+    assert report.hiring_post_targets[0]["target"]["name"] == "Recruiter"
+    assert report.diagnostics["post_scan_queries"] > 0
