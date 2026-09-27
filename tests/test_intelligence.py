@@ -23,7 +23,7 @@ def test_recent_job_gets_recency_signal():
 def test_numeric_posted_hours_drive_recency_signal():
     job = JobRecord(
         "Power BI Developer", "Example", "Gurgaon",
-        posted_text="45 minutes ago", posted_hours=0.75,
+        posted_text="15 minutes ago", posted_hours=0.25,
     )
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
     assert "recent posting" in ranked[0]["reasons"]
