@@ -60,3 +60,14 @@ def test_scheduler_explicitly_enables_agent_gate():
 def test_agent_gate_defaults_closed():
     text = (ROOT / "app" / "config.py").read_text(encoding="utf-8")
     assert "agent_enabled: bool = False" in text
+
+def test_job_detail_hydration_is_conservative():
+    text = (ROOT / "app" / "skills" / "jobs.py").read_text(encoding="utf-8")
+    assert "MAX_DETAIL_HYDRATION = 8" in text
+    assert "MAX_DETAIL_HYDRATION = 25" not in text
+
+
+def test_people_search_is_disabled_in_daily_agent():
+    text = (ROOT / "app" / "daily_agent.py").read_text(encoding="utf-8")
+    assert 'diagnostics["people_search_enabled"] = False' in text
+    assert 'query="recruiter Power BI Data Analyst"' not in text
