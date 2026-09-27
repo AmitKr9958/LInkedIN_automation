@@ -401,6 +401,14 @@ def agent(
     import time as _time
     from datetime import datetime, timezone
 
+    if not settings.agent_enabled:
+        typer.echo(
+            "agent: blocked by safety gate. Set LINKEDIN_AGENT_ENABLED=true "
+            "only after confirming the account/session is available.",
+            err=True,
+        )
+        raise typer.Exit(code=3)
+
     requested_locations = [x.strip() for x in locations.split(",") if x.strip()] if locations else None
     window = None if max_posted_hours is None else (
         None if max_posted_hours < 0 else max_posted_hours
