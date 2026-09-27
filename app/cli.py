@@ -26,6 +26,8 @@ from .agent_test import run_agent_test
 from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
 from .daily_agent import run_agent_once
+from .run_lock import AgentAlreadyRunning, agent_lock
+from .run_status import read_run_status, write_run_status
 from .dashboard import serve as serve_dashboard
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
@@ -176,9 +178,24 @@ def doctor():
 
 @app.command()
 def status():
+    """Show authentication state and last agent-run health summary."""
     result = asyncio.run(login_check(wait_for_login=False, open_url=f"{settings.linkedin_base_url}/feed/"))
     typer.echo(f"{result.action}: {result.status} - {result.details}")
     typer.echo(f"dry_run={settings.dry_run}, headless={settings.headless}")
+    run = read_run_status()
+    typer.echo("last-run: " + json.dumps({
+        "status": run.get("last_status"),
+        "updated_at": run.get("updated_at"),
+        "last_success_at": run.get("last_success_at"),
+        "last_failure_at": run.get("last_failure_at"),
+        "jobs": run.get("last_job_count"),
+        "hiring_posts": run.get("last_hiring_post_count"),
+        "recruiters": run.get("last_recruiter_count"),
+        "drafts": run.get("last_draft_count"),
+        "duration_seconds": run.get("last_duration_seconds"),
+        "error": run.get("last_error"),
+        "version": run.get("version"),
+    }, indent=2, default=str))
 
 
 @app.command("debug-auth")
@@ -279,14 +296,14 @@ def read(
         None,
         help=(
             "Maximum job posting age in hours. Defaults to the configured "
-            "job preference (1). Pass a negative value to disable the "
+            "job preference (48). Pass a negative value to disable the "
             "freshness filter and return all ages."
         ),
     ),
 ):
     """Run a read-only skill and print JSON.
 
-    For jobs, the centralized preference posted_within_hours (1) is applied
+    For jobs, the centralized preference posted_within_hours (48) is applied
     by default. Pass --max-posted-hours <N> to override, or a negative value
     to disable freshness filtering.
     """
@@ -330,25 +347,49 @@ def agent(
     max_posted_hours: Optional[float] = typer.Option(
         None,
         "--max-posted-hours",
-        help="Override the 1-hour job freshness window. Use a negative value to disable it.",
+        help="Override the 48-hour job freshness window. Use a negative value to disable it.",
     ),
 ):
     """Run the governed end-to-end workflow: discover, rank, track, target and draft."""
+    import time as _time
+
     requested_locations = [x.strip() for x in locations.split(",") if x.strip()] if locations else None
     window = None if max_posted_hours is None else (
         None if max_posted_hours < 0 else max_posted_hours
     )
+    started = _time.monotonic()
     try:
-        report = asyncio.run(
-            run_agent_once(
-                locations=requested_locations,
-                max_posted_hours=window,
+        with agent_lock():
+            report = asyncio.run(
+                run_agent_once(
+                    locations=requested_locations,
+                    max_posted_hours=window,
+                )
             )
-        )
-    except Exception as exc:
+    except AgentAlreadyRunning as exc:
         typer.echo(f"agent: FAIL ({type(exc).__name__}: {exc})", err=True)
+        write_run_status(success=False, error=str(exc))
+        raise typer.Exit(code=2)
+    except Exception as exc:
+        duration = _time.monotonic() - started
+        typer.echo(f"agent: FAIL ({type(exc).__name__}: {exc})", err=True)
+        write_run_status(
+            success=False,
+            duration_seconds=round(duration, 2),
+            error=f"{type(exc).__name__}: {exc}",
+        )
         raise typer.Exit(code=1)
 
+    duration = _time.monotonic() - started
+    write_run_status(
+        success=True,
+        jobs_found=report.jobs_found,
+        new_jobs=report.new_jobs,
+        hiring_posts=len(report.hiring_posts),
+        recruiter_targets=len(report.recruiter_targets),
+        drafts=len(report.connection_drafts),
+        duration_seconds=round(duration, 2),
+    )
     typer.echo(json.dumps(report.to_dict(), indent=2, default=str))
     typer.echo(
         f"agent-summary: jobs={report.jobs_found} new={report.new_jobs} "

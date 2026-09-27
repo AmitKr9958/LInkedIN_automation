@@ -35,6 +35,8 @@ data/applications.json
 data/applications.csv
 data/*.json
 data/*.csv
+data/logs/
+data/agent.lock
 !data/.gitkeep
 
 # Browser / test artifacts

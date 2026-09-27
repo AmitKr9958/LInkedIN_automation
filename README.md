@@ -174,7 +174,10 @@ Before using the local workflow on a new machine, run:
 ```powershell
 python -m app release-check
 .\scripts\install-readonly-scheduler.ps1
+.\scripts\scheduler-status.ps1
 ```
+
+The scheduled agent uses `--max-posted-hours 48`, `HEADLESS=true`, `DRY_RUN=true`, exclusive file locking, and rotated logs under `data\logs\`. This is **local Windows automatic mode** (machine must stay on). True always-on 24×7 is not implemented.
 
 `release-check` combines the blocking local `doctor` checks, deterministic self-tests, and the safe end-to-end workflow test. It never performs a LinkedIn action. `doctor` verifies the core modules, writable local profile, policy configuration, approval mode, project root, LinkedIn HTTPS endpoint, and the installed Chromium runtime. Consequential requests are also restricted to a known action allowlist and bounded payload size before they can enter the approval queue.
 

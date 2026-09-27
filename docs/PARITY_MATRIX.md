@@ -1,7 +1,7 @@
 # Reference capability parity matrix
 
 Reference: sergebulaev/linkedin-skills (conceptual feature set).
-Source of truth for skill count: local registry (27 skills).
+Source of truth for skill count: local registry (28 skills).
 
 | Reference capability | Current implementation | Unit tests | Live validation | Status |
 |---------------------|------------------------|------------|-----------------|--------|

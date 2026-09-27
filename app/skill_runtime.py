@@ -236,7 +236,7 @@ async def run_read(skill: str, **kwargs) -> RuntimeResult:
                 diagnostics=diagnostics,
             )
             # Prefer the explicit CLI/workflow value when provided; otherwise
-            # use the centralized job preference (posted_within_hours=1).
+            # use the centralized job preference (posted_within_hours=48).
             # Passing max_posted_hours=None disables the filter intentionally.
             if "max_posted_hours" in kwargs:
                 window = kwargs["max_posted_hours"]
