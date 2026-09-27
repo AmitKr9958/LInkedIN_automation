@@ -28,5 +28,7 @@ def test_sqlite_connections_are_closed_for_temp_cleanup():
         queue = ApprovalQueue(str(Path(tmp) / "approvals.sqlite3"))
         queue.add("test_action", "https://example.test/job", '{"ok": true}')
         assert queue.list_pending()
+        queue = None
+        tracker = None
 
     assert not Path(tmp).exists()
