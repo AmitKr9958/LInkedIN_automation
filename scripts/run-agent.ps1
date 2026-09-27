@@ -21,6 +21,7 @@ if (Test-Path ".venv\Scripts\python.exe") {
 
 $env:HEADLESS = "true"
 $env:DRY_RUN = "true"
+$env:LINKEDIN_AGENT_ENABLED = "true"
 # Ensure Python stdout/stderr are not fully buffered so partial progress appears
 # in the log even if the process is killed by the Task Scheduler timeout.
 $env:PYTHONUNBUFFERED = "1"
