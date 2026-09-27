@@ -34,6 +34,8 @@ def _posted_age(value: str) -> tuple[str, float | None]:
     if number is None:
         return raw, None
     amount = float(number)
+    if unit.startswith("month"):
+        return raw, amount * 24.0 * 30.0
     if unit.startswith("m"):
         return raw, amount / 60.0
     if unit.startswith("h"):
@@ -42,8 +44,6 @@ def _posted_age(value: str) -> tuple[str, float | None]:
         return raw, amount * 24.0
     if unit.startswith("w"):
         return raw, amount * 24.0 * 7.0
-    if unit.startswith("month"):
-        return raw, amount * 24.0 * 30.0
     return raw, None
 
 
