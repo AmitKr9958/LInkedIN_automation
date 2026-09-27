@@ -19,10 +19,10 @@ $Action = New-ScheduledTaskAction `
 
 $Trigger = New-ScheduledTaskTrigger `
     -Once -At (Get-Date).AddMinutes(1) `
-    -RepetitionInterval (New-TimeSpan -Hours 1) `
+    -RepetitionInterval (New-TimeSpan -Hours 2) `
     -RepetitionDuration (New-TimeSpan -Days 3650)
 
-# ExecutionTimeLimit must exceed measured worst-case production cycle.
+# Run discovery every 2 hours.\n# ExecutionTimeLimit must exceed measured worst-case production cycle.
 # Observed pre-optimization cycles approached ~24 minutes; post-optimization
 # target is <15 minutes. 45 minutes provides safe headroom so the scheduler
 # never silently kills a healthy run.
