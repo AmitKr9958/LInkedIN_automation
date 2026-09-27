@@ -1,6 +1,6 @@
 # Production Pending
 
-The repository's automated production gates are green. Manual LinkedIn login persistence has been verified on the operator machine (`debug-auth` → authenticated). The remaining validation that cannot be performed in CI is a **headless live agent + scheduler completion** run against the private Windows browser profile.
+The repository's automated production gates are green for code. Remaining validation that cannot be performed in CI is a **headless live agent + scheduler completion** run against the private Windows browser profile.
 
 ## Completed
 - Complete-page job scrolling and post-scroll card re-location
@@ -16,11 +16,16 @@ The repository's automated production gates are green. Manual LinkedIn login per
 - Local control-center dashboard
 - Read-only Windows hourly scheduler scripts using **`--max-posted-hours 48`**
 - Exclusive agent file lock (prevents concurrent cycles)
-- Last-run health status persistence (`data/last_run.json`)
+- Last-run health status persistence (`data/last_run.json`) with consecutive failure tracking and health_state
 - Scheduler log rotation under `data/logs/` (keeps newest 30 files)
 - Transient discovery retry/recovery
 - Interactive login persistence (settle + flush before context close)
 - Fail-closed agent cycles when browser/profile/auth infrastructure blocks all locations
+- Bounded post content-search queries (performance: fewer LinkedIn navigations)
+- Cycle timing diagnostics (`agent-timings` / `timings_seconds`)
+- Scheduler ExecutionTimeLimit **45 minutes** (exceeds measured worst-case cycle)
+- Enhanced `scheduler-status.ps1` diagnostics
+- `docs/24x7_OPERATIONS.md` host and recovery guide
 - CI compile, critical lint, dependency audit, secret scan, unit and browser-smoke gates
 
 ## Live operator validation
@@ -37,7 +42,7 @@ The live run should report authenticated status and show eligible jobs when Link
 
 ## Scheduler (local Windows automatic mode)
 ```powershell
-# Install (hourly, StartWhenAvailable, IgnoreNew, 20-minute timeout)
+# Install (hourly, StartWhenAvailable, IgnoreNew, 45-minute timeout)
 powershell -ExecutionPolicy Bypass -File scripts\install-readonly-scheduler.ps1
 
 # Status / start / stop / uninstall
@@ -54,7 +59,7 @@ The scheduled runner uses:
 - `--max-posted-hours 48`
 - logs under `data\logs\agent-YYYYMMDD-HHMMSS.log`
 
-**Limitation:** this is Local Windows automatic mode. The laptop must remain powered on and logged in for the task to run. True always-on 24×7 requires a separate always-on host (not implemented in this repository).
+**Limitation:** this is Local Windows automatic mode. The host must remain powered on and (typically) logged in for the task to run. True always-on 24×7 requires a dedicated always-on Windows host or VM — see `docs/24x7_OPERATIONS.md`.
 
 ## Safety
 - Manual LinkedIn login remains required.

@@ -22,10 +22,14 @@ $Trigger = New-ScheduledTaskTrigger `
     -RepetitionInterval (New-TimeSpan -Hours 1) `
     -RepetitionDuration (New-TimeSpan -Days 3650)
 
+# ExecutionTimeLimit must exceed measured worst-case production cycle.
+# Observed pre-optimization cycles approached ~24 minutes; post-optimization
+# target is <15 minutes. 45 minutes provides safe headroom so the scheduler
+# never silently kills a healthy run.
 $Settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -Hidden `
-    -ExecutionTimeLimit (New-TimeSpan -Minutes 20) `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 45) `
     -MultipleInstances IgnoreNew
 
 Register-ScheduledTask `

@@ -185,7 +185,12 @@ def status():
     run = read_run_status()
     typer.echo("last-run: " + json.dumps({
         "status": run.get("last_status"),
+        "health_state": run.get("health_state"),
+        "consecutive_failures": run.get("consecutive_failures"),
+        "failure_type": run.get("failure_type"),
         "updated_at": run.get("updated_at"),
+        "last_started_at": run.get("last_started_at"),
+        "last_finished_at": run.get("last_finished_at"),
         "last_success_at": run.get("last_success_at"),
         "last_failure_at": run.get("last_failure_at"),
         "jobs": run.get("last_job_count"),
@@ -194,6 +199,7 @@ def status():
         "drafts": run.get("last_draft_count"),
         "duration_seconds": run.get("last_duration_seconds"),
         "error": run.get("last_error"),
+        "commit": run.get("commit"),
         "version": run.get("version"),
     }, indent=2, default=str))
 
@@ -378,12 +384,14 @@ def agent(
     """Run the governed end-to-end workflow: discover, rank, track, target and draft."""
     import sys
     import time as _time
+    from datetime import datetime, timezone
 
     requested_locations = [x.strip() for x in locations.split(",") if x.strip()] if locations else None
     window = None if max_posted_hours is None else (
         None if max_posted_hours < 0 else max_posted_hours
     )
     started = _time.monotonic()
+    started_at = datetime.now(timezone.utc).isoformat()
     typer.echo(
         f"agent: starting (headless={settings.headless}, dry_run={settings.dry_run}, "
         f"max_posted_hours={window if window is not None else 'default-48'})",
@@ -399,7 +407,12 @@ def agent(
             )
     except AgentAlreadyRunning as exc:
         typer.echo(f"agent: FAIL ({type(exc).__name__}: {exc})", err=True)
-        write_run_status(success=False, error=str(exc))
+        write_run_status(
+            success=False,
+            error=str(exc),
+            started_at=started_at,
+            duration_seconds=round(_time.monotonic() - started, 2),
+        )
         raise typer.Exit(code=2)
     except Exception as exc:
         duration = _time.monotonic() - started
@@ -416,6 +429,7 @@ def agent(
             success=False,
             duration_seconds=round(duration, 2),
             error=message,
+            started_at=started_at,
         )
         sys.stderr.flush()
         sys.stdout.flush()
@@ -430,12 +444,18 @@ def agent(
         recruiter_targets=len(report.recruiter_targets),
         drafts=len(report.connection_drafts),
         duration_seconds=round(duration, 2),
+        started_at=started_at,
     )
+    # Emit timing diagnostics for operator visibility (no secrets).
+    timings = (report.diagnostics or {}).get("timings_seconds") or {}
+    if timings:
+        typer.echo(f"agent-timings: {json.dumps(timings, default=str)}", err=True)
     typer.echo(json.dumps(report.to_dict(), indent=2, default=str))
     typer.echo(
         f"agent-summary: jobs={report.jobs_found} new={report.new_jobs} "
         f"tracked={report.tracked_jobs} recruiter_targets={len(report.recruiter_targets)} "
-        f"connection_drafts={len(report.connection_drafts)}"
+        f"connection_drafts={len(report.connection_drafts)} "
+        f"duration_s={round(duration, 1)}"
     )
     typer.echo(
         "No LinkedIn account-changing action was executed. "

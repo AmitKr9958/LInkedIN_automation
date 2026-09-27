@@ -65,9 +65,9 @@ Diagnostics are written to stderr as `read-diagnostics: {...}` for engineering v
 
 ## Current status
 
-**PRODUCTION-COMPLETE CODEBASE — LIVE ACCOUNT VALIDATION REQUIRED**
+**PRODUCTION-HARDENED CODEBASE — LIVE ACCOUNT + SCHEDULER VALIDATION REQUIRED**
 
-Automated release gates (compile, ruff critical, selftest, unit tests) pass. Live-account validation of job discovery must still be performed by the operator with their private authenticated browser profile. Until that succeeds with `final_returned > 0` for an eligible query, the product is not declared PRODUCTION READY.
+Automated release gates (compile, ruff critical, selftest, unit tests) pass. Health state, consecutive-failure tracking, bounded post queries, 45-minute scheduler timeout, and `docs/24x7_OPERATIONS.md` are in place. Live-account validation of job discovery and a successful scheduled cycle must still be performed by the operator with their private authenticated browser profile on an always-on Windows host. See `docs/PRODUCTION_PENDING.md` and `docs/24x7_OPERATIONS.md`.
 
 ## User setup later
 

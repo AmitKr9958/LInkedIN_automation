@@ -186,6 +186,37 @@ def _is_infrastructure_error(exc: BaseException) -> bool:
     return any(marker in text for marker in markers)
 
 
+def _build_post_queries(locations: list[str], keywords: list[str]) -> list[str]:
+    """Build a compact, deduplicated set of hiring-post content-search queries.
+
+    Previous design used keywords[:3] × locations + keywords[:3] ≈ 15 navigations.
+    That dominated cycle time (~24 min observed). Cap at high-value role families
+    and one combined location query per role family so quality is preserved while
+    expensive LinkedIn navigations stay bounded.
+    """
+    # Prefer shorter, high-signal role families used in ranking.
+    role_families = [
+        "Power BI",
+        "Data Analyst",
+        "BI Developer",
+    ]
+    # Keep any explicit keyword that is already short/high-value.
+    for kw in keywords[:5]:
+        short = kw.strip()
+        if short and short not in role_families and len(short) < 24:
+            role_families.append(short)
+    role_families = list(dict.fromkeys(role_families))[:4]
+
+    queries: list[str] = []
+    # One query per role family with primary locations combined (LinkedIn content
+    # search accepts multi-token queries; location filtering happens in ranking).
+    location_blob = " OR ".join(locations[:4])
+    for role in role_families:
+        queries.append(f"hiring {role} ({location_blob})")
+        queries.append(f"hiring {role}")
+    return list(dict.fromkeys(queries))
+
+
 async def run_agent_once(
     *,
     locations: list[str] | None = None,
@@ -194,14 +225,19 @@ async def run_agent_once(
     read_fn: Callable[..., Awaitable[Any]] = run_read,
     tracker: ApplicationTracker | None = None,
 ) -> AgentRunReport:
+    import time as _time
+
+    cycle_started = _time.monotonic()
     locations = locations or list(DEFAULT_JOB_PREFERENCES.locations)
     batches: list[list[dict]] = []
     post_batches: list[list[dict]] = []
-    diagnostics: dict[str, Any] = {}
+    diagnostics: dict[str, Any] = {"timings_seconds": {}}
     infrastructure_errors: list[BaseException] = []
+    timing = diagnostics["timings_seconds"]
 
     for location in locations:
         last_error = None
+        loc_started = _time.monotonic()
         for attempt in range(1, 3):
             try:
                 result = await read_fn(
@@ -220,11 +256,11 @@ async def run_agent_once(
                 break
             except Exception as exc:
                 last_error = exc
-                # Auth failures always fail closed immediately.
+                # Auth failures always fail closed immediately — not transient.
                 if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
                     raise
                 if attempt < 2:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(1.5 * attempt)
         else:
             diagnostics[location] = {
                 "skill": "jobs",
@@ -234,6 +270,7 @@ async def run_agent_once(
             }
             if last_error is not None and _is_infrastructure_error(last_error):
                 infrastructure_errors.append(last_error)
+        timing[f"jobs_{location}"] = round(_time.monotonic() - loc_started, 2)
 
     # If every location failed with browser/profile/auth infrastructure errors,
     # fail closed so scheduler and run_status report a real failure instead of
@@ -247,21 +284,17 @@ async def run_agent_once(
     # Scan LinkedIn content-search results and the authenticated personalized
     # home feed for people publicly advertising target roles.
     # This is read-only; it never contacts the author or interacts with the post.
-    post_queries = [
-        f"hiring {keyword} {location}"
-        for keyword in DEFAULT_JOB_PREFERENCES.keywords[:3]
-        for location in locations
-    ]
-    post_queries.extend(
-        f"hiring {keyword}" for keyword in DEFAULT_JOB_PREFERENCES.keywords[:3]
+    unique_post_queries = _build_post_queries(
+        locations, list(DEFAULT_JOB_PREFERENCES.keywords)
     )
     post_window = (
         float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
         if max_posted_hours is None
         else max_posted_hours
     )
-    unique_post_queries = list(dict.fromkeys(post_queries))
+    posts_started = _time.monotonic()
     for post_query in unique_post_queries:
+        q_started = _time.monotonic()
         try:
             result = await read_fn(
                 "posts",
@@ -270,36 +303,55 @@ async def run_agent_once(
             )
             post_batches.append(_post_rows(result.data))
         except Exception as exc:
+            # Auth failures propagate; other post failures are soft.
+            if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
+                raise
             diagnostics.setdefault("posts", []).append({
                 "source": "content-search",
                 "query": post_query,
                 "error": f"{type(exc).__name__}: {exc}",
             })
+        timing.setdefault("post_query_details", []).append({
+            "query": post_query,
+            "seconds": round(_time.monotonic() - q_started, 2),
+        })
+    timing["post_queries_total"] = round(_time.monotonic() - posts_started, 2)
 
+    feed_started = _time.monotonic()
     try:
         feed_result = await read_fn(
             "posts",
             feed=True,
             max_posted_hours=post_window,
-            max_scrolls=8,
+            max_scrolls=6,  # was 8; 6 is sufficient for recent hiring signals
         )
         post_batches.append(_post_rows(feed_result.data))
         diagnostics["feed_scan_candidates"] = len(feed_result.data or [])
         if getattr(feed_result, "diagnostics", None):
             diagnostics["feed_scan"] = feed_result.diagnostics
     except Exception as exc:
+        if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
+            raise
         diagnostics.setdefault("posts", []).append({
             "source": "personalized-feed",
             "error": f"{type(exc).__name__}: {exc}",
         })
+    timing["feed_scan"] = round(_time.monotonic() - feed_started, 2)
 
     people: list[Any] = []
     # Recruiter discovery is read-only and only runs when there are matching jobs.
     # Keep the query broad across the configured BI/data role families; scoring
     # below performs job-specific relevance filtering.
+    people_started = _time.monotonic()
     if any(batches):
-        result = await read_fn("people", query="recruiter Power BI Data Analyst")
-        people = list(result.data or [])
+        try:
+            result = await read_fn("people", query="recruiter Power BI Data Analyst")
+            people = list(result.data or [])
+        except Exception as exc:
+            if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
+                raise
+            diagnostics["people_error"] = f"{type(exc).__name__}: {exc}"
+    timing["people_search"] = round(_time.monotonic() - people_started, 2)
 
     report = build_agent_report(
         batches,
@@ -312,5 +364,6 @@ async def run_agent_once(
     diagnostics["post_scan_window_hours"] = post_window
     diagnostics["feed_scan_enabled"] = True
     diagnostics["hiring_posts_matched"] = len(report.hiring_posts)
+    timing["cycle_total"] = round(_time.monotonic() - cycle_started, 2)
     report.diagnostics = diagnostics
     return report

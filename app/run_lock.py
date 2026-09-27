@@ -15,7 +15,7 @@ from pathlib import Path
 from .config import ROOT
 
 LOCK_PATH = ROOT / "data" / "agent.lock"
-STALE_SECONDS = 30 * 60  # 30 minutes — matches scheduler execution limit + buffer
+STALE_SECONDS = 50 * 60  # 50 minutes — exceeds scheduler ExecutionTimeLimit (45m) + buffer
 
 
 class AgentAlreadyRunning(RuntimeError):

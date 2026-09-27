@@ -259,5 +259,36 @@ def test_run_agent_once_scans_personalized_feed_with_48_hour_window():
     feed_calls = [kwargs for skill, kwargs in calls if skill == "posts" and kwargs.get("feed")]
     assert feed_calls
     assert feed_calls[0]["max_posted_hours"] == 48
-    assert feed_calls[0]["max_scrolls"] == 8
+    assert feed_calls[0]["max_scrolls"] == 6
     assert report.diagnostics["feed_scan_enabled"] is True
+
+
+def test_post_query_count_is_bounded():
+    """Post content-search queries must stay well below the old ~15 navigations."""
+    queries = daily_agent._build_post_queries(
+        ["Delhi", "Gurgaon", "Noida", "Jaipur"],
+        list(daily_agent.DEFAULT_JOB_PREFERENCES.keywords),
+    )
+    assert 1 <= len(queries) <= 10
+    assert all("hiring" in q.lower() for q in queries)
+    # Deduplicated
+    assert len(queries) == len(set(queries))
+
+
+def test_run_agent_once_emits_timings():
+    async def fake_read(skill, **kwargs):
+        if skill == "jobs":
+            return SimpleNamespace(data=[], diagnostics={"final_returned": 0})
+        return SimpleNamespace(data=[])
+
+    report = __import__("asyncio").run(
+        daily_agent.run_agent_once(
+            locations=["Delhi"],
+            read_fn=fake_read,
+            tracker=FakeTracker(),
+        )
+    )
+    timings = report.diagnostics.get("timings_seconds") or {}
+    assert "cycle_total" in timings
+    assert "post_queries_total" in timings
+    assert "feed_scan" in timings

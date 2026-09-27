@@ -35,3 +35,18 @@ def test_scheduler_uses_wscript_hidden_launcher():
     assert "run-agent-hidden.vbs" in installer
     assert "shell.Run(cmd, 0, True)" in launcher
     assert "-WindowStyle Hidden" in launcher
+
+
+def test_scheduler_timeout_exceeds_20_minutes():
+    """Timeout must exceed measured worst-case cycle; 20m was killing healthy runs."""
+    text = (ROOT / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
+    assert "Minutes 20" not in text
+    assert "Minutes 45" in text or "Minutes 40" in text or "Minutes 50" in text
+
+
+def test_scheduler_status_exposes_diagnostics():
+    text = (ROOT / "scripts" / "scheduler-status.ps1").read_text(encoding="utf-8")
+    assert "ExecutionTimeLimit" in text
+    assert "MultipleInstances" in text
+    assert "StartWhenAvailable" in text
+    assert "Execute:" in text
