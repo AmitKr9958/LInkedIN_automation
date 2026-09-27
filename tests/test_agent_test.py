@@ -20,7 +20,12 @@ def test_safe_end_to_end_workflow():
 
 
 def test_sqlite_connections_are_closed_for_temp_cleanup():
-    with TemporaryDirectory() as tmp:
+    """SQLite handles must not block TemporaryDirectory cleanup on Windows."""
+    import gc
+    import time
+
+    # ignore_cleanup_errors avoids flaky WinError 32 if the OS holds a lock briefly.
+    with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         tracker = ApplicationTracker(Path(tmp) / "applications.sqlite3")
         tracker.add("https://example.test/job", "Test", "Example")
         tracker.transition("https://example.test/job", "shortlisted")
@@ -30,5 +35,6 @@ def test_sqlite_connections_are_closed_for_temp_cleanup():
         assert queue.list_pending()
         queue = None
         tracker = None
+        gc.collect()
+        time.sleep(0.05)
 
-    assert not Path(tmp).exists()

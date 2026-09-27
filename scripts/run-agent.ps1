@@ -27,10 +27,10 @@ $env:LINKEDIN_AGENT_ENABLED = "true"
 $env:PYTHONUNBUFFERED = "1"
 
 $Start = Get-Date
-"[$Start] agent cycle start (max-posted-hours=0.5, HEADLESS=true, DRY_RUN=true)" |
+"[$Start] agent cycle start (max-posted-hours=48, HEADLESS=true, DRY_RUN=true)" |
     Tee-Object -FilePath $LogFile -Append | Out-Null
 
-& $python -m app agent --max-posted-hours 0.5 2>&1 |
+& $python -m app agent --max-posted-hours 48 2>&1 |
     Tee-Object -FilePath $LogFile -Append | Out-Null
 $Code = $LASTEXITCODE
 if ($null -eq $Code) { $Code = 1 }

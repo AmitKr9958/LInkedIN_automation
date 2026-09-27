@@ -258,7 +258,7 @@ def test_run_agent_once_scans_personalized_feed_with_configured_window():
 
     feed_calls = [kwargs for skill, kwargs in calls if skill == "posts" and kwargs.get("feed")]
     assert feed_calls
-    assert feed_calls[0]["max_posted_hours"] == 0.5
+    assert feed_calls[0]["max_posted_hours"] == 48
     assert feed_calls[0]["max_scrolls"] == 6
     assert report.diagnostics["feed_scan_enabled"] is True
 

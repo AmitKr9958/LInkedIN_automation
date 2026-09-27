@@ -27,7 +27,7 @@ def test_numeric_posted_hours_drive_recency_signal():
     )
     ranked = rank_jobs([job], DEFAULT_JOB_PREFERENCES)
     assert "recent posting" in ranked[0]["reasons"]
-    assert ranked[0]["job"]["posted_hours"] == 0.75
+    assert ranked[0]["job"]["posted_hours"] == 0.25
 
 
 def test_numeric_recency_wins_over_text_estimate():

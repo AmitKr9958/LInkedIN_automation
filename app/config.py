@@ -1,4 +1,5 @@
 from pathlib import Path
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -11,7 +12,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     approval_required: bool = True
     # End-to-end agent execution is opt-in. The scheduled runner explicitly enables it.
-    agent_enabled: bool = False
+    agent_enabled: bool = Field(
+        default=False,
+        validation_alias="LINKEDIN_AGENT_ENABLED",
+    )
     llm_provider: str = "none"
     openai_api_key: str | None = None
     linkedin_base_url: str = "https://www.linkedin.com"
