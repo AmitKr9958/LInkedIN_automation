@@ -792,6 +792,14 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
     return fields
 
 
+def _hydration_sort_key(job: Job) -> tuple[bool, bool]:
+    """Prioritize detail hydration for records whose posting age is unknown."""
+    return (
+        not (not job.posted or job.posted_hours is None),
+        not (job.title and job.company and job.posted and job.location),
+    )
+
+
 def _merge_detail(job: Job, detail: dict) -> None:
     if not job.title and detail.get("title"):
         job.title = detail["title"]
@@ -1093,10 +1101,7 @@ async def search(
     # more valuable than hydrating an already-dated record for another field.
     hydration_candidates = sorted(
         parsed,
-        key=lambda job: (
-            not (not job.posted or job.posted_hours is None),
-            not (job.title and job.company and job.posted and job.location),
-        ),
+        key=_hydration_sort_key,
     )
     for job in hydration_candidates:
         if hydrated >= MAX_DETAIL_HYDRATION:
