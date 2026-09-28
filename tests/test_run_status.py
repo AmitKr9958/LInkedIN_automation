@@ -1,8 +1,32 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from app.run_status import read_run_status, write_run_status
+from app.run_status import (
+    EXPECTED_CADENCE_SECONDS,
+    _health_state,
+    read_run_status,
+    write_run_status,
+)
+
+
+def test_stale_detection_matches_two_hour_scheduler():
+    assert EXPECTED_CADENCE_SECONDS == 2 * 60 * 60
+    recent = (datetime.now(timezone.utc) - timedelta(seconds=EXPECTED_CADENCE_SECONDS * 2.9)).isoformat()
+    stale = (datetime.now(timezone.utc) - timedelta(seconds=EXPECTED_CADENCE_SECONDS * 3.1)).isoformat()
+    assert _health_state(
+        last_status="success",
+        consecutive_failures=0,
+        failure_type=None,
+        last_success_at=recent,
+    ) == "HEALTHY"
+    assert _health_state(
+        last_status="success",
+        consecutive_failures=0,
+        failure_type=None,
+        last_success_at=stale,
+    ) == "STALE"
 
 
 def test_write_and_read_success(tmp_path: Path):
