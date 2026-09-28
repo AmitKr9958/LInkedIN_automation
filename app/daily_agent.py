@@ -89,7 +89,22 @@ def _rank_hiring_posts(
         matched_keywords = [k for k in keywords if k.lower() in normalized]
         if not matched_keywords:
             continue
+        # Apply the same location contract as job discovery: a hiring post is
+        # relevant only when it explicitly names one of the configured cities.
+        # Remote/WFH alone is not sufficient because the user's remote preference
+        # requires the post to also mention one of the target cities.
         matched_locations = [loc for loc in locations if loc.lower() in normalized]
+        if not matched_locations:
+            continue
+        # Avoid fresher/entry-level hiring posts for this experienced-role
+        # workflow. The job preference layer already excludes these for jobs;
+        # hiring-post discovery must enforce the same boundary.
+        fresher_markers = (
+            "fresher", "freshers", "fresh graduate", "fresh graduates",
+            "entry level", "entry-level", "0-1 year", "0 to 1 year",
+        )
+        if any(marker in normalized for marker in fresher_markers):
+            continue
         score = 40 + min(35, 15 * len(matched_keywords))
         reasons = ["hiring intent", "target role: " + ", ".join(matched_keywords[:3])]
         if matched_locations:
