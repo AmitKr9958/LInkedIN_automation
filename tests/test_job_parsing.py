@@ -46,7 +46,7 @@ def test_incomplete_job_requires_title_and_href_contract():
 
 
 def test_detail_hydration_prioritizes_jobs_missing_posting_age():
-    from app.skills.jobs import Job, MAX_DETAIL_HYDRATION
+    from app.skills.jobs import Job, MAX_DETAIL_HYDRATION, _hydration_sort_key
 
     dated = Job(
         title="Power BI Developer",
@@ -63,15 +63,4 @@ def test_detail_hydration_prioritizes_jobs_missing_posting_age():
         href="https://www.linkedin.com/jobs/view/2",
     )
     assert MAX_DETAIL_HYDRATION == 12
-
-    # The production search sorts hydration candidates so missing posting
-    # age is handled before records that already have a trustworthy age.
-    candidates = [dated, unknown_age]
-    ordered = sorted(
-        candidates,
-        key=lambda job: (
-            not (not job.posted or job.posted_hours is None),
-            not (job.title and job.company and job.posted and job.location),
-        ),
-    )
-    assert ordered[0] is unknown_age
+    assert sorted([dated, unknown_age], key=_hydration_sort_key)[0] is unknown_age
