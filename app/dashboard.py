@@ -202,7 +202,7 @@ button,input,textarea,select{font:inherit}button{border:0;cursor:pointer}
 .hero{background:linear-gradient(135deg,rgba(12,43,73,.95),rgba(15,105,183,.86));color:#fff;padding:25px;border-radius:16px;border:1px solid rgba(113,194,255,.22);box-shadow:0 22px 55px rgba(0,79,145,.22),inset 0 1px rgba(255,255,255,.08);margin-bottom:16px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:280px;height:280px;right:-90px;top:-120px;border-radius:50%;background:rgba(255,255,255,.08);filter:blur(2px)}.hero h2{margin:0 0 6px;font-size:23px}.hero p{color:#d7eaff;margin:0 0 16px;max-width:720px}.hero .btn{background:#fff;color:#0a66c2;border-color:#fff;position:relative;z-index:1}
 .quick{grid-template-columns:repeat(4,1fr)}.quick button{padding:16px;text-align:left;background:linear-gradient(145deg,rgba(20,38,61,.88),rgba(12,25,43,.9));color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);transition:.18s ease}.quick button:hover{border-color:rgba(72,168,255,.32);transform:translateY(-2px) rotateX(.4deg)}.quick b{display:block}.quick span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
 pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:#040a12;color:#cfe3f7;padding:15px;border:1px solid var(--line);border-radius:10px;margin:0;font-size:12px}
-.result-shell{margin-top:14px}.result-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.result-title{font-size:16px;font-weight:850}.result-meta{font-size:11px;color:var(--muted);margin-top:3px}.result-cards{display:grid;gap:9px;max-height:520px;overflow:auto;padding-right:2px}.result-card{padding:14px;background:linear-gradient(145deg,rgba(20,38,61,.78),rgba(10,23,39,.86));border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12)}.result-card-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.result-card-main{min-width:0}.result-card-title{font-size:14px;font-weight:800}.result-card-title a{color:#9ed8ff;text-decoration:none}.result-card-title a:hover{text-decoration:underline}.result-card-meta{font-size:11px;color:var(--muted);margin-top:4px}.result-card-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}.result-open{padding:7px 10px;white-space:nowrap}.result-card-text{margin-top:10px;font-size:12px;color:#c9d8e8;line-height:1.55}.result-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px}.result-field{padding:9px 10px;border:1px solid rgba(154,181,211,.10);border-radius:8px;background:rgba(255,255,255,.025);min-width:0}.result-field span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#7189a2;margin-bottom:2px}.result-field b{font-size:11px;overflow-wrap:anywhere}.result-summary{margin-top:0;margin-bottom:12px}.result-message{padding:13px 14px;border-radius:10px;background:rgba(72,168,255,.07);border:1px solid rgba(72,168,255,.14);color:#cfe5f9;font-size:12px;line-height:1.55}.result-subhead{display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#9eb3c8}.result-subhead span{font-size:10px;color:#6f87a0}.score{display:inline-flex;min-width:38px;justify-content:center;padding:4px 7px;border-radius:8px;font-weight:850;font-size:11px;background:rgba(72,168,255,.12);color:#9ed8ff}.score.high{background:rgba(50,213,131,.11);color:#7af0b0}.score.mid{background:rgba(253,176,34,.11);color:#ffd27a}.score.low{background:rgba(249,112,102,.10);color:#ffaaa3}.run-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.run-chip{padding:10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--line)}.run-chip b{display:block;font-size:16px}.run-chip span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.section-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6f87a0;font-weight:800;margin-bottom:5px}.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#526a83;padding:16px 12px 5px;font-weight:800}.live-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(50,213,131,.08);border:1px solid rgba(50,213,131,.16);color:#7be9ae;font-size:10px;font-weight:800}.live-pill i{width:6px;height:6px;border-radius:50%;background:currentColor}.drawerbox{width:min(760px,96vw)}.table td{font-size:12px}.table th{white-space:nowrap}@media(max-width:650px){.result-head{flex-direction:column}.drawerbox{width:100%}}
+.agent-result{display:grid;gap:14px}.agent-success{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:15px;border-radius:12px;background:linear-gradient(135deg,rgba(50,213,131,.10),rgba(72,168,255,.05));border:1px solid rgba(50,213,131,.18)}.agent-success h3{margin:7px 0 2px;font-size:15px}.agent-success p{margin:0;color:var(--muted);font-size:11px}.agent-safe{font-size:10px;color:#9be7bb;white-space:nowrap}.agent-summary-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.agent-metric{padding:11px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.025)}.agent-metric span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#7189a2}.agent-metric b{display:block;font-size:18px;margin-top:4px}.agent-metric small{display:block;color:#7189a2;font-size:9px;margin-top:2px}.agent-section{padding:14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.018)}.agent-section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.agent-section-head h3{margin:0;font-size:14px}.agent-section-head p{margin:2px 0 0;color:var(--muted);font-size:11px}.agent-job-list,.agent-post-list{display:grid;gap:7px}.agent-job{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(154,181,211,.10)}.agent-job-title{font-size:12px;font-weight:800}.agent-job-title a{color:#9ed8ff;text-decoration:none}.agent-job-title a:hover{text-decoration:underline}.agent-job-meta{font-size:10px;color:var(--muted);margin-top:3px}.agent-job-actions{display:flex;align-items:center;gap:6px}.agent-post{padding:11px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(154,181,211,.10)}.agent-post-author{font-weight:800;font-size:12px}.agent-post-text{font-size:11px;color:#cbd8e7;margin:5px 0 7px;line-height:1.5}.agent-empty{padding:15px;text-align:center;color:var(--muted);font-size:11px}.agent-tech{border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.018);padding:10px}.agent-tech summary{cursor:pointer;color:#9db1c8;font-size:11px;font-weight:750}.agent-tech summary span{float:right;color:#60758e}.agent-tech pre{margin-top:10px;max-height:300px}.agent-health-card{padding:13px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.025)}.agent-health-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:10px;color:var(--muted)}.agent-last-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:10px}.agent-note{margin-top:10px;padding:9px;border-radius:8px;background:rgba(50,213,131,.06);color:#8ce9b5;font-size:10px}@media(max-width:1100px){.agent-summary-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:650px){.agent-success,.agent-job{flex-direction:column;align-items:flex-start}.agent-summary-grid{grid-template-columns:repeat(2,1fr)}.agent-job-actions{width:100%}.agent-safe{white-space:normal}}.run-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.run-chip{padding:10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--line)}.run-chip b{display:block;font-size:16px}.run-chip span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.section-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6f87a0;font-weight:800;margin-bottom:5px}.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#526a83;padding:16px 12px 5px;font-weight:800}.live-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(50,213,131,.08);border:1px solid rgba(50,213,131,.16);color:#7be9ae;font-size:10px;font-weight:800}.live-pill i{width:6px;height:6px;border-radius:50%;background:currentColor}.drawerbox{width:min(760px,96vw)}.table td{font-size:12px}.table th{white-space:nowrap}@media(max-width:650px){.result-head{flex-direction:column}.drawerbox{width:100%}}
 .tablewrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th{font-size:11px;text-transform:uppercase;color:#7890aa;letter-spacing:.04em;text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}.table td{padding:11px 8px;border-bottom:1px solid rgba(154,181,211,.09);vertical-align:top}.table tr:hover td{background:rgba(72,168,255,.035)}
 .badge{display:inline-flex;padding:3px 8px;border-radius:999px;background:rgba(72,168,255,.12);color:#8dccff;font-size:11px;font-weight:700;border:1px solid rgba(72,168,255,.12)}.badge.green{background:rgba(50,213,131,.1);color:#70e7aa}.badge.amber{background:rgba(253,176,34,.1);color:#ffd27a}.badge.red{background:rgba(249,112,102,.1);color:#ffaaa3}
 .muted{color:var(--muted)}.error{padding:12px;background:rgba(249,112,102,.08);border:1px solid rgba(249,112,102,.24);color:#ffaaa3;border-radius:9px}.empty{padding:30px;text-align:center;color:var(--muted)}
@@ -271,7 +271,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 <section id="agent" class="view">
 <div class="grid two">
  <div class="card"><div class="cardhead"><div><h2>Agent Runs</h2><p>Run the complete governed discovery cycle.</p></div><button class="btn primary" onclick="startAgent()">Run Agent Now</button></div><div id="tasks"></div></div>
- <div class="card"><div class="cardhead"><div><h2>Last run details</h2><p>Persisted health state and diagnostics.</p></div></div><pre id="agentDetails"></pre></div>
+ <div class="card"><div class="cardhead"><div><h2>Last run</h2><p>Simple health summary. Technical diagnostics stay hidden.</p></div></div><div id="agentDetails"></div></div>
 </div>
 <div class="card" style="margin-top:15px"><div class="cardhead"><div><h2>Recent activity</h2><p>Local audit trail from the application database.</p></div></div><div class="tablewrap"><table class="table" id="activityTable"></table></div></div>
 </section>
@@ -348,9 +348,13 @@ function renderTables(d){
  '</tbody>';
 }
 function renderRun(d){
- document.getElementById('lastRun').textContent=JSON.stringify(d.last_run||{},null,2);
- document.getElementById('agentDetails').textContent=JSON.stringify(d.last_run||{},null,2);
- document.getElementById('runMeta').textContent=(d.last_run?.last_finished_at||d.last_run?.updated_at||'No run recorded');
+ const r=d.last_run||{};
+ const status=r.health_state||r.last_status||'No run recorded';
+ const ok=String(status).toUpperCase()==='HEALTHY'||String(status).toLowerCase()==='success';
+ const html='<div class="agent-health-card"><div class="agent-health-row"><span class="badge '+(ok?'green':'amber')+'">'+esc(String(status))+'</span><b>'+(r.last_finished_at?esc(r.last_finished_at):'No run recorded')+'</b></div><div class="agent-last-grid">'+agentMetric('Jobs',r.last_job_count??0,'Last cycle')+agentMetric('New jobs',r.last_new_jobs??0,'Last cycle')+agentMetric('Hiring posts',r.last_hiring_post_count??0,'Last cycle')+agentMetric('Recruiter targets',r.last_recruiter_count??0,'Approval planning')+agentMetric('Duration',formatDuration(r.last_duration_seconds),'Last cycle')+'</div>'+(r.last_error?'<div class="error" style="margin-top:10px">'+esc(r.last_error)+'</div>':'<div class="agent-note">✓ Last cycle completed without an error.</div>')+'</div>';
+ document.getElementById('agentDetails').innerHTML=html;
+ document.getElementById('lastRun').textContent=r.last_finished_at||r.updated_at||'No run recorded';
+ document.getElementById('runMeta').textContent=r.last_finished_at||r.updated_at||'No run recorded';
 }
 async function refreshAll(){
  try{const [d,s]=await Promise.all([api('/api/summary'),api('/api/skills')]); state.summary=d;state.skills=s.skills||[];renderMetrics(d);renderTables(d);renderRun(d);renderSkills();renderSystem(); if(d.warnings?.length) console.warn(d.warnings)}
@@ -434,6 +438,53 @@ function renderObjectResult(result,data){
  });
  return html+'</div>';
 }
+function agentMetric(label,value,hint=''){
+ return '<div class="agent-metric"><span>'+esc(label)+'</span><b>'+esc(value==null?'0':value)+'</b><small>'+esc(hint)+'</small></div>';
+}
+function formatDuration(seconds){
+ const n=Number(seconds);
+ if(!Number.isFinite(n))return '—';
+ if(n<60)return Math.round(n)+' sec';
+ const m=Math.floor(n/60), s=Math.round(n%60);
+ return m+' min'+(s?' '+s+' sec':'');
+}
+function renderAgentJobs(rows){
+ const jobs=(rows||[]).map(x=>x?.job||x).filter(x=>x&&typeof x==='object');
+ if(!jobs.length)return '<div class="agent-empty">No matching jobs were found in this cycle.</div>';
+ return '<div class="agent-job-list">'+jobs.slice(0,10).map(x=>{
+   const href=x.url||x.href||'', title=x.title||'LinkedIn job', meta=[x.company,x.location,x.posted_text||x.posted].filter(Boolean).join(' · ');
+   return '<div class="agent-job"><div><div class="agent-job-title">'+(href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+esc(title)+'</a>':'<b>'+esc(title)+'</b>')+'</div><div class="agent-job-meta">'+esc(meta)+'</div></div><div class="agent-job-actions">'+(x.easy_apply?'<span class="badge green">Easy Apply</span>':'')+(href?'<a class="btn primary result-open" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Open ↗</a>':'')+'</div></div>';
+ }).join('')+'</div>';
+}
+function renderAgentPosts(items){
+ const posts=(items||[]).filter(x=>x&&typeof x==='object');
+ if(!posts.length)return '<div class="agent-empty">No matching hiring posts were found.</div>';
+ return '<div class="agent-post-list">'+posts.slice(0,6).map(item=>{
+   const p=item.post||{}, href=p.profile_url||p.href||'', author=p.author||'Hiring signal', text=p.text||'', reasons=(item.reasons||[]).join(' · ');
+   return '<div class="agent-post"><div class="agent-post-author">'+esc(author)+'</div><div class="agent-post-text">'+esc(String(text).slice(0,420))+'</div>'+(reasons?'<div class="agent-job-meta">'+esc(reasons)+'</div>':'')+(href?'<a class="btn" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">View profile ↗</a>':'')+'</div>';
+ }).join('')+'</div>';
+}
+function renderAgentResult(result){
+ const r=result||{}, d=r.diagnostics||{}, last=d.timings_seconds||{};
+ const duration=last.cycle_total??null;
+ const jobs=r.ranked_jobs||[];
+ const posts=r.hiring_posts||[];
+ const health='Successful';
+ const cards='<div class="agent-summary-grid">'+
+   agentMetric('Jobs found',r.jobs_found,'Discovered this cycle')+
+   agentMetric('New jobs',r.new_jobs,'Not seen before')+
+   agentMetric('Relevant jobs',jobs.length,'Ranked for your preferences')+
+   agentMetric('Hiring signals',posts.length,'Relevant hiring posts')+
+   agentMetric('Applications sent',0,'Agent never auto-applies')+
+   agentMetric('Duration',formatDuration(duration),'Complete discovery cycle')+
+   '</div>';
+ const diagnostics='<details class="agent-tech"><summary>⚙ Technical diagnostics <span>Advanced</span></summary><pre>'+esc(JSON.stringify(d,null,2))+'</pre></details>';
+ return '<div class="agent-result"><div class="agent-success"><div><span class="badge green">✓ '+health+'</span><h3>Discovery completed successfully</h3><p>Your LinkedIn discovery cycle finished. Review the opportunities below.</p></div><div class="agent-safe">🔒 No LinkedIn account actions were performed</div></div>'+
+ cards+
+ '<section class="agent-section"><div class="agent-section-head"><div><h3>Relevant jobs</h3><p>Jobs matching your current search preferences.</p></div><span class="badge">'+esc(String(jobs.length))+'</span></div>'+renderAgentJobs(jobs)+'</section>'+
+ '<section class="agent-section"><div class="agent-section-head"><div><h3>Hiring signals</h3><p>Public posts that matched your hiring criteria.</p></div><span class="badge">'+esc(String(posts.length))+'</span></div>'+renderAgentPosts(posts)+'</section>'+
+ diagnostics+'</div>';
+}
 function renderResult(result){
  if(result==null)return '<div class="empty">No result returned.</div>';
  const data=result.data??result;
@@ -471,7 +522,7 @@ async function watchAgent(id){
    if(d.status==='queued'||d.status==='running'){
      box.innerHTML='<div class="task"><span class="badge">'+esc(d.status)+'</span><div class="progress"><i></i></div><small class="muted">Browser worker is active. This dashboard remains responsive.</small></div>';
    }else if(d.status==='completed'){
-     box.innerHTML='<div class="task"><span class="badge green">Completed</span><div class="muted" style="margin-top:6px">Discovery cycle finished successfully.</div></div>'+renderResult(d.result);
+     box.innerHTML=renderAgentResult(d.result);
    }else{box.innerHTML='<div class="error">Failed: '+esc(d.error||'Unknown error')+'</div>'}
    if(d.status==='queued'||d.status==='running')setTimeout(poll,1000);else refreshAll();
  };poll();
