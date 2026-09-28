@@ -41,17 +41,32 @@ if (-not (Test-Path $python)) {
     exit 1
 }
 
+$StdoutFile = Join-Path $LogDir "agent-$Stamp.stdout.tmp"
+$StderrFile = Join-Path $LogDir "agent-$Stamp.stderr.tmp"
+
 try {
-    # Use native redirection instead of a PowerShell pipeline so stdout/stderr
-    # from the Python process are written reliably under Task Scheduler.
-    & $python -m app agent --max-posted-hours 48 *>> $LogFile
-    $Code = $LASTEXITCODE
-    if ($null -eq $Code) { $Code = 1 }
+    # Start-Process avoids Windows PowerShell treating native stderr as a
+    # terminating NativeCommandError. This is important under Task Scheduler:
+    # the agent's stderr must be captured without converting normal diagnostics
+    # into a runner exception.
+    $proc = Start-Process -FilePath $python -ArgumentList @("-m", "app", "agent", "--max-posted-hours", "48") -WorkingDirectory (Get-Location) -WindowStyle Hidden -RedirectStandardOutput $StdoutFile -RedirectStandardError $StderrFile -PassThru
+
+    $proc.WaitForExit()
+    $Code = $proc.ExitCode
+
+    if (Test-Path $StdoutFile) {
+        Get-Content $StdoutFile -ErrorAction SilentlyContinue | Add-Content -Path $LogFile
+    }
+    if (Test-Path $StderrFile) {
+        Get-Content $StderrFile -ErrorAction SilentlyContinue | Add-Content -Path $LogFile
+    }
 }
 catch {
     $Code = 1
     Write-AgentLog "[runner] ERROR: $($_.Exception.Message)"
 }
+
+Remove-Item $StdoutFile, $StderrFile -Force -ErrorAction SilentlyContinue
 
 $End = Get-Date
 $Duration = [math]::Round(($End - $Start).TotalSeconds, 1)
