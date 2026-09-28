@@ -110,6 +110,7 @@ def _summary() -> dict:
                         "score": r["score"],
                         "reasons": r["reasons"],
                         "status": r["status"],
+                        "allowed_transitions": sorted(TRANSITIONS.get(r["status"], set())),
                         "updated_at": r["first_seen"],
                     }
                 )
@@ -293,15 +294,16 @@ function renderMetrics(d){
  document.getElementById('health').innerHTML='<i class="dot '+(healthy?'':'amber')+'"></i> '+esc(d.last_run?.health_state||'UNKNOWN');
 }
 function jobRows(rows){
+ const list=rows||[];
  return '<thead><tr><th>Role</th><th>Company</th><th>Location</th><th>Status</th><th>Seen</th></tr></thead><tbody>'+
- (rows||[]).map(x=>'<tr><td><b>'+esc(x.title)+'</b></td><td>'+esc(x.company)+'</td><td>'+esc(x.location)+'</td><td><span class="badge">'+esc(x.status||'new')+'</span></td><td>'+esc(x.updated_at)+'</td></tr>').join('')+
- '</tbody>' || '<tbody><tr><td colspan="5" class="empty">No jobs stored yet.</td></tr></tbody>';
+ (list.length ? list.map(x=>'<tr><td><b>'+esc(x.title)+'</b></td><td>'+esc(x.company)+'</td><td>'+esc(x.location)+'</td><td><span class="badge">'+esc(x.status||'new')+'</span></td><td>'+esc(x.updated_at)+'</td></tr>').join('') : '<tr><td colspan="5" class="empty">No jobs stored yet.</td></tr>')+
+ '</tbody>';
 }
 function renderTables(d){
  document.getElementById('jobsTable').innerHTML=jobRows(d.jobs);
  document.getElementById('overviewJobs').innerHTML=jobRows((d.jobs||[]).slice(0,8));
  document.getElementById('appsTable').innerHTML='<thead><tr><th>Role</th><th>Company</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>'+
- (d.applications||[]).map(x=>'<tr><td><b>'+esc(x.title)+'</b></td><td>'+esc(x.company)+'</td><td><select class="statusSelect" data-url="'+esc(x.job_url)+'" data-current="'+esc(x.status)+'">'+["new","shortlisted","drafted","applied","screening","interview","offer","rejected","withdrawn","closed"].map(s=>'<option value="'+esc(s)+'" '+(s===x.status?'selected':'')+'>'+esc(s)+'</option>').join('')+'</select></td><td>'+esc(x.updated_at)+'</td><td><button class="btn" onclick="transitionApplication(this)">Save</button></td></tr>').join('')+'</tbody>';
+ (d.applications||[]).map(x=>'<tr><td><b>'+esc(x.title)+'</b></td><td>'+esc(x.company)+'</td><td><select class="statusSelect" data-url="'+esc(x.job_url)+'" data-current="'+esc(x.status)+'">'+[x.status,...(x.allowed_transitions||[])].filter((v,i,a)=>a.indexOf(v)===i).map(s=>'<option value="'+esc(s)+'" '+(s===x.status?'selected':'')+'>'+esc(s)+'</option>').join('')+'</select></td><td>'+esc(x.updated_at)+'</td><td><button class="btn" onclick="transitionApplication(this)">Save</button></td></tr>').join('')+'</tbody>';
  document.getElementById('activityTable').innerHTML='<thead><tr><th>Time</th><th>Action</th><th>Target</th><th>Status</th><th>Details</th></tr></thead><tbody>'+
  (d.activity||[]).map(x=>'<tr><td>'+esc(x.created_at)+'</td><td>'+esc(x.action)+'</td><td>'+esc(x.target)+'</td><td><span class="badge">'+esc(x.status)+'</span></td><td>'+esc(x.details)+'</td></tr>').join('')+'</tbody>';
  document.getElementById('approvalTable').innerHTML='<thead><tr><th>Action</th><th>Target</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>'+
