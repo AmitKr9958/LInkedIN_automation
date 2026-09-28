@@ -14,8 +14,9 @@ from .config import ROOT
 
 STATUS_PATH = ROOT / "data" / "last_run.json"
 
-# Expected cadence for stale-cycle detection (seconds). Matches hourly scheduler.
-EXPECTED_CADENCE_SECONDS = 3600
+# Expected cadence for stale-cycle detection (seconds). Matches the
+# production read-only scheduler's 2-hour repetition interval.
+EXPECTED_CADENCE_SECONDS = 2 * 60 * 60
 # Number of missed intervals before health reports STALE.
 STALE_INTERVALS = 3
 
