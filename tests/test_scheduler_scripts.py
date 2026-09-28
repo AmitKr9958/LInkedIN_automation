@@ -64,7 +64,7 @@ def test_agent_gate_defaults_closed():
 
 def test_job_detail_hydration_is_conservative():
     text = (ROOT / "app" / "skills" / "jobs.py").read_text(encoding="utf-8")
-    assert "MAX_DETAIL_HYDRATION = 8" in text
+    assert "MAX_DETAIL_HYDRATION = 12" in text
     assert "MAX_DETAIL_HYDRATION = 25" not in text
 
 
