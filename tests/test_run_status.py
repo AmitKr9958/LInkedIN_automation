@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# CI validation branch: production changes are inherited from main.
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
