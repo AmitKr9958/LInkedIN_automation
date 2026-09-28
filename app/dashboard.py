@@ -202,6 +202,7 @@ button,input,textarea,select{font:inherit}button{border:0;cursor:pointer}
 .hero{background:linear-gradient(135deg,rgba(12,43,73,.95),rgba(15,105,183,.86));color:#fff;padding:25px;border-radius:16px;border:1px solid rgba(113,194,255,.22);box-shadow:0 22px 55px rgba(0,79,145,.22),inset 0 1px rgba(255,255,255,.08);margin-bottom:16px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:280px;height:280px;right:-90px;top:-120px;border-radius:50%;background:rgba(255,255,255,.08);filter:blur(2px)}.hero h2{margin:0 0 6px;font-size:23px}.hero p{color:#d7eaff;margin:0 0 16px;max-width:720px}.hero .btn{background:#fff;color:#0a66c2;border-color:#fff;position:relative;z-index:1}
 .quick{grid-template-columns:repeat(4,1fr)}.quick button{padding:16px;text-align:left;background:linear-gradient(145deg,rgba(20,38,61,.88),rgba(12,25,43,.9));color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);transition:.18s ease}.quick button:hover{border-color:rgba(72,168,255,.32);transform:translateY(-2px) rotateX(.4deg)}.quick b{display:block}.quick span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
 pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:#040a12;color:#cfe3f7;padding:15px;border:1px solid var(--line);border-radius:10px;margin:0;font-size:12px}
+.result-shell{margin-top:14px}.result-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.result-title{font-size:15px;font-weight:800}.result-meta{font-size:11px;color:var(--muted);margin-top:2px}.result-actions{display:flex;gap:7px;flex-wrap:wrap}.result-table{max-height:480px}.result-table .table th{position:sticky;top:0;background:#0c1b2d;z-index:1}.score{display:inline-flex;min-width:38px;justify-content:center;padding:4px 7px;border-radius:8px;font-weight:850;font-size:11px;background:rgba(72,168,255,.12);color:#9ed8ff}.score.high{background:rgba(50,213,131,.11);color:#7af0b0}.score.mid{background:rgba(253,176,34,.11);color:#ffd27a}.score.low{background:rgba(249,112,102,.10);color:#ffaaa3}.run-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.run-chip{padding:10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--line)}.run-chip b{display:block;font-size:16px}.run-chip span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.section-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6f87a0;font-weight:800;margin-bottom:5px}.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#526a83;padding:16px 12px 5px;font-weight:800}.live-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(50,213,131,.08);border:1px solid rgba(50,213,131,.16);color:#7be9ae;font-size:10px;font-weight:800}.live-pill i{width:6px;height:6px;border-radius:50%;background:currentColor}.drawerbox{width:min(760px,96vw)}.table td{font-size:12px}.table th{white-space:nowrap}@media(max-width:650px){.result-head{flex-direction:column}.drawerbox{width:100%}}
 .tablewrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th{font-size:11px;text-transform:uppercase;color:#7890aa;letter-spacing:.04em;text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}.table td{padding:11px 8px;border-bottom:1px solid rgba(154,181,211,.09);vertical-align:top}.table tr:hover td{background:rgba(72,168,255,.035)}
 .badge{display:inline-flex;padding:3px 8px;border-radius:999px;background:rgba(72,168,255,.12);color:#8dccff;font-size:11px;font-weight:700;border:1px solid rgba(72,168,255,.12)}.badge.green{background:rgba(50,213,131,.1);color:#70e7aa}.badge.amber{background:rgba(253,176,34,.1);color:#ffd27a}.badge.red{background:rgba(249,112,102,.1);color:#ffaaa3}
 .muted{color:var(--muted)}.error{padding:12px;background:rgba(249,112,102,.08);border:1px solid rgba(249,112,102,.24);color:#ffaaa3;border-radius:9px}.empty{padding:30px;text-align:center;color:var(--muted)}
@@ -219,12 +220,15 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 <aside class="sidebar">
   <div class="brand"><div class="brand-mark">in</div><div><strong>LinkedIn Agent</strong><span>Control Center</span></div></div>
   <nav class="nav">
+    <div class="nav-section">Workspace</div>
     <button class="active" data-view="overview">⌂ <span>Overview</span></button>
     <button data-view="skills">✦ <span>Skill Center</span></button>
     <button data-view="jobs">▣ <span>Jobs</span></button>
     <button data-view="applications">✓ <span>Applications</span></button>
+    <div class="nav-section">Governance</div>
     <button data-view="approvals">⚑ <span>Approvals</span></button>
     <button data-view="agent">◉ <span>Agent Runs</span></button>
+    <div class="nav-section">Operations</div>
     <button data-view="system">⚙ <span>System</span></button>
   </nav>
   <div style="position:absolute;left:14px;right:14px;bottom:18px;color:#667085;font-size:11px">Local-only<br>Human approval protected</div>
@@ -232,12 +236,12 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 <main class="main">
 <header class="topbar">
   <div class="title"><h1 id="pageTitle">Overview</h1><p>Read, research, draft and approve — from one place.</p></div>
-  <div class="actions"><span id="health" class="health"><i class="dot"></i> Checking</span><button class="btn" onclick="refreshAll()">↻ Refresh</button><button class="btn primary" onclick="startAgent()">Run Agent</button></div>
+  <div class="actions"><span id="health" class="health"><i class="dot"></i> Checking</span><span class="live-pill"><i></i> READ-ONLY · 2H CADENCE</span><button class="btn" onclick="refreshAll()">↻ Refresh</button><button class="btn primary" onclick="startAgent()">Run Agent</button></div>
 </header>
 
 <section id="overview" class="view active">
   <div class="grid metrics" id="metrics"></div>
-  <div class="hero"><h2>Your LinkedIn workspace is ready</h2><p>Use Skill Center for individual workflows or Run Agent for the complete read-only job and hiring discovery cycle. Long-running LinkedIn tasks run in the background so the UI stays responsive.</p><button class="btn" onclick="showView('skills')">Open Skill Center →</button></div>
+  <div class="hero"><div class="section-kicker" style="color:#9bd6ff">COMMAND CENTER</div><h2>Discover opportunities. Review signals. Stay in control.</h2><p>The agent continuously discovers jobs and hiring signals while keeping account-changing actions behind human approval. Use the workspace below to review results, manage your pipeline and launch individual skills.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="showView('jobs')">Review jobs →</button><button class="btn" onclick="showView('skills')">Open Skill Center →</button></div></div>
   <div class="grid quick">
     <button onclick="openSkill('jobs')"><b>Find Power BI jobs</b><span>LinkedIn · Delhi / Gurgaon / Noida / Remote India</span></button>
     <button onclick="openSkill('people')"><b>Find recruiters</b><span>People research · read-only</span></button>
@@ -374,16 +378,22 @@ function openSkill(name){
  document.getElementById('skillTask').innerHTML='';document.getElementById('skillOutput').innerHTML='';
 }
 function closeDrawer(){document.getElementById('drawer').classList.remove('open')}
+function scoreClass(v){
+ const n=Number(v); return !Number.isFinite(n)?'':(n>=80?'high':n>=60?'mid':'low');
+}
+function prettyKey(k){return String(k||'').replaceAll('_',' ').replace(/\\b\\w/g,m=>m.toUpperCase())}
 function renderResult(result){
  if(result==null)return '<div class="empty">No result returned.</div>';
  const data=result.data??result;
  if(Array.isArray(data)){
    if(!data.length)return '<div class="empty">No matching records found.</div>';
-   const sample=data.slice(0,30);
-   const keys=[...new Set(sample.flatMap(x=>typeof x==='object'&&x?Object.keys(x):[]))].slice(0,6);
-   if(keys.length)return '<div class="tablewrap"><table class="table"><thead><tr>'+keys.map(k=>'<th>'+esc(k.replaceAll('_',' '))+'</th>').join('')+'</tr></thead><tbody>'+sample.map(x=>'<tr>'+keys.map(k=>'<td>'+esc(typeof x==='object'&&x?x[k]:'')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+   const sample=data.slice(0,50);
+   const keys=[...new Set(sample.flatMap(x=>typeof x==='object'&&x?Object.keys(x):[]))].slice(0,8);
+   if(keys.length){
+     return '<div class="result-shell"><div class="result-head"><div><div class="result-title">'+esc(result.title||'Skill results')+'</div><div class="result-meta">'+esc(result.count!=null?String(result.count)+' records':'Showing '+sample.length+' records')+'</div></div></div><div class="result-table tablewrap"><table class="table"><thead><tr>'+keys.map(k=>'<th>'+esc(prettyKey(k))+'</th>').join('')+'</tr></thead><tbody>'+sample.map(x=>'<tr>'+keys.map(k=>{const v=typeof x==='object'&&x?x[k]:'';return '<td>'+(k.toLowerCase()==='score'?'<span class="score '+scoreClass(v)+'">'+esc(v)+'</span>':esc(typeof v==='object'?JSON.stringify(v):v))+'</td>'}).join('')+'</tr>').join('')+'</tbody></table></div></div>';
+   }
  }
- return '<pre>'+esc(JSON.stringify(result,null,2))+'</pre>';
+ return '<div class="result-shell"><div class="result-head"><div><div class="result-title">Execution result</div><div class="result-meta">Structured output from the selected skill</div></div></div><pre>'+esc(JSON.stringify(result,null,2))+'</pre></div>';
 }
 async function submitSkill(e){
  e.preventDefault(); const s=state.activeSkill;if(!s)return;
@@ -408,7 +418,14 @@ async function startAgent(){
  catch(e){document.getElementById('tasks').innerHTML='<div class="error">'+esc(e.message)+'</div>'}
 }
 async function watchAgent(id){
- const poll=async()=>{const d=await api('/api/tasks/'+id);document.getElementById('tasks').innerHTML='<div class="task"><b>'+esc(d.status)+'</b>'+(d.status==='queued'||d.status==='running'?'<div class="progress"><i></i></div>':'')+(d.error?'<p class="danger">'+esc(d.error)+'</p>':'')+(d.status==='completed'?'<pre style="margin-top:10px">'+esc(JSON.stringify(d.result,null,2))+'</pre>':''); if(d.status==='queued'||d.status==='running')setTimeout(poll,1000);else refreshAll()};poll();
+ const poll=async()=>{const d=await api('/api/tasks/'+id);const box=document.getElementById('tasks');
+   if(d.status==='queued'||d.status==='running'){
+     box.innerHTML='<div class="task"><span class="badge">'+esc(d.status)+'</span><div class="progress"><i></i></div><small class="muted">Browser worker is active. This dashboard remains responsive.</small></div>';
+   }else if(d.status==='completed'){
+     box.innerHTML='<div class="task"><span class="badge green">Completed</span><div class="muted" style="margin-top:6px">Discovery cycle finished successfully.</div></div>'+renderResult(d.result);
+   }else{box.innerHTML='<div class="error">Failed: '+esc(d.error||'Unknown error')+'</div>'}
+   if(d.status==='queued'||d.status==='running')setTimeout(poll,1000);else refreshAll();
+ };poll();
 }
 async function decide(id,approved){
  try{await api('/api/approvals/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});refreshAll()}catch(e){alert(e.message)}
