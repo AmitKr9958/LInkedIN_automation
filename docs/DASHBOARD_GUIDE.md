@@ -48,7 +48,7 @@ These are read-only skills:
 - **Read saved items** — reads saved LinkedIn items.
 - **Read notifications** — reads notifications.
 
-The result appears in the **Skill result** panel.
+The result appears in the skill drawer. Structured list results are rendered as readable tables; technical diagnostics remain available in the result details.
 
 ### Run Agent Now
 
@@ -56,15 +56,23 @@ This is the complete scheduled discovery workflow. It performs the same governed
 
 It does not automatically send messages, send connection requests, like/comment, publish, or submit applications.
 
-### Pending approvals
+### Applications
 
-This is where governed account-changing requests can be reviewed. Approval is separate from discovery.
+The Application Pipeline is local-only. You can move an existing application through its governed lifecycle (for example, shortlisted → drafted → applied → screening → interview → offer). Invalid lifecycle transitions are rejected by the application tracker.
+
+## Recent activity
+
+Agent Runs includes a local activity audit view for approval decisions and other recorded workflow events. It does not expose credentials, cookies or session tokens.
+
+## Pending approvals
+
+This is where governed account-changing requests can be reviewed. Approval is separate from discovery. Approving an item only changes its approval state; the dashboard does not silently perform the consequential LinkedIn action.
 
 ## Important
 
 If the browser says it cannot connect to `127.0.0.1:8765`, the dashboard server is not running (or another program has taken the port). The URL itself does not start the application.
 
-The dashboard binds to localhost only, so it is intended for use on the same Windows PC.
+The dashboard binds to localhost only, so it is intended for use on the same Windows PC. It also uses background task execution so long LinkedIn reads do not block the dashboard HTTP server.
 
 ## Recommended workflow for you
 
