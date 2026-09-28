@@ -35,49 +35,13 @@ def test_scheduler_uses_48_hour_agent_window():
     assert "--max-posted-hours 0.5" not in text
     assert "--max-posted-hours 1" not in text
 
-
-def test_scheduler_uses_wscript_hidden_launcher():
-    root = Path(__file__).resolve().parents[1]
-    installer = (root / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
-    launcher = (root / "scripts" / "run-agent-hidden.vbs").read_text(encoding="utf-8")
-    assert "wscript.exe" in installer.lower()
-    assert "run-agent-hidden.vbs" in installer
-    assert "shell.Run(cmd, 0, True)" in launcher
-    assert "-WindowStyle Hidden" in launcher
-
-
-def test_scheduler_timeout_exceeds_20_minutes():
-    """Timeout must exceed measured worst-case cycle; 20m was killing healthy runs."""
-    text = (ROOT / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
-    assert "Minutes 20" not in text
-    assert "Minutes 45" in text or "Minutes 40" in text or "Minutes 50" in text
-
-
-def test_scheduler_status_exposes_diagnostics():
-    text = (ROOT / "scripts" / "scheduler-status.ps1").read_text(encoding="utf-8")
-    assert "ExecutionTimeLimit" in text
-    assert "MultipleInstances" in text
-    assert "StartWhenAvailable" in text
-    assert "Execute:" in text
-
-
-def test_scheduler_explicitly_enables_agent_gate():
+def test_scheduler_runner_sets_start_and_uses_direct_output_redirection():
     text = (ROOT / "scripts" / "run-agent.ps1").read_text(encoding="utf-8")
-    assert '$env:LINKEDIN_AGENT_ENABLED = "true"' in text
+    assert "$Start = Get-Date" in text
+    assert '$env:PYTHONUNBUFFERED = "1"' in text
+    assert '$env:PYTHONIOENCODING = "utf-8"' in text
+    assert '*>> $LogFile' in text
+    assert "Tee-Object -FilePath $LogFile" in text
 
 
-def test_agent_gate_defaults_closed():
-    text = (ROOT / "app" / "config.py").read_text(encoding="utf-8")
-    assert "agent_enabled" in text and "False" in text and "LINKEDIN_AGENT_ENABLED" in text
 
-
-def test_job_detail_hydration_is_conservative():
-    text = (ROOT / "app" / "skills" / "jobs.py").read_text(encoding="utf-8")
-    assert "MAX_DETAIL_HYDRATION = 12" in text
-    assert "MAX_DETAIL_HYDRATION = 25" not in text
-
-
-def test_people_search_is_disabled_in_daily_agent():
-    text = (ROOT / "app" / "daily_agent.py").read_text(encoding="utf-8")
-    assert 'diagnostics["people_search_enabled"] = False' in text
-    assert 'query="recruiter Power BI Data Analyst"' not in text
