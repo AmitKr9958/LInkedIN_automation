@@ -67,5 +67,9 @@ def test_dashboard_jobs_intelligence_controls():
         "Workplace",
         "Score",
         "filterJobs",
+        "jobScoreSort",
+        "Score: High → Low",
+        "Score: Low → High",
+        "Score ↕",
     ]:
         assert marker in _HTML
