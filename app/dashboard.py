@@ -202,7 +202,7 @@ button,input,textarea,select{font:inherit}button{border:0;cursor:pointer}
 .hero{background:linear-gradient(135deg,rgba(12,43,73,.95),rgba(15,105,183,.86));color:#fff;padding:25px;border-radius:16px;border:1px solid rgba(113,194,255,.22);box-shadow:0 22px 55px rgba(0,79,145,.22),inset 0 1px rgba(255,255,255,.08);margin-bottom:16px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:280px;height:280px;right:-90px;top:-120px;border-radius:50%;background:rgba(255,255,255,.08);filter:blur(2px)}.hero h2{margin:0 0 6px;font-size:23px}.hero p{color:#d7eaff;margin:0 0 16px;max-width:720px}.hero .btn{background:#fff;color:#0a66c2;border-color:#fff;position:relative;z-index:1}
 .quick{grid-template-columns:repeat(4,1fr)}.quick button{padding:16px;text-align:left;background:linear-gradient(145deg,rgba(20,38,61,.88),rgba(12,25,43,.9));color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);transition:.18s ease}.quick button:hover{border-color:rgba(72,168,255,.32);transform:translateY(-2px) rotateX(.4deg)}.quick b{display:block}.quick span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
 pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:#040a12;color:#cfe3f7;padding:15px;border:1px solid var(--line);border-radius:10px;margin:0;font-size:12px}
-.result-shell{margin-top:14px}.result-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.result-title{font-size:15px;font-weight:800}.result-meta{font-size:11px;color:var(--muted);margin-top:2px}.result-actions{display:flex;gap:7px;flex-wrap:wrap}.result-table{max-height:480px}.result-table .table th{position:sticky;top:0;background:#0c1b2d;z-index:1}.result-list{display:grid;gap:8px;max-height:480px;overflow:auto}.result-job{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:10px}.result-job-main{min-width:0}.result-job-title{font-size:13px;font-weight:800}.result-job-title a{color:#9ed8ff;text-decoration:none}.result-job-title a:hover{text-decoration:underline}.result-job-meta{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.result-job-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}.result-open{padding:7px 10px;white-space:nowrap}.score{display:inline-flex;min-width:38px;justify-content:center;padding:4px 7px;border-radius:8px;font-weight:850;font-size:11px;background:rgba(72,168,255,.12);color:#9ed8ff}.score.high{background:rgba(50,213,131,.11);color:#7af0b0}.score.mid{background:rgba(253,176,34,.11);color:#ffd27a}.score.low{background:rgba(249,112,102,.10);color:#ffaaa3}.run-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.run-chip{padding:10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--line)}.run-chip b{display:block;font-size:16px}.run-chip span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.section-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6f87a0;font-weight:800;margin-bottom:5px}.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#526a83;padding:16px 12px 5px;font-weight:800}.live-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(50,213,131,.08);border:1px solid rgba(50,213,131,.16);color:#7be9ae;font-size:10px;font-weight:800}.live-pill i{width:6px;height:6px;border-radius:50%;background:currentColor}.drawerbox{width:min(760px,96vw)}.table td{font-size:12px}.table th{white-space:nowrap}@media(max-width:650px){.result-head{flex-direction:column}.drawerbox{width:100%}}
+.result-shell{margin-top:14px}.result-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.result-title{font-size:16px;font-weight:850}.result-meta{font-size:11px;color:var(--muted);margin-top:3px}.result-cards{display:grid;gap:9px;max-height:520px;overflow:auto;padding-right:2px}.result-card{padding:14px;background:linear-gradient(145deg,rgba(20,38,61,.78),rgba(10,23,39,.86));border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12)}.result-card-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.result-card-main{min-width:0}.result-card-title{font-size:14px;font-weight:800}.result-card-title a{color:#9ed8ff;text-decoration:none}.result-card-title a:hover{text-decoration:underline}.result-card-meta{font-size:11px;color:var(--muted);margin-top:4px}.result-card-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}.result-open{padding:7px 10px;white-space:nowrap}.result-card-text{margin-top:10px;font-size:12px;color:#c9d8e8;line-height:1.55}.result-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px}.result-field{padding:9px 10px;border:1px solid rgba(154,181,211,.10);border-radius:8px;background:rgba(255,255,255,.025);min-width:0}.result-field span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#7189a2;margin-bottom:2px}.result-field b{font-size:11px;overflow-wrap:anywhere}.result-summary{margin-top:0;margin-bottom:12px}.result-message{padding:13px 14px;border-radius:10px;background:rgba(72,168,255,.07);border:1px solid rgba(72,168,255,.14);color:#cfe5f9;font-size:12px;line-height:1.55}.result-subhead{display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#9eb3c8}.result-subhead span{font-size:10px;color:#6f87a0}.score{display:inline-flex;min-width:38px;justify-content:center;padding:4px 7px;border-radius:8px;font-weight:850;font-size:11px;background:rgba(72,168,255,.12);color:#9ed8ff}.score.high{background:rgba(50,213,131,.11);color:#7af0b0}.score.mid{background:rgba(253,176,34,.11);color:#ffd27a}.score.low{background:rgba(249,112,102,.10);color:#ffaaa3}.run-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.run-chip{padding:10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--line)}.run-chip b{display:block;font-size:16px}.run-chip span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.section-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6f87a0;font-weight:800;margin-bottom:5px}.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#526a83;padding:16px 12px 5px;font-weight:800}.live-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(50,213,131,.08);border:1px solid rgba(50,213,131,.16);color:#7be9ae;font-size:10px;font-weight:800}.live-pill i{width:6px;height:6px;border-radius:50%;background:currentColor}.drawerbox{width:min(760px,96vw)}.table td{font-size:12px}.table th{white-space:nowrap}@media(max-width:650px){.result-head{flex-direction:column}.drawerbox{width:100%}}
 .tablewrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th{font-size:11px;text-transform:uppercase;color:#7890aa;letter-spacing:.04em;text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}.table td{padding:11px 8px;border-bottom:1px solid rgba(154,181,211,.09);vertical-align:top}.table tr:hover td{background:rgba(72,168,255,.035)}
 .badge{display:inline-flex;padding:3px 8px;border-radius:999px;background:rgba(72,168,255,.12);color:#8dccff;font-size:11px;font-weight:700;border:1px solid rgba(72,168,255,.12)}.badge.green{background:rgba(50,213,131,.1);color:#70e7aa}.badge.amber{background:rgba(253,176,34,.1);color:#ffd27a}.badge.red{background:rgba(249,112,102,.1);color:#ffaaa3}
 .muted{color:var(--muted)}.error{padding:12px;background:rgba(249,112,102,.08);border:1px solid rgba(249,112,102,.24);color:#ffaaa3;border-radius:9px}.empty{padding:30px;text-align:center;color:var(--muted)}
@@ -382,40 +382,67 @@ function scoreClass(v){
  const n=Number(v); return !Number.isFinite(n)?'':(n>=80?'high':n>=60?'mid':'low');
 }
 function prettyKey(k){return String(k||'').replaceAll('_',' ').replace(/\\b\\w/g,m=>m.toUpperCase())}
-function renderJobResults(result,data){
- const rows=(data||[]).filter(x=>x&&typeof x==='object');
- if(!rows.length)return '<div class="empty">No matching jobs found.</div>';
- return '<div class="result-shell"><div class="result-head"><div><div class="result-title">Relevant jobs</div><div class="result-meta">'+esc(result.count!=null?String(result.count)+' matches':'Showing '+rows.length+' matches')+'</div></div></div><div class="result-list">'+rows.slice(0,50).map(x=>{
-   const href=x.url||x.href||'';
-   const title=x.title||x.job_title||'LinkedIn job';
-   const company=x.company||'';
-   const location=x.location||'';
-   const posted=x.posted||'';
-   const easy=x.easy_apply===true||String(x.text||'').toLowerCase().includes('easy apply');
-   return '<div class="result-job"><div class="result-job-main"><div class="result-job-title">'+(href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+esc(title)+'</a>':'<b>'+esc(title)+'</b>')+'</div><div class="result-job-meta">'+esc(company)+(company&&location?' · ':'')+esc(location)+(posted?' · '+esc(posted):'')+'</div></div><div class="result-job-actions">'+(easy?'<span class="badge green">Easy Apply</span>':'')+(href?'<a class="btn primary result-open" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Open job ↗</a>':'')+'</div></div>';
- }).join('')+'</div></div>';
+function resultLabel(k){
+ return prettyKey(k).replace(/^(Url|Href)$/,'Link');
 }
-function renderLinkedResults(result,data){
- const rows=(data||[]).filter(x=>x&&typeof x==='object'&&(x.url||x.href));
- if(!rows.length)return null;
- return '<div class="result-shell"><div class="result-head"><div><div class="result-title">Relevant links</div><div class="result-meta">Direct links from the selected skill</div></div></div><div class="result-list">'+rows.slice(0,50).map(x=>{
-   const href=x.url||x.href;
-   const title=x.title||x.name||x.job_title||'Open result';
-   const meta=[x.company,x.location,x.posted].filter(Boolean).join(' · ');
-   return '<div class="result-job"><div class="result-job-main"><div class="result-job-title"><a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+esc(title)+'</a></div><div class="result-job-meta">'+esc(meta)+'</div></div><a class="btn primary result-open" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Open ↗</a></div>';
- }).join('')+'</div></div>';
+function resultValue(v){
+ if(v==null||v==='') return '';
+ if(typeof v==='boolean') return v?'Yes':'No';
+ if(Array.isArray(v)) return v.map(resultValue).filter(Boolean).join(', ');
+ if(typeof v==='object') return JSON.stringify(v);
+ return String(v);
+}
+function resultHref(x){
+ return x?.url||x?.href||x?.link||x?.job_url||x?.profile_url||x?.post_url||'';
+}
+function resultTitle(x){
+ return x?.title||x?.job_title||x?.name||x?.company||x?.full_name||x?.person||'Result';
+}
+function resultMeta(x){
+ return [x?.company,x?.location,x?.posted,x?.posted_hours!=null?(x.posted_hours+'h ago'):'',x?.workplace_type]
+   .filter(v=>v!==undefined&&v!==null&&String(v).trim()).map(String).filter((v,i,a)=>a.indexOf(v)===i).join(' · ');
+}
+function renderResultCards(rows){
+ return '<div class="result-cards">'+rows.map((x,i)=>{
+   const href=resultHref(x), title=resultTitle(x), meta=resultMeta(x);
+   const entries=Object.entries(x||{}).filter(([k,v])=>{
+     const lk=k.toLowerCase();
+     return v!==undefined&&v!==null&&v!==''&&!['url','href','link','job_url','profile_url','post_url','title','job_title','name','company','full_name','person','source','text'].includes(lk);
+   }).slice(0,6);
+   const text=x?.text||x?.description||x?.summary||'';
+   return '<article class="result-card"><div class="result-card-top"><div class="result-card-main"><div class="result-card-title">'+(href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+esc(title)+'</a>':'<b>'+esc(title)+'</b>')+'</div>'+(meta?'<div class="result-card-meta">'+esc(meta)+'</div>':'')+'</div><div class="result-card-actions">'+(x?.easy_apply===true||String(x?.text||'').toLowerCase().includes('easy apply')?'<span class="badge green">Easy Apply</span>':'')+(href?'<a class="btn primary result-open" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Open ↗</a>':'')+'</div></div>'+
+   (text?'<div class="result-card-text">'+esc(String(text).slice(0,500))+'</div>':'')+
+   (entries.length?'<div class="result-fields">'+entries.map(([k,v])=>'<div class="result-field"><span>'+esc(resultLabel(k))+'</span><b>'+esc(resultValue(v))+'</b></div>').join('')+'</div>':'')+
+   '</article>';
+ }).join('')+'</div>';
+}
+function renderObjectResult(result,data){
+ const entries=Object.entries(data||{}).filter(([k,v])=>v!==undefined&&v!==null&&v!=='');
+ const message=data?.message||data?.details||data?.status;
+ const arrays=entries.filter(([_,v])=>Array.isArray(v));
+ const scalars=entries.filter(([_,v])=>!Array.isArray(v)&&!['diagnostics','data'].includes(_));
+ let html='<div class="result-shell"><div class="result-head"><div><div class="result-title">Result</div><div class="result-meta">'+esc(result.skill?prettyKey(result.skill):'Completed successfully')+'</div></div></div>';
+ if(message) html+='<div class="result-message">'+esc(resultValue(message))+'</div>';
+ if(scalars.length){
+   html+='<div class="result-fields result-summary">'+scalars.slice(0,8).map(([k,v])=>'<div class="result-field"><span>'+esc(resultLabel(k))+'</span><b>'+esc(resultValue(v))+'</b></div>').join('')+'</div>';
+ }
+ arrays.forEach(([k,v])=>{
+   if(!v.length)return;
+   const objects=v.filter(x=>x&&typeof x==='object');
+   html+='<div class="result-subhead">'+esc(resultLabel(k))+' <span>'+esc(String(v.length))+'</span></div>';
+   html+=objects.length?renderResultCards(objects):'<div class="result-message">'+esc(resultValue(v))+'</div>';
+ });
+ return html+'</div>';
 }
 function renderResult(result){
  if(result==null)return '<div class="empty">No result returned.</div>';
  const data=result.data??result;
  if(Array.isArray(data)){
-   if(!data.length)return '<div class="empty">No matching records found.</div>';
-   if(result.skill==='jobs')return renderJobResults(result,data);
-   const linked=renderLinkedResults(result,data);
-   if(linked)return linked;
-   return '<div class="result-shell"><div class="result-head"><div><div class="result-title">Results</div><div class="result-meta">'+esc(result.count!=null?String(result.count)+' records':'Showing '+data.length+' records')+'</div></div></div><div class="result-list"><div class="result-job"><div class="result-job-main"><div class="result-job-title">Results available</div><div class="result-job-meta">Open the relevant section of the dashboard to review the structured records.</div></div></div></div></div>';
+   if(!data.length)return '<div class="empty">No matching results found.</div>';
+   return '<div class="result-shell"><div class="result-head"><div><div class="result-title">'+esc(result.skill==='jobs'?'Relevant jobs':'Results')+'</div><div class="result-meta">'+esc(result.count!=null?String(result.count)+' matches':'Showing '+data.length+' results')+'</div></div></div>'+renderResultCards(data.slice(0,50))+'</div>';
  }
- return '<div class="result-shell"><div class="result-head"><div><div class="result-title">Completed</div><div class="result-meta">The skill finished successfully.</div></div></div></div>';
+ if(typeof data==='object') return renderObjectResult(result,data);
+ return '<div class="result-shell"><div class="result-message">'+esc(String(data))+'</div></div>';
 }
 async function submitSkill(e){
  e.preventDefault(); const s=state.activeSkill;if(!s)return;
