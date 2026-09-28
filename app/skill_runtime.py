@@ -316,7 +316,11 @@ async def run_read_on_page(page, skill: str, **kwargs) -> RuntimeResult:
 
 
 async def run_read(skill: str, **kwargs) -> RuntimeResult:
-    """Open the persistent profile, verify auth, run one read skill, then close."""
+    """Open one persistent profile, verify auth, run one read skill, then close.
+
+    Callers that need multiple searches should prefer run_read_on_page() inside
+    one linkedin_browser() context so the persistent profile is opened once.
+    """
     async with linkedin_browser() as browser:
         page = browser.pages[0] if browser.pages else await browser.new_page()
         await ensure_authenticated(page)
