@@ -23,6 +23,7 @@ class Job:
     posted: str = ""
     posted_hours: float | None = None
     easy_apply: bool = False
+    workplace_type: str = ""
     text: str = ""
     source: str = "linkedin"
 
@@ -225,9 +226,11 @@ def _normalize_location_text(value: str) -> str:
 
 
 def _location_matches_requested(location: str, requested: str) -> bool:
-    """Match requested Indian cities only when the listing is explicitly in India."""
+    """Match requested Indian cities or the explicit Remote India workplace scope."""
     requested_token = _normalize_location_text(requested)
     actual = _normalize_location_text(location)
+    if requested_token == "remote india":
+        return "remote" in actual.split() and "india" in actual.split()
     if not requested_token:
         return True
     if not actual:
@@ -274,9 +277,17 @@ def _search_location_value(location: str) -> str:
 
 
 def _build_jobs_search_url(keywords: str, location: str = "", start: int = 0) -> str:
-    """Build a LinkedIn jobs URL with an explicit India scope for local searches."""
+    """Build a LinkedIn jobs URL with explicit workplace semantics.
+
+    "Remote India" is a workplace filter, not a city. Keep the geographic
+    scope at India and ask LinkedIn for remote roles with f_WT=2.
+    """
     params = [f"keywords={quote_plus(keywords)}"]
-    if location:
+    normalized = _normalize_location_text(location)
+    if normalized == "remote india":
+        params.append("location=India")
+        params.append("f_WT=2")
+    elif location:
         params.append(f"location={quote_plus(_search_location_value(location))}")
     if start:
         params.append(f"start={start}")
@@ -1165,6 +1176,15 @@ async def search(
         if key:
             seen.add(key)
 
+        workplace_type = ""
+        lower_text = text.lower()
+        if "remote" in lower_text or "remote" in _normalize_location_text(location_text):
+            workplace_type = "remote"
+        elif "hybrid" in lower_text:
+            workplace_type = "hybrid"
+        elif "on-site" in lower_text or "onsite" in lower_text:
+            workplace_type = "on-site"
+
         easy_apply = "easy apply" in text.lower()
         if not easy_apply:
             for selector in EASY_APPLY_SELECTORS:
@@ -1191,6 +1211,7 @@ async def search(
             posted=posted,
             posted_hours=posted_hours,
             easy_apply=easy_apply,
+            workplace_type=workplace_type,
             text=text,
             source="linkedin",
         ))
@@ -1279,6 +1300,7 @@ async def search(
         diagnostics["returned"] = len(result)
         diagnostics["returned_after_location"] = len(result)
         diagnostics["requested_location"] = location or ""
+        diagnostics["requested_workplace_type"] = "remote" if _normalize_location_text(location) == "remote india" else ""
         if len(result) == 0 and location:
             diagnostics["zero_result_reason"] = (
                 f"No qualifying {location} jobs found within the configured "
