@@ -115,7 +115,7 @@ DETAIL_TITLE_SELECTORS = (
     "h1",
 )
 
-MAX_DETAIL_HYDRATION = 8
+MAX_DETAIL_HYDRATION = 12
 
 _POSTED_RE = re.compile(
     r"(?i)\b(?:just now|\d+\+?\s+(?:minute|hour|day|week|month|year)s?\s+ago|"
@@ -1088,7 +1088,17 @@ async def search(
         ))
 
     hydrated = 0
-    for job in parsed:
+    # Prioritize records missing posting age. The 48-hour freshness filter is
+    # intentionally strict, so recovering a real detail-page posting date is
+    # more valuable than hydrating an already-dated record for another field.
+    hydration_candidates = sorted(
+        parsed,
+        key=lambda job: (
+            not (not job.posted or job.posted_hours is None),
+            not (job.title and job.company and job.posted and job.location),
+        ),
+    )
+    for job in hydration_candidates:
         if hydrated >= MAX_DETAIL_HYDRATION:
             break
         # Visit detail when any required field is missing (title/company/posted/location).
