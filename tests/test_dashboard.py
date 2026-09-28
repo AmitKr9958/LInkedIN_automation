@@ -68,6 +68,7 @@ def test_dashboard_jobs_intelligence_controls():
         "Score",
         "filterJobs",
         "jobScoreSort",
+        "normalizeFilterValue",
         "Score: High → Low",
         "Score: Low → High",
         "Score ↕",
