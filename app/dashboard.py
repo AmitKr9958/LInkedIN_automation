@@ -325,15 +325,20 @@ function jobRows(rows){
  }).join('') : '<tr><td colspan="7" class="empty">No jobs stored yet.</td></tr>')+
  '</tbody>';
 }
+function normalizeFilterValue(value){
+ return String(value??'').trim().toLowerCase().replace(/_/g,'-');
+}
 function filterJobs(){
  const q=(document.getElementById('jobSearch')?.value||'').toLowerCase().trim();
- const status=document.getElementById('jobStatusFilter')?.value||'';
- const workplace=document.getElementById('jobWorkplaceFilter')?.value||'';
+ const status=normalizeFilterValue(document.getElementById('jobStatusFilter')?.value||'');
+ const workplace=normalizeFilterValue(document.getElementById('jobWorkplaceFilter')?.value||'');
  const direction=document.getElementById('jobScoreSort')?.value||'desc';
- const rows=(state.summary?.jobs||[]).filter(x=>{
+ const allJobs=Array.isArray(state.summary?.jobs)?state.summary.jobs:[];
+ const rows=allJobs.filter(x=>{
    const hay=[x.title,x.company,x.location,x.reasons].join(' ').toLowerCase();
-   const wp=(x.workplace_type||((String(x.location||'').toLowerCase().includes('remote'))?'remote':'')).toLowerCase();
-   return (!q||hay.includes(q))&&(!status||x.status===status)&&(!workplace||wp===workplace);
+   const wp=normalizeFilterValue(x.workplace_type||((String(x.location||'').toLowerCase().includes('remote'))?'remote':''));
+   const jobStatus=normalizeFilterValue(x.status||'new');
+   return (!q||hay.includes(q))&&(!status||status==='all'||jobStatus===status)&&(!workplace||workplace==='all'||wp===workplace);
  }).sort((a,b)=>{
    const av=Number(a.score), bv=Number(b.score);
    const an=Number.isFinite(av)?av:-Infinity, bn=Number.isFinite(bv)?bv:-Infinity;
