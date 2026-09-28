@@ -108,7 +108,7 @@ def _summary() -> dict:
             out = []
             for r in rows:
                 location = str(r["location"] or "")
-                context = f"{location} {r["reasons"] or ""}".lower()
+                context = f"{location} {r['reasons'] or ''}".lower()
                 if "remote" in context:
                     workplace_type = "remote"
                 elif "hybrid" in context:
