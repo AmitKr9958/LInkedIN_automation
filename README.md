@@ -71,6 +71,9 @@ python -m app read saved
 python -m app read notifications
 python -m app dashboard
 
+# Windows one-click dashboard
+scripts\start-dashboard.cmd
+
 python -m app applications add "<job-url>" "Power BI Developer" "Company"
 python -m app applications transition "<job-url>" shortlisted
 python -m app applications transition "<job-url>" applied
@@ -199,7 +202,8 @@ The remaining engineering layers are release hardening rather than unrestricted 
 
 - improve resilient selectors as LinkedIn UI changes
 - harden resilient selectors and fixture coverage as LinkedIn UI changes
-- [x] local dashboard for jobs, applications and approvals
+- [x] local dashboard for read-only skills, jobs, applications and approvals
+- [x] one-click Windows dashboard launcher
 - [x] Windows scheduled **read-only** discovery workflow
 - add optional user-confirmed browser handoff for individual actions
 
