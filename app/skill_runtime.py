@@ -257,6 +257,22 @@ async def run_read_on_page(page, skill: str, **kwargs) -> RuntimeResult:
             diagnostics=diagnostics,
             include_unknown_age=bool(kwargs.get("include_unknown_age", False)),
         )
+        if not data and diagnostics is not None:
+            loc = kwargs.get("location") or diagnostics.get("requested_location") or ""
+            diagnostics.setdefault(
+                "zero_result_reason",
+                (
+                    f"No qualifying {loc} jobs found within the configured "
+                    f"{window}-hour freshness window "
+                    "(unknown posting ages remain excluded by default)."
+                    if loc
+                    else (
+                        f"No qualifying jobs found within the configured "
+                        f"{window}-hour freshness window "
+                        "(unknown posting ages remain excluded by default)."
+                    )
+                ),
+            )
         return RuntimeResult(skill, data, diagnostics)
     elif skill == "people":
         data = await people.search(

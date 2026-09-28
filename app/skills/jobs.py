@@ -718,7 +718,7 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
     except Exception:
         return fields
     try:
-        await page.wait_for_timeout(1200)
+        await page.wait_for_timeout(450)
     except Exception:
         pass
 
@@ -745,8 +745,7 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
 
     posted_hours = None
     posted = ""
-    # Prefer the semantic datetime node before broad top-card text. The latter
-    # may contain multiple relative-time strings from related UI.
+    # Prefer semantic datetime, then top-card text, then JSON-LD, then body text.
     try:
         node = page.locator("time[datetime]").first
         if await node.count():
@@ -758,37 +757,43 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
         pass
     if not posted:
         posted = _normalize_posted(await _text(page, DETAIL_POSTED_SELECTORS))
-    main_text = await _main_text(page)
-    if not posted:
-        posted = _normalize_posted(main_text)
     if posted and posted_hours is None:
         posted_hours = _hours_from_posted(posted)
 
     location = _location_from_detail_text(await _text(page, DETAIL_LOCATION_SELECTORS), title)
-    if not location:
-        # The live 2026 SDUI often exposes the location only in the rendered
-        # main/body text rather than a dedicated top-card selector. This also
-        # keeps the test double contract aligned with the live fallback.
-        location = _location_from_detail_text(main_text, title)
-    if not location:
-        try:
-            body_text = " ".join((await page.inner_text("body")).split())
-        except Exception:
-            body_text = ""
-        if body_text and body_text != main_text:
-            location = _location_from_detail_text(body_text, title)
+
+    # JSON-LD is cheaper and more reliable than full main-text scans when present.
+    structured = _jsonld_job_fields(await _jsonld_texts(page))
+    if not posted and structured.get("posted"):
+        posted = structured["posted"]
+        posted_hours = structured.get("posted_hours")
+    if not location and structured.get("location"):
+        location = structured["location"]
+    if not company and structured.get("company"):
+        company = structured["company"]
+    if not detail_title and structured.get("title"):
+        detail_title = _clean_title(structured["title"])
+        fields["title"] = detail_title
+
+    # Fall back to rendered main/body text only when still missing fields.
+    main_text = ""
+    if not posted or not location:
+        main_text = await _main_text(page)
+        if not posted:
+            posted = _normalize_posted(main_text)
+            if posted and posted_hours is None:
+                posted_hours = _hours_from_posted(posted)
+        if not location:
+            location = _location_from_detail_text(main_text, title)
+        if not location:
+            try:
+                body_text = " ".join((await page.inner_text("body")).split())
+            except Exception:
+                body_text = ""
+            if body_text and body_text != main_text:
+                location = _location_from_detail_text(body_text, title)
 
     fields.update(company=company, posted=posted, posted_hours=posted_hours, location=location)
-    structured = _jsonld_job_fields(await _jsonld_texts(page))
-    if not fields["title"] and structured.get("title"):
-        fields["title"] = _clean_title(structured["title"])
-    if not fields["company"] and structured["company"]:
-        fields["company"] = structured["company"]
-    if not fields["posted"] and structured["posted"]:
-        fields["posted"] = structured["posted"]
-        fields["posted_hours"] = structured["posted_hours"]
-    if not fields["location"] and structured["location"]:
-        fields["location"] = structured["location"]
     return fields
 
 
@@ -875,7 +880,7 @@ async def _scroll_complete_results_page(page, max_passes: int = 40, stable_passe
         stable = stable + 1 if signature == previous and signature[-1] else 0
         previous = signature
         try:
-            await page.wait_for_timeout(700)
+            await page.wait_for_timeout(450)
         except Exception:
             pass
         if stable >= stable_passes_required:
@@ -897,11 +902,11 @@ async def _hydrate(page, cards) -> None:
     for index in range(0, total, 5):
         try:
             await cards.nth(index).scroll_into_view_if_needed(timeout=2000)
-            await page.wait_for_timeout(150)
+            await page.wait_for_timeout(80)
         except Exception:
             continue
     try:
-        await page.wait_for_timeout(400)
+        await page.wait_for_timeout(200)
     except Exception:
         pass
 
@@ -1106,8 +1111,21 @@ async def search(
     for job in hydration_candidates:
         if hydrated >= MAX_DETAIL_HYDRATION:
             break
-        # Visit detail when any required field is missing (title/company/posted/location).
-        needs_detail = not (job.title and job.company and job.posted and job.location)
+        # Skip detail visits for cards whose visible location already fails the
+        # requested-location rule — those records cannot qualify after hydration.
+        if (
+            location
+            and job.location
+            and not _location_matches_requested(job.location, location)
+        ):
+            _bump(diagnostics, "detail_skipped_location")
+            continue
+        # Prefer recovering unknown posting age; also fill missing title/company/location.
+        needs_detail = (
+            job.posted_hours is None
+            or not job.posted
+            or not (job.title and job.company and job.location)
+        )
         if not needs_detail or not job.href:
             continue
         card_title = bool(job.title)
@@ -1165,6 +1183,19 @@ async def search(
         ]
         diagnostics["returned"] = len(result)
         diagnostics["returned_after_location"] = len(result)
+        diagnostics["requested_location"] = location or ""
+        if len(result) == 0 and location:
+            diagnostics["zero_result_reason"] = (
+                f"No qualifying {location} jobs found within the configured "
+                "freshness window after location/title filters "
+                "(unknown posting ages remain excluded by default)."
+            )
+        elif len(result) == 0:
+            diagnostics["zero_result_reason"] = (
+                "No qualifying jobs found after location/title filters "
+                "(unknown posting ages remain excluded by default)."
+            )
+
         diagnostics["final_returned"] = len(result)
         diagnostics["cards_parsed"] = diagnostics.get("cards_parsed", 0)
         diagnostics["duplicate_count"] = diagnostics.get("duplicate_count", 0)

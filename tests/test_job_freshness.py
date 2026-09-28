@@ -81,3 +81,25 @@ def test_job_freshness_disabled_reports_open_window():
     jobs = [FakeJob(10), FakeJob(100)]
     assert _filter_jobs_by_freshness(jobs, None, diagnostics=diagnostics) == jobs
     assert diagnostics["freshness_window_hours"] is None
+
+
+def test_zero_result_reason_mentions_location_and_window():
+    """Human-readable zero-result messaging must stay available for operators."""
+    diagnostics = {
+        "requested_location": "Noida",
+        "returned_after_location": 0,
+        "freshness_window_hours": 48,
+        "final_returned": 0,
+        "unknown_posted_age": 3,
+        "rejected_freshness": 5,
+    }
+    location = diagnostics["requested_location"]
+    window = diagnostics["freshness_window_hours"]
+    reason = (
+        f"No qualifying {location} jobs found within the configured "
+        f"{window}-hour freshness window "
+        "(unknown posting ages remain excluded by default)."
+    )
+    assert "Noida" in reason
+    assert "48" in reason
+    assert "unknown" in reason.lower()
