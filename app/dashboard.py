@@ -107,6 +107,16 @@ def _summary() -> dict:
             ).fetchall()
             out = []
             for r in rows:
+                location = str(r["location"] or "")
+                context = f"{location} {r["reasons"] or ""}".lower()
+                if "remote" in context:
+                    workplace_type = "remote"
+                elif "hybrid" in context:
+                    workplace_type = "hybrid"
+                elif "on-site" in context or "onsite" in context:
+                    workplace_type = "on-site"
+                else:
+                    workplace_type = ""
                 out.append(
                     {
                         "title": r["title"],
@@ -116,7 +126,7 @@ def _summary() -> dict:
                         "score": r["score"],
                         "reasons": r["reasons"],
                         "status": r["status"],
-                        "workplace_type": "",
+                        "workplace_type": workplace_type,
                         "updated_at": r["first_seen"],
                     }
                 )
