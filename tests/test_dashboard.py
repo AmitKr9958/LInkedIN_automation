@@ -19,6 +19,9 @@ def test_dashboard_has_control_center_sections():
         "result-shell",
         "run-summary",
         "live-pill",
+        "Relevant jobs",
+        "Open job ↗",
+        "result-list",
     ]:
         assert marker in _HTML
 
