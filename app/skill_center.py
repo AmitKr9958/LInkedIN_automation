@@ -10,7 +10,8 @@ from .content_skills import (
     profile_audit, repurpose, write_post,
 )
 from .skill_registry import list_skills
-from .skill_runtime import run_read
+from .browser import linkedin_browser
+from .skill_runtime import ensure_authenticated, run_read, run_read_on_page
 from .workflows import login_check
 
 READ_SKILLS = {"auth", "profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
@@ -69,17 +70,35 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             if not locations:
                 locations = ["Gurgaon/Gurugram"]
             results = []
-            diagnostics = {"requested_locations": locations, "location_runs": {}}
-            for location in locations:
-                kwargs = {"query": query, "keywords": query, "location": location}
-                if name == "jobs" and str(inputs.get("max_posted_hours","")).strip():
-                    try:
-                        kwargs["max_posted_hours"] = float(inputs["max_posted_hours"])
-                    except ValueError:
-                        raise ValueError("Posted within hours must be a number")
-                result = await run_read(name, **kwargs)
-                diagnostics["location_runs"][location] = result.diagnostics or {}
-                results.extend(result.data or [])
+            diagnostics = {
+                "requested_locations": locations,
+                "location_runs": {},
+                "session_reused": True,
+            }
+
+            # Reuse one authenticated persistent browser session for all
+            # requested locations. The previous implementation opened and
+            # closed Playwright for every location, multiplying startup and
+            # authentication overhead and increasing profile-lock risk.
+            async with linkedin_browser() as browser:
+                page = browser.pages[0] if browser.pages else await browser.new_page()
+                auth_state = await ensure_authenticated(page)
+                diagnostics["authentication"] = {
+                    "authenticated": bool(auth_state.get("authenticated")),
+                    "confidence": auth_state.get("confidence"),
+                }
+
+                for location in locations:
+                    kwargs = {"query": query, "keywords": query, "location": location}
+                    if name == "jobs" and str(inputs.get("max_posted_hours","")).strip():
+                        try:
+                            kwargs["max_posted_hours"] = float(inputs["max_posted_hours"])
+                        except ValueError:
+                            raise ValueError("Posted within hours must be a number")
+                    result = await run_read_on_page(page, name, **kwargs)
+                    diagnostics["location_runs"][location] = result.diagnostics or {}
+                    results.extend(result.data or [])
+
             # De-duplicate by the stable URL when available.
             seen = set()
             data = []
