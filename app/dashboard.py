@@ -262,7 +262,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
   </div>
 </section>
 
-<section id="jobs" class="view"><div class="card"><div class="cardhead"><div><h2>Job Intelligence</h2><p>Stored discovery history and application signals.</p></div><button class="btn primary" onclick="openSkill('jobs')">Search LinkedIn jobs</button></div><div class="toolbar"><input class="search" id="jobSearch" placeholder="Search role, company, location…"><select id="jobStatusFilter"><option value="">All statuses</option><option value="new">New</option><option value="shortlisted">Shortlisted</option><option value="drafted">Drafted</option><option value="applied">Applied</option><option value="screening">Screening</option><option value="interview">Interview</option><option value="offer">Offer</option><option value="rejected">Rejected</option><option value="withdrawn">Withdrawn</option><option value="closed">Closed</option></select><select id="jobWorkplaceFilter"><option value="">All workplace types</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="on-site">On-site</option></select></div><div class="tablewrap"><table class="table" id="jobsTable"></table></div></div></section>
+<section id="jobs" class="view"><div class="card"><div class="cardhead"><div><h2>Job Intelligence</h2><p>Stored discovery history and application signals.</p></div><button class="btn primary" onclick="openSkill('jobs')">Search LinkedIn jobs</button></div><div class="toolbar"><input class="search" id="jobSearch" placeholder="Search role, company, location…"><select id="jobStatusFilter"><option value="">All statuses</option><option value="new">New</option><option value="shortlisted">Shortlisted</option><option value="drafted">Drafted</option><option value="applied">Applied</option><option value="screening">Screening</option><option value="interview">Interview</option><option value="offer">Offer</option><option value="rejected">Rejected</option><option value="withdrawn">Withdrawn</option><option value="closed">Closed</option></select><select id="jobWorkplaceFilter"><option value="">All workplace types</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="on-site">On-site</option></select><select id="jobScoreSort" title="Sort jobs by score"><option value="desc">Score: High → Low</option><option value="asc">Score: Low → High</option></select></div><div class="tablewrap"><table class="table" id="jobsTable"></table></div></div></section>
 <section id="applications" class="view">
 <div class="card"><div class="cardhead"><div><h2>Application Pipeline</h2><p>Local application tracking with governed status transitions.</p></div></div>
 <div class="tablewrap"><table class="table" id="appsTable"></table></div></div>
@@ -315,12 +315,13 @@ function renderMetrics(d){
 }
 function jobRows(rows){
  const list=rows||[];
- return '<thead><tr><th>Role</th><th>Company</th><th>Location</th><th>Workplace</th><th>Score</th><th>Status</th><th>Seen</th></tr></thead><tbody>'+
+ return '<thead><tr><th>Role</th><th>Company</th><th>Location</th><th>Workplace</th><th>Score ↕</th><th>Status</th><th>Seen</th></tr></thead><tbody>'+
  (list.length ? list.map(x=>{
    const link=x.url?'<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer" style="color:#8dccff;text-decoration:none">'+esc(x.title)+'</a>':'<b>'+esc(x.title)+'</b>';
    const wp=x.workplace_type||((String(x.location||'').toLowerCase().includes('remote'))?'remote':'');
    const reason=String(x.reasons||'').slice(0,180);
-   return '<tr><td><b>'+link+'</b>'+(reason?'<div class="muted" style="font-size:11px;margin-top:3px">'+esc(reason)+'</div>':'')+'</td><td>'+esc(x.company)+'</td><td>'+esc(x.location)+'</td><td>'+(wp?'<span class="badge green">'+esc(wp)+'</span>':'<span class="muted">—</span>')+'</td><td>'+esc(x.score??'—')+'</td><td><span class="badge">'+esc(x.status||'new')+'</span></td><td>'+esc(x.updated_at)+'</td></tr>';
+   const score=Number.isFinite(Number(x.score))?Number(x.score):'—';
+   return '<tr><td><b>'+link+'</b>'+(reason?'<div class="muted" style="font-size:11px;margin-top:3px">'+esc(reason)+'</div>':'')+'</td><td>'+esc(x.company)+'</td><td>'+esc(x.location)+'</td><td>'+(wp?'<span class="badge green">'+esc(wp)+'</span>':'<span class="muted">—</span>')+'</td><td><span class="score '+scoreClass(score)+'">'+esc(score)+'</span></td><td><span class="badge">'+esc(x.status||'new')+'</span></td><td>'+esc(x.updated_at)+'</td></tr>';
  }).join('') : '<tr><td colspan="7" class="empty">No jobs stored yet.</td></tr>')+
  '</tbody>';
 }
@@ -328,10 +329,15 @@ function filterJobs(){
  const q=(document.getElementById('jobSearch')?.value||'').toLowerCase().trim();
  const status=document.getElementById('jobStatusFilter')?.value||'';
  const workplace=document.getElementById('jobWorkplaceFilter')?.value||'';
+ const direction=document.getElementById('jobScoreSort')?.value||'desc';
  const rows=(state.summary?.jobs||[]).filter(x=>{
    const hay=[x.title,x.company,x.location,x.reasons].join(' ').toLowerCase();
    const wp=(x.workplace_type||((String(x.location||'').toLowerCase().includes('remote'))?'remote':'')).toLowerCase();
    return (!q||hay.includes(q))&&(!status||x.status===status)&&(!workplace||wp===workplace);
+ }).sort((a,b)=>{
+   const av=Number(a.score), bv=Number(b.score);
+   const an=Number.isFinite(av)?av:-Infinity, bn=Number.isFinite(bv)?bv:-Infinity;
+   return direction==='asc' ? an-bn : bn-an;
  });
  document.getElementById('jobsTable').innerHTML=jobRows(rows);
 }
@@ -366,7 +372,7 @@ function renderSkills(){
  const list=state.skills.filter(s=>(!mode||s.mode===mode)&&((s.name+' '+s.description).toLowerCase().includes(q)));
  document.getElementById('skillGrid').innerHTML=list.map(s=>'<div class="skill"><div class="skilltop"><div><h3>'+esc(s.name.replaceAll('_',' '))+'</h3><p>'+esc(s.description)+'</p></div><span class="badge '+(s.mode==='approval'?'amber':s.mode==='read'?'green':'')+'">'+esc(s.mode)+'</span></div><button class="btn primary" onclick="openSkill(\''+esc(s.name)+'\')">Open skill</button></div>').join('')||'<div class="empty">No matching skills.</div>';
 }
-document.getElementById('skillSearch').oninput=renderSkills;document.getElementById('modeFilter').onchange=renderSkills;document.getElementById('jobSearch').oninput=filterJobs;document.getElementById('jobStatusFilter').onchange=filterJobs;document.getElementById('jobWorkplaceFilter').onchange=filterJobs;
+document.getElementById('skillSearch').oninput=renderSkills;document.getElementById('modeFilter').onchange=renderSkills;document.getElementById('jobSearch').oninput=filterJobs;document.getElementById('jobStatusFilter').onchange=filterJobs;document.getElementById('jobWorkplaceFilter').onchange=filterJobs;document.getElementById('jobScoreSort').onchange=filterJobs;
 
 function openSkill(name){
  const s=state.skills.find(x=>x.name===name); if(!s)return;
