@@ -133,10 +133,35 @@ async def _sdui_search(page) -> list[Person]:
     return dedupe_by(out, lambda person: person.href or person.name)
 
 
+_LOCATION_ALIASES = {
+    "gurgaon": {"gurgaon", "gurugram", "gurugram, haryana", "gurgaon, haryana", "gurgaon, india", "gurugram, india"},
+    "gurugram": {"gurgaon", "gurugram", "gurugram, haryana", "gurgaon, haryana", "gurgaon, india", "gurugram, india"},
+    "delhi": {"delhi", "new delhi", "delhi, india", "new delhi, india", "national capital territory of delhi"},
+    "noida": {"noida", "noida, uttar pradesh", "noida, india"},
+}
+
+def _location_matches(person_location: str, requested: str) -> bool:
+    requested = clean_text(requested).lower().strip()
+    actual = clean_text(person_location).lower().strip()
+    if not requested:
+        return True
+    aliases = _LOCATION_ALIASES.get(requested, {requested})
+    return any(alias in actual for alias in aliases)
+
+
+def _filter_by_location(people: list[Person], requested: str) -> list[Person]:
+    if not requested:
+        return people
+    return [person for person in people if _location_matches(person.location, requested)]
+
+
 async def search(page, query: str, location: str = "") -> list[Person]:
-    params = f"keywords={quote_plus(query)}&origin=GLOBAL_SEARCH_HEADER"
-    if location:
-        params += f"&geoUrn={quote_plus(location)}"
+    # LinkedIn expects a numeric geo URN here, not a city name such as
+    # "Gurgaon". Sending the city string as geoUrn silently produces broad
+    # results. Use the search keywords for discovery, then enforce the
+    # requested city against the parsed card location.
+    search_query = f"{query} {location}".strip() if location else query
+    params = f"keywords={quote_plus(search_query)}&origin=GLOBAL_SEARCH_HEADER"
     await page.goto(
         f"{settings.linkedin_base_url}/search/results/people/?{params}",
         wait_until="domcontentloaded",
@@ -177,8 +202,10 @@ async def search(page, query: str, location: str = "") -> list[Person]:
             )
         )
     out = dedupe_by(out, lambda person: person.href or person.name)
+    out = _filter_by_location(out, location)
     if not out:
         # Transient server-rendered shells can match legacy selectors before
         # SDUI hydration replaces them; fall back to the SDUI snapshot.
-        return await _sdui_search(page)
+        sdui_people = await _sdui_search(page)
+        return _filter_by_location(sdui_people, location)
     return out
