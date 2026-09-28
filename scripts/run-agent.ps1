@@ -22,22 +22,39 @@ if (Test-Path ".venv\Scripts\python.exe") {
 $env:HEADLESS = "true"
 $env:DRY_RUN = "true"
 $env:LINKEDIN_AGENT_ENABLED = "true"
-# Ensure Python stdout/stderr are not fully buffered so partial progress appears
-# in the log even if the process is killed by the Task Scheduler timeout.
 $env:PYTHONUNBUFFERED = "1"
+$env:PYTHONIOENCODING = "utf-8"
 
 $Start = Get-Date
-"[$Start] agent cycle start (max-posted-hours=48, HEADLESS=true, DRY_RUN=true)" |
-    Tee-Object -FilePath $LogFile -Append | Out-Null
 
-& $python -m app agent --max-posted-hours 48 2>&1 |
-    Tee-Object -FilePath $LogFile -Append | Out-Null
-$Code = $LASTEXITCODE
-if ($null -eq $Code) { $Code = 1 }
+function Write-AgentLog {
+    param([string]$Message)
+    $Message | Tee-Object -FilePath $LogFile -Append | Out-Null
+}
+
+Write-AgentLog "[$Start] agent cycle start (max-posted-hours=48, HEADLESS=true, DRY_RUN=true)"
+Write-AgentLog "[runner] root=$(Get-Location)"
+Write-AgentLog "[runner] python=$python"
+
+if (-not (Test-Path $python)) {
+    Write-AgentLog "[runner] ERROR: Python executable not found: $python"
+    exit 1
+}
+
+try {
+    # Use native redirection instead of a PowerShell pipeline so stdout/stderr
+    # from the Python process are written reliably under Task Scheduler.
+    & $python -m app agent --max-posted-hours 48 *>> $LogFile
+    $Code = $LASTEXITCODE
+    if ($null -eq $Code) { $Code = 1 }
+}
+catch {
+    $Code = 1
+    Write-AgentLog "[runner] ERROR: $($_.Exception.Message)"
+}
 
 $End = Get-Date
 $Duration = [math]::Round(($End - $Start).TotalSeconds, 1)
-"[$End] agent cycle end exit=$Code duration=${Duration}s" |
-    Tee-Object -FilePath $LogFile -Append | Out-Null
+Write-AgentLog "[$End] agent cycle end exit=$Code duration=${Duration}s"
 
 if ($Code -ne 0) { exit $Code }
