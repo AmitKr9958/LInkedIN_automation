@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from .config import ROOT
 from .run_status import read_run_status
+from .skill_center import skill_catalog, run_skill
 
 _HTML = """<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -215,6 +216,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, _summary())
             except Exception as exc:
                 self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
+        elif path == "/api/skills":
+            self._send(200, {"skills": skill_catalog()})
+        elif path == "/api/system":
+            self._send(200, {"service":"linkedin-agent-dashboard","host":"127.0.0.1","port":self.server.server_address[1],"skills":len(skill_catalog())})
         else:
             self._send(404, {"error": "not found"})
 
@@ -222,47 +227,34 @@ class _Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/skill":
             try:
-                length = int(self.headers.get("Content-Length", "0"))
+                length = int(self.headers.get("Content-Length","0"))
                 body = json.loads(self.rfile.read(length) or b"{}")
-                skill = str(body.get("skill", "")).strip()
-                allowed = {"profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
-                if skill not in allowed:
-                    self._send(400, {"error": "unsupported read-only skill"})
-                    return
-                from .skill_runtime import run_read
-                query = str(body.get("query", "")).strip()
-                location = str(body.get("location", "")).strip()
-                data = asyncio.run(run_read(skill, keywords=query, location=location, query=query))
-                payload = data.data
-                if hasattr(payload, "to_dict"):
-                    payload = payload.to_dict()
-                elif isinstance(payload, list):
-                    payload = [x.to_dict() if hasattr(x, "to_dict") else x for x in payload]
-                self._send(200, {"skill": skill, "result": payload, "diagnostics": getattr(data, "diagnostics", {}) or {}})
+                name = str(body.get("skill","")).strip()
+                inputs = body.get("inputs") or {}
+                result = asyncio.run(run_skill(name, inputs))
+                self._send(200, result)
             except Exception as exc:
                 self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
         if path == "/api/agent":
             try:
                 from .daily_agent import run_agent_once
-
                 self._send(200, asyncio.run(run_agent_once()).to_dict())
             except Exception as exc:
                 self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
         if path.startswith("/api/approvals/"):
-            item_id = path.rsplit("/", 1)[-1]
+            item_id = path.rsplit("/",1)[-1]
             try:
-                length = int(self.headers.get("Content-Length", "0"))
+                length = int(self.headers.get("Content-Length","0"))
                 body = json.loads(self.rfile.read(length) or b"{}")
                 from .approval_queue import ApprovalQueue
-
-                changed = ApprovalQueue().decide(item_id, bool(body.get("approved", False)))
-                self._send(200 if changed else 404, {"changed": changed})
+                changed = ApprovalQueue().decide(item_id, bool(body.get("approved",False)))
+                self._send(200 if changed else 404, {"changed":changed})
             except Exception as exc:
-                self._send(400, {"error": str(exc)})
+                self._send(400, {"error":str(exc)})
             return
-        self._send(404, {"error": "not found"})
+        self._send(404, {"error":"not found"})
 
     def log_message(self, fmt, *args):
         return
