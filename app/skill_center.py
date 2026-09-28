@@ -19,8 +19,8 @@ APPROVAL_SKILLS = {"connections", "messaging", "engagement", "followups", "outre
 def skill_catalog() -> list[dict[str, Any]]:
     fields = {
         "auth": [], "profile": [],
-        "jobs": [{"name":"query","label":"Job query","default":"Power BI"},{"name":"location","label":"Location","default":"Gurgaon"},{"name":"max_posted_hours","label":"Posted within hours","type":"number","default":48}],
-        "people": [{"name":"query","label":"Search","default":"Power BI recruiter"},{"name":"location","label":"Location","default":"Gurgaon"}],
+        "jobs": [{"name":"query","label":"Job query","default":"Power BI"},{"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, Remote India"},{"name":"max_posted_hours","label":"Posted within hours","type":"number","default":48}],
+        "people": [{"name":"query","label":"Search","default":"Power BI recruiter"},{"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, India"}],
         "companies": [{"name":"query","label":"Company search","default":"data analytics"}],
         "posts": [{"name":"query","label":"Post search","default":"Power BI"}],
         "saved": [], "notifications": [],
@@ -62,16 +62,36 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
         return {"skill":name,"mode":"read","status":result.status,"action":result.action,"details":result.details}
 
     if name in READ_SKILLS:
-        kwargs = {}
         if name in {"jobs","people"}:
             query = str(inputs.get("query","Power BI"))
-            kwargs.update(query=query, keywords=query, location=str(inputs.get("location","Gurgaon")))
-            if name == "jobs" and str(inputs.get("max_posted_hours","")).strip():
-                try:
-                    kwargs["max_posted_hours"] = float(inputs["max_posted_hours"])
-                except ValueError:
-                    raise ValueError("Posted within hours must be a number")
-        elif name in {"companies","posts"}:
+            raw_locations = str(inputs.get("location","")).strip()
+            locations = [x.strip() for x in raw_locations.replace(";", ",").split(",") if x.strip()]
+            if not locations:
+                locations = ["Gurgaon/Gurugram"]
+            results = []
+            diagnostics = {"requested_locations": locations, "location_runs": {}}
+            for location in locations:
+                kwargs = {"query": query, "keywords": query, "location": location}
+                if name == "jobs" and str(inputs.get("max_posted_hours","")).strip():
+                    try:
+                        kwargs["max_posted_hours"] = float(inputs["max_posted_hours"])
+                    except ValueError:
+                        raise ValueError("Posted within hours must be a number")
+                result = await run_read(name, **kwargs)
+                diagnostics["location_runs"][location] = result.diagnostics or {}
+                results.extend(result.data or [])
+            # De-duplicate by the stable URL when available.
+            seen = set()
+            data = []
+            for item in results:
+                key = getattr(item, "href", "") or getattr(item, "url", "") or repr(item)
+                if key in seen:
+                    continue
+                seen.add(key)
+                data.append(item)
+            return {"skill":name,"mode":"read","data":data,"diagnostics":diagnostics}
+        kwargs = {}
+        if name in {"companies","posts"}:
             kwargs["query"] = str(inputs.get("query","data analytics" if name=="companies" else "Power BI"))
         result = await run_read(name, **kwargs)
         data = result.data
