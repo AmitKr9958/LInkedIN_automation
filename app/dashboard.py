@@ -223,7 +223,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
   <div class="grid metrics" id="metrics"></div>
   <div class="hero"><h2>Your LinkedIn workspace is ready</h2><p>Use Skill Center for individual workflows or Run Agent for the complete read-only job and hiring discovery cycle. Long-running LinkedIn tasks run in the background so the UI stays responsive.</p><button class="btn" onclick="showView('skills')">Open Skill Center →</button></div>
   <div class="grid quick">
-    <button onclick="openSkill('jobs')"><b>Find Power BI jobs</b><span>LinkedIn · Delhi / Gurgaon / Noida</span></button>
+    <button onclick="openSkill('jobs')"><b>Find Power BI jobs</b><span>LinkedIn · Delhi / Gurgaon / Noida / Remote India</span></button>
     <button onclick="openSkill('people')"><b>Find recruiters</b><span>People research · read-only</span></button>
     <button onclick="openSkill('posts')"><b>Find hiring posts</b><span>Content search · read-only</span></button>
     <button onclick="openSkill('post_writer')"><b>Write a LinkedIn post</b><span>Local drafting · approval before publish</span></button>
