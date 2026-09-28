@@ -27,7 +27,7 @@ No autonomous account-changing activity is performed by the scheduler.
 ## 2. Host requirements
 
 | Requirement | Notes |
-|-------------|--------|
+|-------------|-------|
 | OS | Windows 10/11 or Windows Server with Task Scheduler |
 | Power | Machine must stay powered on (or use a VM that does) |
 | Logon | Interactive user session recommended if the persistent Chromium profile requires it |
@@ -68,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File scripts\scheduler-status.ps1
 ```
 
 Configured behavior:
-- Hourly repetition
+- 2-hour repetition (recommended post-restriction cadence)
 - `StartWhenAvailable`
 - Hidden (wscript → VBS → PowerShell `-WindowStyle Hidden`)
 - `MultipleInstances = IgnoreNew` (plus in-process `data/agent.lock`)
