@@ -22,6 +22,13 @@ def test_scheduler_is_hidden_and_single_instance():
     assert "-RepetitionInterval (New-TimeSpan -Hours 2)" in text
 
 
+def test_scheduler_installer_is_disabled_by_default():
+    text = (ROOT / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
+    assert "[switch]$Enable" in text
+    assert "Disable-ScheduledTask -TaskName $TaskName" in text
+    assert "if ($Enable)" in text
+
+
 def test_scheduler_uses_48_hour_agent_window():
     text = (ROOT / "scripts" / "run-agent.ps1").read_text(encoding="utf-8")
     assert "--max-posted-hours 48" in text
@@ -53,6 +60,7 @@ def test_scheduler_status_exposes_diagnostics():
     assert "StartWhenAvailable" in text
     assert "Execute:" in text
 
+
 def test_scheduler_explicitly_enables_agent_gate():
     text = (ROOT / "scripts" / "run-agent.ps1").read_text(encoding="utf-8")
     assert '$env:LINKEDIN_AGENT_ENABLED = "true"' in text
@@ -61,6 +69,7 @@ def test_scheduler_explicitly_enables_agent_gate():
 def test_agent_gate_defaults_closed():
     text = (ROOT / "app" / "config.py").read_text(encoding="utf-8")
     assert "agent_enabled" in text and "False" in text and "LINKEDIN_AGENT_ENABLED" in text
+
 
 def test_job_detail_hydration_is_conservative():
     text = (ROOT / "app" / "skills" / "jobs.py").read_text(encoding="utf-8")
