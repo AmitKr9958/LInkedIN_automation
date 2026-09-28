@@ -138,6 +138,11 @@ _LOCATION_ALIASES = {
     "gurugram": {"gurgaon", "gurugram", "gurugram, haryana", "gurgaon, haryana", "gurgaon, india", "gurugram, india"},
     "delhi": {"delhi", "new delhi", "delhi, india", "new delhi, india", "national capital territory of delhi"},
     "noida": {"noida", "noida, uttar pradesh", "noida, india"},
+    "india": {"india", "india region", "india, india"},
+    "gurgaon/gurugram": {
+        "gurgaon", "gurugram", "gurugram, haryana",
+        "gurgaon, haryana", "gurgaon, india", "gurugram, india",
+    },
 }
 
 def _location_matches(person_location: str, requested: str) -> bool:
