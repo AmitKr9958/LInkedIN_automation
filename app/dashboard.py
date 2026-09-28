@@ -26,10 +26,21 @@ table{width:100%;border-collapse:collapse;background:#fff}td,th{padding:9px;bord
 <div id="booterr" class="card err" style="display:none"></div>
 <div class="grid" id="stats"></div>
 <div class="card"><h2>Last agent run</h2><pre id="lastrun">Loading…</pre></div>
+<div class="card"><h2>Quick actions</h2>
+<p class="small">These are read-only LinkedIn skills. Choose an action, then review the result here. No messages, connections, likes, comments, or publishing are performed.</p>
+<button class="primary" onclick="runSkill('jobs','Power BI','Gurgaon')">Find Power BI jobs</button>
+<button onclick="runSkill('profile','','')">Read my profile</button>
+<button onclick="runSkill('posts','Power BI','')">Find Power BI posts</button>
+<button onclick="runSkill('people','Power BI recruiter','')">Find recruiters</button>
+<button onclick="runSkill('companies','data analytics','')">Find companies</button>
+<button onclick="runSkill('saved','','')">Read saved items</button>
+<button onclick="runSkill('notifications','','')">Read notifications</button>
+</div>
 <div class="card"><h2>Agent</h2>
-<p class="small">Prefer CLI for production cycles. Dashboard run is local/best-effort.</p>
+<p class="small">The Agent is the scheduled read-only workflow. Use this for the complete discovery cycle.</p>
 <button class="primary" onclick="runAgent()">Run Agent Now</button>
 <button onclick="refresh()">Refresh</button><span id="status" class="small"></span><pre id="agent">No run yet.</pre></div>
+<div class="card"><h2>Skill result</h2><pre id="skillresult">Choose a Quick action above.</pre></div>
 <div class="card"><h2>Pending approvals</h2><div style="overflow:auto"><table><thead><tr><th>Action</th><th>Target</th><th>Created</th><th></th></tr></thead><tbody id="approvals"></tbody></table></div></div>
 <div class="card"><h2>Applications</h2><div style="overflow:auto"><table><thead><tr><th>Title</th><th>Company</th><th>Status</th><th>Updated</th></tr></thead><tbody id="applications"></tbody></table></div></div>
 <div class="card"><h2>Recent jobs</h2><div style="overflow:auto"><table><thead><tr><th>Title</th><th>Company</th><th>Status</th><th>Updated</th></tr></thead><tbody id="jobs"></tbody></table></div></div>
@@ -80,6 +91,17 @@ async function refresh(){
 async function decide(id,approved){
   await api('/api/approvals/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});
   refresh();
+}
+async function runSkill(skill,query,location){
+  const s=document.getElementById('status');
+  const out=document.getElementById('skillresult');
+  s.textContent=' Running '+skill+'…';
+  out.textContent='Loading…';
+  try{
+    const d=await api('/api/skill',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({skill,query,location})});
+    out.textContent=JSON.stringify(d,null,2);
+    s.textContent=' Completed';
+  }catch(e){ out.textContent='Failed: '+e.message; s.textContent=' Failed'; }
 }
 async function runAgent(){
   const s=document.getElementById('status');
@@ -198,6 +220,28 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/api/skill":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length) or b"{}")
+                skill = str(body.get("skill", "")).strip()
+                allowed = {"profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
+                if skill not in allowed:
+                    self._send(400, {"error": "unsupported read-only skill"})
+                    return
+                from .skill_runtime import run_read
+                query = str(body.get("query", "")).strip()
+                location = str(body.get("location", "")).strip()
+                data = asyncio.run(run_read(skill, keywords=query, location=location, query=query))
+                payload = data.data
+                if hasattr(payload, "to_dict"):
+                    payload = payload.to_dict()
+                elif isinstance(payload, list):
+                    payload = [x.to_dict() if hasattr(x, "to_dict") else x for x in payload]
+                self._send(200, {"skill": skill, "result": payload, "diagnostics": getattr(data, "diagnostics", {}) or {}})
+            except Exception as exc:
+                self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
+            return
         if path == "/api/agent":
             try:
                 from .daily_agent import run_agent_once
