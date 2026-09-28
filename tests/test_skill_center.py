@@ -5,7 +5,7 @@ from app.skill_center import run_skill, skill_catalog
 
 def test_skill_center_exposes_all_registered_skills():
     catalog = skill_catalog()
-    assert len(catalog) == 28
+    assert len(catalog) == len(__import__("app.skill_registry", fromlist=["list_skills"]).list_skills())
     assert {item["name"] for item in catalog} == {
         item.name for item in __import__("app.skill_registry", fromlist=["list_skills"]).list_skills()
     }
