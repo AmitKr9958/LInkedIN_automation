@@ -22,6 +22,11 @@ def test_dashboard_has_control_center_sections():
         "Relevant jobs",
         "Open job ↗",
         "result-list",
+        "result-cards",
+        "result-card",
+        "result-message",
+        "result-fields",
+        "result-subhead",
     ]:
         assert marker in _HTML
 
