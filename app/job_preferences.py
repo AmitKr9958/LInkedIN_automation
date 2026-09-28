@@ -41,7 +41,7 @@ DEFAULT_JOB_SEARCH_QUERY = " OR ".join(f'"{term}"' for term in DEFAULT_JOB_TITLE
 @dataclass
 class UserJobPreferences:
     keywords: list[str] = field(default_factory=lambda: list(DEFAULT_JOB_TITLE_KEYWORDS))
-    locations: list[str] = field(default_factory=lambda: ["Delhi", "Gurgaon", "Noida"])
+    locations: list[str] = field(default_factory=lambda: ["Gurgaon/Gurugram", "Noida", "Delhi", "Remote India"])
     posted_within_hours: float = 48
     exclude_internships: bool = True
     exclude_fresher_roles: bool = True
