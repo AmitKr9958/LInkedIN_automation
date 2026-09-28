@@ -14,6 +14,11 @@ def test_dashboard_has_control_center_sections():
         "/api/applications/transition",
         "transitionApplication",
         "X-Content-Type-Options",
+        "COMMAND CENTER",
+        "READ-ONLY · 2H CADENCE",
+        "result-shell",
+        "run-summary",
+        "live-pill",
     ]:
         assert marker in _HTML
 
