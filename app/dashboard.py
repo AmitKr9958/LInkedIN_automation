@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 from .config import ROOT
 from .run_status import read_run_status
 from .skill_center import skill_catalog, run_skill
+from .store import list_activity
+from .application_tracker import ApplicationTracker, STATUSES
 
 
 # One worker prevents two Playwright sessions from competing for the same
@@ -119,6 +121,21 @@ def _summary() -> dict:
     last_run = _safe_section("last_run", read_run_status, {}, warnings)
 
     return {
+        "activity": _safe_section(
+            "activity",
+            lambda: [
+                {
+                    "created_at": row[0],
+                    "action": row[1],
+                    "target": row[2],
+                    "status": row[3],
+                    "details": row[4],
+                }
+                for row in list_activity(limit=30)
+            ],
+            [],
+            warnings,
+        ),
         "jobs_tracked": job_data[0],
         "application_count": application_data[0],
         "pending_approvals": len(approvals),
@@ -225,9 +242,18 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 </section>
 
 <section id="jobs" class="view"><div class="card"><div class="cardhead"><div><h2>Job Intelligence</h2><p>Stored discovery history and application signals.</p></div><button class="btn primary" onclick="openSkill('jobs')">Search LinkedIn jobs</button></div><div class="tablewrap"><table class="table" id="jobsTable"></table></div></div></section>
-<section id="applications" class="view"><div class="card"><div class="cardhead"><div><h2>Application Pipeline</h2><p>Local application tracking.</p></div></div><div class="tablewrap"><table class="table" id="appsTable"></table></div></div></section>
+<section id="applications" class="view">
+<div class="card"><div class="cardhead"><div><h2>Application Pipeline</h2><p>Local application tracking with governed status transitions.</p></div></div>
+<div class="tablewrap"><table class="table" id="appsTable"></table></div></div>
+</section>
 <section id="approvals" class="view"><div class="card"><div class="cardhead"><div><h2>Approval Queue</h2><p>Nothing is sent or published automatically.</p></div></div><div class="tablewrap"><table class="table" id="approvalTable"></table></div></div></section>
-<section id="agent" class="view"><div class="grid two"><div class="card"><div class="cardhead"><div><h2>Agent Runs</h2><p>Run the complete governed discovery cycle.</p></div><button class="btn primary" onclick="startAgent()">Run Agent Now</button></div><div id="tasks"></div></div><div class="card"><h2>Last run details</h2><pre id="agentDetails"></pre></div></div></section>
+<section id="agent" class="view">
+<div class="grid two">
+ <div class="card"><div class="cardhead"><div><h2>Agent Runs</h2><p>Run the complete governed discovery cycle.</p></div><button class="btn primary" onclick="startAgent()">Run Agent Now</button></div><div id="tasks"></div></div>
+ <div class="card"><div class="cardhead"><div><h2>Last run details</h2><p>Persisted health state and diagnostics.</p></div></div><pre id="agentDetails"></pre></div>
+</div>
+<div class="card" style="margin-top:15px"><div class="cardhead"><div><h2>Recent activity</h2><p>Local audit trail from the application database.</p></div></div><div class="tablewrap"><table class="table" id="activityTable"></table></div></div>
+</section>
 <section id="system" class="view"><div class="grid three"><div class="card"><h2>Safety</h2><p class="muted">Read-only LinkedIn discovery is automatic. Account-changing workflows remain approval-gated.</p></div><div class="card"><h2>Browser</h2><p class="muted">Uses your persistent local Playwright profile. Credentials remain on your machine.</p></div><div class="card"><h2>Performance</h2><p class="muted">Dashboard requests return immediately for long-running skills and poll for completion.</p></div></div><div class="card" style="margin-top:14px"><h2>System diagnostics</h2><pre id="systemDetails"></pre></div></section>
 </main>
 </div>
@@ -274,8 +300,10 @@ function jobRows(rows){
 function renderTables(d){
  document.getElementById('jobsTable').innerHTML=jobRows(d.jobs);
  document.getElementById('overviewJobs').innerHTML=jobRows((d.jobs||[]).slice(0,8));
- document.getElementById('appsTable').innerHTML='<thead><tr><th>Role</th><th>Company</th><th>Status</th><th>Updated</th></tr></thead><tbody>'+
- (d.applications||[]).map(x=>'<tr><td><b>'+esc(x.title)+'</b></td><td>'+esc(x.company)+'</td><td><span class="badge">'+esc(x.status)+'</span></td><td>'+esc(x.updated_at)+'</td></tr>').join('')+'</tbody>';
+ document.getElementById('appsTable').innerHTML='<thead><tr><th>Role</th><th>Company</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>'+
+ (d.applications||[]).map(x=>'<tr><td><b>'+esc(x.title)+'</b></td><td>'+esc(x.company)+'</td><td><select class="statusSelect" data-url="'+esc(x.job_url)+'" data-current="'+esc(x.status)+'">'+["new","shortlisted","drafted","applied","screening","interview","offer","rejected","withdrawn","closed"].map(s=>'<option value="'+esc(s)+'" '+(s===x.status?'selected':'')+'>'+esc(s)+'</option>').join('')+'</select></td><td>'+esc(x.updated_at)+'</td><td><button class="btn" onclick="transitionApplication(this)">Save</button></td></tr>').join('')+'</tbody>';
+ document.getElementById('activityTable').innerHTML='<thead><tr><th>Time</th><th>Action</th><th>Target</th><th>Status</th><th>Details</th></tr></thead><tbody>'+
+ (d.activity||[]).map(x=>'<tr><td>'+esc(x.created_at)+'</td><td>'+esc(x.action)+'</td><td>'+esc(x.target)+'</td><td><span class="badge">'+esc(x.status)+'</span></td><td>'+esc(x.details)+'</td></tr>').join('')+'</tbody>';
  document.getElementById('approvalTable').innerHTML='<thead><tr><th>Action</th><th>Target</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>'+
  (d.approvals||[]).map(x=>'<tr><td>'+esc(x.action)+'</td><td>'+esc(x.target)+'</td><td><span class="badge amber">pending</span></td><td>'+esc(x.created_at)+'</td><td><button class="btn primary" onclick="decide(\''+esc(x.id)+'\',true)">Approve</button> <button class="btn" onclick="decide(\''+esc(x.id)+'\',false)">Reject</button></td></tr>').join('')+
  '</tbody>';
@@ -350,7 +378,21 @@ async function watchAgent(id){
 async function decide(id,approved){
  try{await api('/api/approvals/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});refreshAll()}catch(e){alert(e.message)}
 }
-function renderSystem(){document.getElementById('systemDetails').textContent=JSON.stringify({skills:state.skills.length,summary:state.summary?.warnings||[],last_run:state.summary?.last_run||{}},null,2)}
+async function transitionApplication(button){
+ const select=button.closest('tr').querySelector('.statusSelect');
+ const url=select.dataset.url; const status=select.value;
+ button.disabled=true;
+ try{
+   await api('/api/applications/transition',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_url:url,status})});
+   refreshAll();
+ }catch(e){alert(e.message);button.disabled=false}
+}
+function renderSystem(){document.getElementById('systemDetails').textContent=JSON.stringify({
+ skills:state.skills.length,
+ warnings:state.summary?.warnings||[],
+ last_run:state.summary?.last_run||{},
+ activity_count:(state.summary?.activity||[]).length
+},null,2)}
 refreshAll();
 </script>
 </body></html>
@@ -388,7 +430,9 @@ class _Handler(BaseHTTPRequestHandler):
             task = _task_get(path.rsplit("/", 1)[-1])
             self._send(200 if task else 404, task or {"error": "task not found"})
         elif path == "/api/system":
-            self._send(200, {"service":"linkedin-agent-dashboard","host":"127.0.0.1","port":self.server.server_address[1],"skills":len(skill_catalog()),"version":"2.0"})
+            self._send(200, {"service":"linkedin-agent-dashboard","host":"127.0.0.1","port":self.server.server_address[1],"skills":len(skill_catalog()),"application_statuses":list(STATUSES),"version":"2.1"})
+        elif path == "/api/activity":
+            self._send(200, {"activity": _summary().get("activity", [])})
         else:
             self._send(404, {"error": "not found"})
 
@@ -415,6 +459,23 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(202, {"task_id": task_id, "status": "queued"})
             except Exception as exc:
                 self._send(400, {"error": f"{type(exc).__name__}: {exc}"})
+            return
+        if path == "/api/applications/transition":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length) or b"{}")
+                job_url = str(body.get("job_url", "")).strip()
+                status = str(body.get("status", "")).strip()
+                if status not in STATUSES:
+                    raise ValueError("Invalid application status")
+                ApplicationTracker().transition(job_url, status)
+                self._send(200, {"changed": True, "job_url": job_url, "status": status})
+            except KeyError:
+                self._send(404, {"error": "Application not found"})
+            except ValueError as exc:
+                self._send(400, {"error": str(exc)})
+            except Exception as exc:
+                self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
         if path.startswith("/api/approvals/"):
             item_id = path.rsplit("/", 1)[-1]
