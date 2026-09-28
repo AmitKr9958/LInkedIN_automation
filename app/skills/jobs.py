@@ -73,11 +73,16 @@ LOCATION_SELECTORS = (
 
 POSTED_SELECTORS = (
     "time",
+    "time[datetime]",
     ".job-card-container__footer-item",
     ".job-card-container__listed-time",
+    ".job-card-list__footer-wrapper time",
     "[class*='listed-time']",
     "[class*='posted']",
+    "[class*='job-card'] time",
     "[data-test-job-posted-date]",
+    "span[aria-label*='ago']",
+    "span[aria-label*='Posted']",
 )
 
 EASY_APPLY_SELECTORS = (
@@ -98,6 +103,10 @@ DETAIL_POSTED_SELECTORS = (
     ".job-details-jobs-unified-top-card__posted-date",
     ".jobs-unified-top-card__posted-date",
     ".job-details-jobs-unified-top-card__primary-description-container",
+    ".jobs-unified-top-card__primary-description-container",
+    "span.tvm__text--low-emphasis",
+    "[class*='posted-time']",
+    "[class*='job-details'] time",
 )
 
 DETAIL_LOCATION_SELECTORS = (
@@ -118,8 +127,13 @@ DETAIL_TITLE_SELECTORS = (
 MAX_DETAIL_HYDRATION = 12
 
 _POSTED_RE = re.compile(
-    r"(?i)\b(?:just now|\d+\+?\s+(?:minute|hour|day|week|month|year)s?\s+ago|"
-    r"today|yesterday|\d+\+?\s+(?:minute|hour|day|week|month|year)s?\b)"
+    r"(?i)\b(?:"
+    r"just now|today|yesterday|"
+    r"\d+\+?\s*(?:minute|min|hour|hr|day|week|month|year)s?\s*ago|"
+    r"\d+\+?\s*(?:minute|min|hour|hr|day|week|month|year)s?\b|"
+    # Compact LinkedIn-style ages: 2d, 3h, 15m, 1w
+    r"\d+\s*[mhdw]\b"
+    r")"
     r"(?:\s+within the past 24 hours)?"
 )
 
@@ -477,10 +491,33 @@ def _hours_from_posted(posted: str) -> float | None:
         return 0.0
     if value == "yesterday":
         return 24.0
-    match = re.search(r"(\d+)\+?\s*(minute|hour|day|week|month|year)", value)
+    # Compact forms: 15m, 3h, 2d, 1w
+    compact = re.search(r"\b(\d+)\s*([mhdw])\b", value)
+    if compact:
+        amount = float(compact.group(1))
+        unit = {"m": 1 / 60, "h": 1.0, "d": 24.0, "w": 24 * 7}[compact.group(2)]
+        return round(amount * unit, 2)
+    match = re.search(
+        r"(\d+)\+?\s*(minutes?|mins?|hours?|hrs?|days?|weeks?|months?|years?)",
+        value,
+    )
     if not match:
         return None
-    return round(float(match.group(1)) * _UNIT_HOURS[match.group(2)], 2)
+    amount = float(match.group(1))
+    unit_raw = match.group(2)
+    if unit_raw.startswith("min"):
+        key = "minute"
+    elif unit_raw.startswith("hr") or unit_raw.startswith("hour"):
+        key = "hour"
+    elif unit_raw.startswith("day"):
+        key = "day"
+    elif unit_raw.startswith("week"):
+        key = "week"
+    elif unit_raw.startswith("month"):
+        key = "month"
+    else:
+        key = "year"
+    return round(amount * _UNIT_HOURS[key], 2)
 
 
 def _parse_datetime(value: str) -> datetime | None:
@@ -572,12 +609,36 @@ async def _posted(card) -> tuple[str, float | None]:
     # Prefer semantic datetime metadata over rendered text. A card can contain
     # several relative-time strings from promoted/related-job UI.
     try:
-        node = card.locator("time[datetime]").first
-        if await node.count():
-            raw = await node.get_attribute("datetime") or ""
-            value = _relative_from_datetime(raw)
+        nodes = card.locator("time[datetime]")
+        count = await nodes.count()
+        best_hours = None
+        best_label = ""
+        for i in range(min(count, 5)):
+            try:
+                raw = await nodes.nth(i).get_attribute("datetime") or ""
+            except Exception:
+                continue
+            hours = _hours_from_datetime(raw)
+            label = _relative_from_datetime(raw)
+            if hours is None or not label or hours > 24 * 180:
+                continue
+            if best_hours is None or hours < best_hours:
+                best_hours, best_label = hours, label
+        if best_label:
+            return best_label, best_hours
+    except Exception:
+        pass
+    # aria-label often carries "Posted 2 days ago" when text nodes are empty.
+    try:
+        labeled = card.locator("[aria-label*='ago'], [aria-label*='Posted']")
+        for i in range(min(await labeled.count(), 6)):
+            try:
+                aria = await labeled.nth(i).get_attribute("aria-label") or ""
+            except Exception:
+                continue
+            value = _normalize_posted(aria)
             if value:
-                return value, _hours_from_datetime(raw)
+                return value, _hours_from_posted(value)
     except Exception:
         pass
     value = _normalize_posted(await _text(card, POSTED_SELECTORS))
@@ -747,14 +808,48 @@ async def _detail_fields(page, href: str, title: str = "") -> dict:
     posted = ""
     # Prefer semantic datetime, then top-card text, then JSON-LD, then body text.
     try:
-        node = page.locator("time[datetime]").first
-        if await node.count():
-            raw = await node.get_attribute("datetime") or ""
+        nodes = page.locator("time[datetime]")
+        count = await nodes.count()
+        best_hours = None
+        best_label = ""
+        for i in range(min(count, 8)):
+            try:
+                raw = await nodes.nth(i).get_attribute("datetime") or ""
+            except Exception:
+                continue
+            hours = _hours_from_datetime(raw)
             label = _relative_from_datetime(raw)
-            if label:
-                posted, posted_hours = label, _hours_from_datetime(raw)
+            if hours is None or not label:
+                continue
+            # Prefer the most recent plausible job age under 180 days.
+            if hours > 24 * 180:
+                continue
+            if best_hours is None or hours < best_hours:
+                best_hours = hours
+                best_label = label
+        if best_label:
+            posted, posted_hours = best_label, best_hours
     except Exception:
         pass
+    if not posted:
+        # Open Graph / meta published times when LinkedIn exposes them.
+        for meta_sel in (
+            "meta[property='og:updated_time']",
+            "meta[property='article:published_time']",
+            "meta[name='publishedDate']",
+        ):
+            try:
+                loc = page.locator(meta_sel).first
+                if not await loc.count():
+                    continue
+                raw = await loc.get_attribute("content") or ""
+                label = _relative_from_datetime(raw)
+                hours = _hours_from_datetime(raw)
+                if label and hours is not None:
+                    posted, posted_hours = label, hours
+                    break
+            except Exception:
+                continue
     if not posted:
         posted = _normalize_posted(await _text(page, DETAIL_POSTED_SELECTORS))
     if posted and posted_hours is None:

@@ -103,3 +103,26 @@ def test_zero_result_reason_mentions_location_and_window():
     assert "Noida" in reason
     assert "48" in reason
     assert "unknown" in reason.lower()
+
+
+def test_compact_posted_age_parsing():
+    from app.skills.jobs import _hours_from_posted, _normalize_posted
+
+    assert _hours_from_posted("3h") == 3.0
+    assert _hours_from_posted("2d") == 48.0
+    assert _hours_from_posted("15m") == 0.25
+    assert _hours_from_posted("1w") == 168.0
+    assert _hours_from_posted("2 hours ago") == 2.0
+    assert _normalize_posted("Posted 2d ago by recruiter") in ("2d", "2d ago") or "2" in _normalize_posted("Posted 2d ago by recruiter")
+
+
+def test_unknown_age_still_rejected_by_default():
+    from dataclasses import dataclass
+    from app.skill_runtime import _filter_jobs_by_freshness
+
+    @dataclass
+    class FakeJob:
+        posted_hours: float | None
+
+    kept = _filter_jobs_by_freshness([FakeJob(10), FakeJob(None), FakeJob(100)], 48)
+    assert [j.posted_hours for j in kept] == [10]

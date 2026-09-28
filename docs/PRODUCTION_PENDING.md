@@ -70,5 +70,17 @@ The scheduled runner uses:
 - The dashboard binds to localhost by default.
 - Concurrent agent cycles are blocked by `data/agent.lock`.
 
+## Dashboard scope
+
+The Skill Center at `http://127.0.0.1:8765` is a **local control center**:
+last-run health, approvals, applications, recent jobs, and optional agent trigger.
+It is **not** a full interactive runner for all 28 skills. Account-changing
+actions remain approval-gated via CLI/queue, not auto-executed from the UI.
+
+## Scheduler cadence (post-restriction)
+
+Prefer **2–3 hour** repetition on an always-on host. Keep the task **Disabled**
+until a manual agent cycle and one scheduled cycle both succeed.
+
 ## Remaining external dependency
 The only release dependency is the operator's authenticated live-account validation. CI cannot substitute for a private LinkedIn session.
