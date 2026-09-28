@@ -32,3 +32,12 @@ def test_approval_skill_does_not_execute_linkedin_action():
     assert result["mode"] == "approval"
     assert result["status"] == "pending_approval"
     assert result["approval_id"]
+
+
+def test_remote_india_uses_workplace_filter():
+    from app.skills.jobs import _build_jobs_search_url, _location_matches_requested
+    url = _build_jobs_search_url("Power BI", "Remote India")
+    assert "location=India" in url
+    assert "f_WT=2" in url
+    assert _location_matches_requested("India (Remote)", "Remote India")
+    assert not _location_matches_requested("Gurgaon, Haryana, India", "Remote India")
