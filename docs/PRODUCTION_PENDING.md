@@ -5,7 +5,7 @@ The repository's automated production gates are green for code. Remaining valida
 ## Completed
 - Complete-page job scrolling and post-scroll card re-location
 - Job-card/detail-page field hydration, including posted time and location
-- Strict India-scoped Delhi/Gurgaon/Noida/Jaipur filtering
+- Strict India-scoped Delhi/Gurgaon/Noida filtering
 - Strict configurable freshness filtering (default **48 hours**)
 - Title-family filtering, ranking and deduplication
 - Recruiter/HR/hiring-manager discovery and draft generation
@@ -14,7 +14,7 @@ The repository's automated production gates are green for code. Remaining valida
 - **28-skill** registry and deterministic skill tests
 - End-to-end governed agent command
 - Local control-center dashboard
-- Read-only Windows hourly scheduler scripts using **`--max-posted-hours 48`**
+- Read-only Windows 2-hour scheduler using **`--max-posted-hours 48`**
 - Exclusive agent file lock (prevents concurrent cycles)
 - Last-run health status persistence (`data/last_run.json`) with consecutive failure tracking and health_state
 - Scheduler log rotation under `data/logs/` (keeps newest 30 files)
@@ -32,7 +32,7 @@ The repository's automated production gates are green for code. Remaining valida
 Run on the Windows machine with the private authenticated profile:
 ```powershell
 python -m app debug-auth
-$env:HEADLESS="true"; $env:DRY_RUN="true"
+$env:HEADLESS="true"; $env:DRY_RUN="true"; $env:LINKEDIN_AGENT_ENABLED="true"
 python -m app agent --max-posted-hours 48
 python -m app status
 python -m app agent-test --live
@@ -42,20 +42,17 @@ The live run should report authenticated status and show eligible jobs when Link
 
 ## Scheduler (local Windows automatic mode)
 ```powershell
-# Install (hourly, StartWhenAvailable, IgnoreNew, 45-minute timeout)
+# Install for 2-hour repetition; keep the task disabled until one-shot validation passes.
 powershell -ExecutionPolicy Bypass -File scripts\install-readonly-scheduler.ps1
-
-# Status / start / stop / uninstall
 powershell -ExecutionPolicy Bypass -File scripts\scheduler-status.ps1
-powershell -ExecutionPolicy Bypass -File scripts\scheduler-start.ps1
-powershell -ExecutionPolicy Bypass -File scripts\scheduler-stop.ps1
-powershell -ExecutionPolicy Bypass -File scripts\uninstall-readonly-scheduler.ps1
 ```
 
-The scheduled runner uses:
+After a successful manual agent cycle, validate one scheduled cycle with the task temporarily started, then stop it again. The production task should use:
+- 2-hour repetition
 - `.venv\Scripts\python.exe` when present
 - `HEADLESS=true`
 - `DRY_RUN=true`
+- `LINKEDIN_AGENT_ENABLED=true`
 - `--max-posted-hours 48`
 - logs under `data\logs\agent-YYYYMMDD-HHMMSS.log`
 
