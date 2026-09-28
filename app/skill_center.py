@@ -19,7 +19,7 @@ APPROVAL_SKILLS = {"connections", "messaging", "engagement", "followups", "outre
 def skill_catalog() -> list[dict[str, Any]]:
     fields = {
         "auth": [], "profile": [],
-        "jobs": [{"name":"query","label":"Job query","default":"Power BI"}],
+        "jobs": [{"name":"query","label":"Job query","default":"Power BI"},{"name":"location","label":"Location","default":"Gurgaon"},{"name":"max_posted_hours","label":"Posted within hours","type":"number","default":48}],
         "people": [{"name":"query","label":"Search","default":"Power BI recruiter"},{"name":"location","label":"Location","default":"Gurgaon"}],
         "companies": [{"name":"query","label":"Company search","default":"data analytics"}],
         "posts": [{"name":"query","label":"Post search","default":"Power BI"}],
@@ -66,6 +66,11 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
         if name in {"jobs","people"}:
             query = str(inputs.get("query","Power BI"))
             kwargs.update(query=query, keywords=query, location=str(inputs.get("location","Gurgaon")))
+            if name == "jobs" and str(inputs.get("max_posted_hours","")).strip():
+                try:
+                    kwargs["max_posted_hours"] = float(inputs["max_posted_hours"])
+                except ValueError:
+                    raise ValueError("Posted within hours must be a number")
         elif name in {"companies","posts"}:
             kwargs["query"] = str(inputs.get("query","data analytics" if name=="companies" else "Power BI"))
         result = await run_read(name, **kwargs)
