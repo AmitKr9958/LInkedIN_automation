@@ -27,6 +27,13 @@ def test_dashboard_has_control_center_sections():
         "result-message",
         "result-fields",
         "result-subhead",
+        "agent-result",
+        "agent-summary-grid",
+        "agent-section",
+        "Technical diagnostics",
+        "No LinkedIn account actions were performed",
+        "Relevant jobs",
+
     ]:
         assert marker in _HTML
 
