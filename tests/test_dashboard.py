@@ -30,3 +30,8 @@ def test_dashboard_task_runner_returns_immediately_and_completes():
             return
         time.sleep(0.01)
     raise AssertionError("background dashboard task did not complete")
+
+
+def test_dashboard_exposes_transition_constraints_and_empty_job_state():
+    assert "allowed_transitions" in __import__("app.dashboard", fromlist=["_summary"]).__dict__["_summary"].__code__.co_consts
+    assert "No jobs stored yet." in _HTML
