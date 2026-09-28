@@ -1,3 +1,7 @@
+param(
+    [switch]$Enable
+)
+
 $ErrorActionPreference = "Stop"
 $Runner = Join-Path $PSScriptRoot "run-agent.ps1"
 $HiddenRunner = Join-Path $PSScriptRoot "run-agent-hidden.vbs"
@@ -22,10 +26,10 @@ $Trigger = New-ScheduledTaskTrigger `
     -RepetitionInterval (New-TimeSpan -Hours 2) `
     -RepetitionDuration (New-TimeSpan -Days 3650)
 
-# Run discovery every 2 hours.\n# ExecutionTimeLimit must exceed measured worst-case production cycle.
-# Observed pre-optimization cycles approached ~24 minutes; post-optimization
-# target is <15 minutes. 45 minutes provides safe headroom so the scheduler
-# never silently kills a healthy run.
+# Run discovery every 2 hours.
+# ExecutionTimeLimit must exceed measured worst-case production cycle.
+# 45 minutes provides safe headroom so the scheduler never silently kills
+# a healthy run.
 $Settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -Hidden `
@@ -40,5 +44,15 @@ Register-ScheduledTask `
     -Description "Read-only LinkedIn discovery; no account-changing action is executed." `
     -Force | Out-Null
 
-Write-Host "Installed: $TaskName"
+# Production safety gate: installing the task must not start recurring
+# discovery automatically. Use scheduler-start.ps1 only after manual and
+# one-shot scheduled validation have passed.
+Disable-ScheduledTask -TaskName $TaskName | Out-Null
+
+if ($Enable) {
+    Enable-ScheduledTask -TaskName $TaskName | Out-Null
+    Write-Host "Installed and ENABLED: $TaskName"
+} else {
+    Write-Host "Installed and DISABLED: $TaskName"
+}
 Write-Host "Launcher: wscript.exe -> run-agent-hidden.vbs"
