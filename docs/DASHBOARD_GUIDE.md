@@ -40,13 +40,11 @@ That launcher starts the dashboard and opens the browser automatically.
 
 These are read-only skills:
 
-- **Find Power BI jobs** — searches the configured LinkedIn job workflow.
-- **Read my profile** — reads your LinkedIn profile.
-- **Find Power BI posts** — reads matching posts.
+- **Find Power BI jobs** — searches the configured LinkedIn job workflow across Delhi, Gurgaon/Gurugram, Noida, and explicit Remote India roles.
 - **Find recruiters** — reads people/search results.
-- **Find companies** — reads company results.
-- **Read saved items** — reads saved LinkedIn items.
-- **Read notifications** — reads notifications.
+- **Find hiring posts** — reads matching posts.
+- **Write a LinkedIn post** — creates a local draft; publishing remains outside the automatic workflow.
+- Additional registered skills are available from Skill Center.
 
 The result appears in the skill drawer. Structured list results are rendered as readable tables; technical diagnostics remain available in the result details.
 
@@ -91,3 +89,8 @@ You decide what to apply for or send
 ```
 
 The scheduled Windows agent can continue running separately every two hours. The dashboard is simply your manual control and visibility layer.
+
+
+## Remote India job search
+
+**Remote India is treated as a workplace filter, not as a city.** The jobs skill scopes the search to India and requests LinkedIn's remote-work filter. City searches remain geographic searches for Delhi, Gurgaon/Gurugram, or Noida. Returned remote jobs must also explicitly expose both India and Remote in the extracted location text before they qualify.
