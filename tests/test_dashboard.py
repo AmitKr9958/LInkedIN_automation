@@ -10,6 +10,10 @@ def test_dashboard_has_control_center_sections():
         "Agent Runs",
         "/api/tasks/",
         "Run Agent",
+        "Recent activity",
+        "/api/applications/transition",
+        "transitionApplication",
+        "X-Content-Type-Options",
     ]:
         assert marker in _HTML
 
