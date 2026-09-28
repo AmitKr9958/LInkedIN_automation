@@ -271,6 +271,11 @@ def _search_location_value(location: str) -> str:
     normalized = _normalize_location_text(location)
     if normalized in _INDIA_SEARCH_LOCATION_ALIASES:
         return _INDIA_SEARCH_LOCATION_ALIASES[normalized]
+    # Treat combined Gurgaon/Gurugram input as the canonical Gurgaon search
+    # location. The UI may use the combined label while LinkedIn's location
+    # parameter expects a concrete geographic value.
+    if normalized in {"gurgaon gurugram", "gurugram gurgaon"}:
+        return _INDIA_SEARCH_LOCATION_ALIASES["gurgaon"]
     if normalized and "india" not in normalized.split():
         return f"{location.strip()}, India"
     return location.strip()
