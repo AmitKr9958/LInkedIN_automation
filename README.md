@@ -10,7 +10,7 @@ The agent is designed as a **personal LinkedIn productivity control layer**:
 - lets you log in manually once and reuse that local browser session
 - verifies the session instead of assuming that a non-login URL means authentication
 - discovers jobs, people, companies, posts, saved items and profile information
-- scans LinkedIn content-search results and your authenticated personalized home feed for public hiring signals matching your target roles and locations; by default it considers posts from the last 48 hours
+- scans LinkedIn content-search results and your authenticated personalized home feed for public hiring signals matching your target roles and locations; by default it considers posts from the last 4 hours
 - identifies recruiter, HR and hiring-manager outreach targets for a job or hiring post
 - maintains a local Story Bank and content-quality audit layer
 - normalizes job URLs and stores job/application history locally
@@ -133,7 +133,7 @@ Orchestrator ---- optional LLM provider
 All 28 skills are registered/governed. Their implementation boundaries are explicit:
 
 - **Live read layer:** profile, jobs, people, companies, posts, saved items and notifications.
-- **Hiring-post intelligence:** the agent searches LinkedIn content-search results **and the authenticated personalized home feed** for hiring/looking-for signals, matches them to the configured role families and locations, filters posts to the configured 48-hour freshness window, ranks the resulting posts, and identifies the post author as a potential lead. This remains read-only and does not automatically contact or engage with the author.
+- **Hiring-post intelligence:** the agent searches LinkedIn content-search results **and the authenticated personalized home feed** for hiring/looking-for signals, matches them to the configured role families and locations, filters posts to the configured 4-hour freshness window, ranks the resulting posts, and identifies the post author as a potential lead. This remains read-only and does not automatically contact or engage with the author.
 - **Content/intelligence layer:** 13 content/analysis skills plus the Story Bank.
 - **Account/workflow layer:** authentication, connections, messaging, engagement, lead generation and follow-ups are governed workflow surfaces; consequential account-changing execution remains behind the approval gateway and is not an autonomous UI executor.
 
@@ -180,7 +180,7 @@ python -m app release-check
 .\scripts\scheduler-status.ps1
 ```
 
-The scheduled agent uses `--max-posted-hours 48`, `HEADLESS=true`, `DRY_RUN=true`, exclusive file locking, and rotated logs under `data\logs\`. This is **local Windows automatic mode** (machine must stay on). True always-on 24×7 is not implemented.
+The scheduled agent uses `--max-posted-hours 4`, `HEADLESS=true`, `DRY_RUN=true`, exclusive file locking, and rotated logs under `data\logs\`. This is **local Windows automatic mode** (machine must stay on). True always-on 24×7 is not implemented.
 
 `release-check` combines the blocking local `doctor` checks, deterministic self-tests, and the safe end-to-end workflow test. It never performs a LinkedIn action. `doctor` verifies the core modules, writable local profile, policy configuration, approval mode, project root, LinkedIn HTTPS endpoint, and the installed Chromium runtime. Consequential requests are also restricted to a known action allowlist and bounded payload size before they can enter the approval queue.
 
