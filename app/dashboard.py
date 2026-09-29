@@ -675,7 +675,7 @@ class _Handler(BaseHTTPRequestHandler):
                     self._send(409, {"error": "An agent run is already queued or running."})
                     return
                 from .daily_agent import run_agent_once
-                task_id = _task_submit("agent", lambda: asyncio.run(run_agent_once(max_posted_hours=4))
+                task_id = _task_submit("agent", lambda: asyncio.run(run_agent_once(max_posted_hours=4)))
                 self._send(202, {"task_id": task_id, "status": "queued"})
             except Exception as exc:
                 self._send(400, {"error": f"{type(exc).__name__}: {exc}"})
