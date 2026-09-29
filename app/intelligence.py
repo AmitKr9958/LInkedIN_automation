@@ -74,12 +74,16 @@ def _matches_preferred_location(location: str, preferences) -> bool:
         target = _normalize_location(requested)
         if not target:
             continue
+        # Preferences may use a combined UI label such as
+        # "Gurgaon/Gurugram"; treat each city alias as equivalent.
         aliases = {
             "delhi": {"delhi"},
             "gurgaon": {"gurgaon"},
+            "gurgaon gurugram": {"gurgaon"},
+            "gurugram gurgaon": {"gurgaon"},
             "noida": {"noida"},
             "jaipur": {"jaipur"},
-        }.get(target, {target})
+        }.get(target, set(target.split()))
         if aliases.intersection(words) and "india" in words:
             return True
     return False
