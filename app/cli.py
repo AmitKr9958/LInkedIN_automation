@@ -393,7 +393,7 @@ def agent(
     max_posted_hours: Optional[float] = typer.Option(
         None,
         "--max-posted-hours",
-        help="Override the 48-hour job freshness window. Use a negative value to disable it.",
+        help="Override the 4-hour job freshness window. Use a negative value to disable it.",
     ),
 ):
     """Run the governed end-to-end workflow: discover, rank, track, target and draft."""
@@ -417,7 +417,7 @@ def agent(
     started_at = datetime.now(timezone.utc).isoformat()
     typer.echo(
         f"agent: starting (headless={settings.headless}, dry_run={settings.dry_run}, "
-        f"max_posted_hours={window if window is not None else 'default-48'})",
+        f"max_posted_hours={window if window is not None else 'default-4'})",
         err=True,
     )
     try:
