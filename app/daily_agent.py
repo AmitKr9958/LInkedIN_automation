@@ -93,7 +93,10 @@ def _rank_hiring_posts(
         # relevant only when it explicitly names one of the configured cities.
         # Remote/WFH alone is not sufficient because the user's remote preference
         # requires the post to also mention one of the target cities.
-        matched_locations = [loc for loc in locations if loc.lower() in normalized]
+        def location_matches(loc: str) -> bool:
+            aliases = [part.strip().lower() for part in loc.replace("/", " OR ").split(" OR ") if part.strip()]
+            return any(alias in normalized for alias in aliases)
+        matched_locations = [loc for loc in locations if location_matches(loc)]
         if not matched_locations:
             continue
         # Avoid fresher/entry-level hiring posts for this experienced-role
