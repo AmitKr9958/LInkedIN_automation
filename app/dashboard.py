@@ -13,7 +13,7 @@ from .config import ROOT
 from .run_status import read_run_status
 from .skill_center import skill_catalog, run_skill
 from .store import list_activity
-from .application_tracker import ApplicationTracker, STATUSES
+from .application_tracker import ApplicationTracker, STATUSES, TRANSITIONS
 
 
 # One worker prevents two Playwright sessions from competing for the same
@@ -22,6 +22,7 @@ _EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="linkedin-dashb
 _TASKS: dict[str, dict] = {}
 _TASK_LOCK = threading.Lock()
 _MAX_TASKS = 100
+_MAX_REQUEST_BODY_BYTES = 1_048_576
 
 
 def _task_submit(kind: str, fn) -> str:
@@ -49,6 +50,36 @@ def _task_submit(kind: str, fn) -> str:
 
     _EXECUTOR.submit(worker)
     return task_id
+
+
+def _has_active_task(kind: str) -> bool:
+    with _TASK_LOCK:
+        return any(
+            item.get("kind") == kind and item.get("status") in {"queued", "running"}
+            for item in _TASKS.values()
+        )
+
+
+def _parse_approval_decision(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise ValueError("approved must be a boolean")
+
+
+def _read_json_body(handler) -> dict:
+    try:
+        length = int(handler.headers.get("Content-Length", "0"))
+    except (TypeError, ValueError):
+        raise ValueError("Invalid Content-Length")
+    if length < 0 or length > _MAX_REQUEST_BODY_BYTES:
+        raise ValueError("Request body is too large")
+    raw = handler.rfile.read(length)
+    if not raw:
+        return {}
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object")
+    return payload
 
 
 def _task_get(task_id: str) -> dict | None:
@@ -202,7 +233,7 @@ button,input,textarea,select{font:inherit}button{border:0;cursor:pointer}
 .hero{background:linear-gradient(135deg,rgba(12,43,73,.95),rgba(15,105,183,.86));color:#fff;padding:25px;border-radius:16px;border:1px solid rgba(113,194,255,.22);box-shadow:0 22px 55px rgba(0,79,145,.22),inset 0 1px rgba(255,255,255,.08);margin-bottom:16px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:280px;height:280px;right:-90px;top:-120px;border-radius:50%;background:rgba(255,255,255,.08);filter:blur(2px)}.hero h2{margin:0 0 6px;font-size:23px}.hero p{color:#d7eaff;margin:0 0 16px;max-width:720px}.hero .btn{background:#fff;color:#0a66c2;border-color:#fff;position:relative;z-index:1}
 .quick{grid-template-columns:repeat(4,1fr)}.quick button{padding:16px;text-align:left;background:linear-gradient(145deg,rgba(20,38,61,.88),rgba(12,25,43,.9));color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);transition:.18s ease}.quick button:hover{border-color:rgba(72,168,255,.32);transform:translateY(-2px) rotateX(.4deg)}.quick b{display:block}.quick span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
 pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:#040a12;color:#cfe3f7;padding:15px;border:1px solid var(--line);border-radius:10px;margin:0;font-size:12px}
-.approval-hero{display:flex;align-items:center;gap:14px;padding:18px;background:linear-gradient(135deg,rgba(72,168,255,.09),rgba(50,213,131,.05))}.approval-hero-icon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:rgba(50,213,131,.12);color:#7af0b0;font-size:20px;font-weight:900;border:1px solid rgba(50,213,131,.2)}.approval-hero h2{margin:2px 0 4px;font-size:17px}.approval-hero p{margin:0;color:var(--muted);font-size:11px;max-width:760px}.approval-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:10px;margin-top:12px;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}.approval-flow>div:not(.approval-arrow){display:grid;grid-template-columns:25px 1fr;column-gap:8px;align-items:center}.approval-flow span{grid-row:span 2;width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:rgba(72,168,255,.12);color:#9ed8ff;font-weight:800;font-size:11px}.approval-flow b{font-size:11px}.approval-flow small{color:var(--muted);font-size:9px}.approval-arrow{color:#526b86;font-size:18px}.approval-list{display:grid;gap:10px}.approval-card{padding:15px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,rgba(20,38,61,.72),rgba(10,23,39,.82))}.approval-card-head{display:flex;justify-content:space-between;gap:10px}.approval-card h3{margin:7px 0 2px;text-transform:capitalize;font-size:14px}.approval-target{font-size:12px;color:#9ed8ff;font-weight:700}.approval-date{font-size:10px;color:var(--muted)}.approval-proposal{margin-top:12px;padding:11px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(154,181,211,.10);font-size:11px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}.approval-label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#7189a2;margin-bottom:4px}.approval-safety{margin-top:9px;padding:9px;border-radius:8px;background:rgba(253,176,34,.06);color:#d8c18b;font-size:10px}.approval-actions{display:flex;gap:8px;margin-top:12px}.approval-empty{text-align:center;padding:28px 15px}.approval-empty-icon{margin:auto;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(50,213,131,.10);color:#7af0b0;font-weight:900}.approval-empty h3{margin:8px 0 2px}.approval-empty p{margin:0;color:#b7c8da;font-size:12px}.approval-empty small{display:block;margin-top:5px;color:var(--muted);font-size:10px}@media(max-width:700px){.approval-flow{grid-template-columns:1fr}.approval-arrow{display:none}.approval-card-head{flex-direction:column}.approval-date{margin-top:-5px}}.agent-result{display:grid;gap:14px}.agent-success{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:15px;border-radius:12px;background:linear-gradient(135deg,rgba(50,213,131,.10),rgba(72,168,255,.05));border:1px solid rgba(50,213,131,.18)}.agent-success h3{margin:7px 0 2px;font-size:15px}.agent-success p{margin:0;color:var(--muted);font-size:11px}.agent-safe{font-size:10px;color:#9be7bb;white-space:nowrap}.agent-summary-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.agent-metric{padding:11px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.025)}.agent-metric span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#7189a2}.agent-metric b{display:block;font-size:18px;margin-top:4px}.agent-metric small{display:block;color:#7189a2;font-size:9px;margin-top:2px}.agent-section{padding:14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.018)}.agent-section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.agent-section-head h3{margin:0;font-size:14px}.agent-section-head p{margin:2px 0 0;color:var(--muted);font-size:11px}.agent-job-list,.agent-post-list{display:grid;gap:7px}.agent-job{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(154,181,211,.10)}.agent-job-title{font-size:12px;font-weight:800}.agent-job-title a{color:#9ed8ff;text-decoration:none}.agent-job-title a:hover{text-decoration:underline}.agent-job-meta{font-size:10px;color:var(--muted);margin-top:3px}.agent-job-actions{display:flex;align-items:center;gap:6px}.agent-post{padding:11px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(154,181,211,.10)}.agent-post-author{font-weight:800;font-size:12px}.agent-post-text{font-size:11px;color:#cbd8e7;margin:5px 0 7px;line-height:1.5}.agent-empty{padding:15px;text-align:center;color:var(--muted);font-size:11px}.agent-tech{border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.018);padding:10px}.agent-tech summary{cursor:pointer;color:#9db1c8;font-size:11px;font-weight:750}.agent-tech summary span{float:right;color:#60758e}.agent-tech pre{margin-top:10px;max-height:300px}.agent-health-card{padding:13px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.025)}.agent-health-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:10px;color:var(--muted)}.agent-last-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:10px}.agent-note{margin-top:10px;padding:9px;border-radius:8px;background:rgba(50,213,131,.06);color:#8ce9b5;font-size:10px}@media(max-width:1100px){.agent-summary-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:650px){.agent-success,.agent-job{flex-direction:column;align-items:flex-start}.agent-summary-grid{grid-template-columns:repeat(2,1fr)}.agent-job-actions{width:100%}.agent-safe{white-space:normal}}.run-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.run-chip{padding:10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--line)}.run-chip b{display:block;font-size:16px}.run-chip span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.section-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6f87a0;font-weight:800;margin-bottom:5px}.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#526a83;padding:16px 12px 5px;font-weight:800}.live-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(50,213,131,.08);border:1px solid rgba(50,213,131,.16);color:#7be9ae;font-size:10px;font-weight:800}.live-pill i{width:6px;height:6px;border-radius:50%;background:currentColor}.drawerbox{width:min(760px,96vw)}.table td{font-size:12px}.table th{white-space:nowrap}@media(max-width:650px){.result-head{flex-direction:column}.drawerbox{width:100%}}
+.system-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.system-status{display:flex;align-items:center;gap:9px;margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.025);font-size:10px;color:var(--muted)}.mini-run{display:grid;gap:9px}.mini-run .agent-last-grid{margin-top:0}@media(max-width:800px){.system-grid{grid-template-columns:repeat(2,1fr)}}.approval-hero{display:flex;align-items:center;gap:14px;padding:18px;background:linear-gradient(135deg,rgba(72,168,255,.09),rgba(50,213,131,.05))}.approval-hero-icon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:rgba(50,213,131,.12);color:#7af0b0;font-size:20px;font-weight:900;border:1px solid rgba(50,213,131,.2)}.approval-hero h2{margin:2px 0 4px;font-size:17px}.approval-hero p{margin:0;color:var(--muted);font-size:11px;max-width:760px}.approval-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:10px;margin-top:12px;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}.approval-flow>div:not(.approval-arrow){display:grid;grid-template-columns:25px 1fr;column-gap:8px;align-items:center}.approval-flow span{grid-row:span 2;width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:rgba(72,168,255,.12);color:#9ed8ff;font-weight:800;font-size:11px}.approval-flow b{font-size:11px}.approval-flow small{color:var(--muted);font-size:9px}.approval-arrow{color:#526b86;font-size:18px}.approval-list{display:grid;gap:10px}.approval-card{padding:15px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,rgba(20,38,61,.72),rgba(10,23,39,.82))}.approval-card-head{display:flex;justify-content:space-between;gap:10px}.approval-card h3{margin:7px 0 2px;text-transform:capitalize;font-size:14px}.approval-target{font-size:12px;color:#9ed8ff;font-weight:700}.approval-date{font-size:10px;color:var(--muted)}.approval-proposal{margin-top:12px;padding:11px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(154,181,211,.10);font-size:11px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}.approval-label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#7189a2;margin-bottom:4px}.approval-safety{margin-top:9px;padding:9px;border-radius:8px;background:rgba(253,176,34,.06);color:#d8c18b;font-size:10px}.approval-actions{display:flex;gap:8px;margin-top:12px}.approval-empty{text-align:center;padding:28px 15px}.approval-empty-icon{margin:auto;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(50,213,131,.10);color:#7af0b0;font-weight:900}.approval-empty h3{margin:8px 0 2px}.approval-empty p{margin:0;color:#b7c8da;font-size:12px}.approval-empty small{display:block;margin-top:5px;color:var(--muted);font-size:10px}@media(max-width:700px){.approval-flow{grid-template-columns:1fr}.approval-arrow{display:none}.approval-card-head{flex-direction:column}.approval-date{margin-top:-5px}}.agent-result{display:grid;gap:14px}.agent-success{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:15px;border-radius:12px;background:linear-gradient(135deg,rgba(50,213,131,.10),rgba(72,168,255,.05));border:1px solid rgba(50,213,131,.18)}.agent-success h3{margin:7px 0 2px;font-size:15px}.agent-success p{margin:0;color:var(--muted);font-size:11px}.agent-safe{font-size:10px;color:#9be7bb;white-space:nowrap}.agent-summary-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.agent-metric{padding:11px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.025)}.agent-metric span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#7189a2}.agent-metric b{display:block;font-size:18px;margin-top:4px}.agent-metric small{display:block;color:#7189a2;font-size:9px;margin-top:2px}.agent-section{padding:14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.018)}.agent-section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.agent-section-head h3{margin:0;font-size:14px}.agent-section-head p{margin:2px 0 0;color:var(--muted);font-size:11px}.agent-job-list,.agent-post-list{display:grid;gap:7px}.agent-job{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(154,181,211,.10)}.agent-job-title{font-size:12px;font-weight:800}.agent-job-title a{color:#9ed8ff;text-decoration:none}.agent-job-title a:hover{text-decoration:underline}.agent-job-meta{font-size:10px;color:var(--muted);margin-top:3px}.agent-job-actions{display:flex;align-items:center;gap:6px}.agent-post{padding:11px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(154,181,211,.10)}.agent-post-author{font-weight:800;font-size:12px}.agent-post-text{font-size:11px;color:#cbd8e7;margin:5px 0 7px;line-height:1.5}.agent-empty{padding:15px;text-align:center;color:var(--muted);font-size:11px}.agent-tech{border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.018);padding:10px}.agent-tech summary{cursor:pointer;color:#9db1c8;font-size:11px;font-weight:750}.agent-tech summary span{float:right;color:#60758e}.agent-tech pre{margin-top:10px;max-height:300px}.agent-health-card{padding:13px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.025)}.agent-health-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:10px;color:var(--muted)}.agent-last-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:10px}.agent-note{margin-top:10px;padding:9px;border-radius:8px;background:rgba(50,213,131,.06);color:#8ce9b5;font-size:10px}@media(max-width:1100px){.agent-summary-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:650px){.agent-success,.agent-job{flex-direction:column;align-items:flex-start}.agent-summary-grid{grid-template-columns:repeat(2,1fr)}.agent-job-actions{width:100%}.agent-safe{white-space:normal}}.run-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.run-chip{padding:10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--line)}.run-chip b{display:block;font-size:16px}.run-chip span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.section-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6f87a0;font-weight:800;margin-bottom:5px}.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#526a83;padding:16px 12px 5px;font-weight:800}.live-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(50,213,131,.08);border:1px solid rgba(50,213,131,.16);color:#7be9ae;font-size:10px;font-weight:800}.live-pill i{width:6px;height:6px;border-radius:50%;background:currentColor}.drawerbox{width:min(760px,96vw)}.table td{font-size:12px}.table th{white-space:nowrap}@media(max-width:650px){.result-head{flex-direction:column}.drawerbox{width:100%}}
 .tablewrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th{font-size:11px;text-transform:uppercase;color:#7890aa;letter-spacing:.04em;text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}.table td{padding:11px 8px;border-bottom:1px solid rgba(154,181,211,.09);vertical-align:top}.table tr:hover td{background:rgba(72,168,255,.035)}
 .badge{display:inline-flex;padding:3px 8px;border-radius:999px;background:rgba(72,168,255,.12);color:#8dccff;font-size:11px;font-weight:700;border:1px solid rgba(72,168,255,.12)}.badge.green{background:rgba(50,213,131,.1);color:#70e7aa}.badge.amber{background:rgba(253,176,34,.1);color:#ffd27a}.badge.red{background:rgba(249,112,102,.1);color:#ffaaa3}
 .muted{color:var(--muted)}.error{padding:12px;background:rgba(249,112,102,.08);border:1px solid rgba(249,112,102,.24);color:#ffaaa3;border-radius:9px}.empty{padding:30px;text-align:center;color:var(--muted)}
@@ -250,7 +281,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
   </div>
   <div class="grid two" style="margin-top:16px">
     <div class="card"><div class="cardhead"><div><h2>Recent jobs</h2><p>Latest records stored locally</p></div><button class="btn" onclick="showView('jobs')">View all</button></div><div class="tablewrap"><table class="table" id="overviewJobs"></table></div></div>
-    <div class="card"><div class="cardhead"><div><h2>Last agent run</h2><p id="runMeta">Loading…</p></div></div><pre id="lastRun"></pre></div>
+    <div class="card"><div class="cardhead"><div><h2>Last agent run</h2><p id="runMeta">Loading…</p></div></div><div id="lastRun"></div></div>
   </div>
 </section>
 
@@ -374,7 +405,10 @@ function renderRun(d){
  const ok=String(status).toUpperCase()==='HEALTHY'||String(status).toLowerCase()==='success';
  const html='<div class="agent-health-card"><div class="agent-health-row"><span class="badge '+(ok?'green':'amber')+'">'+esc(String(status))+'</span><b>'+(r.last_finished_at?esc(r.last_finished_at):'No run recorded')+'</b></div><div class="agent-last-grid">'+agentMetric('Jobs',r.last_job_count??0,'Last cycle')+agentMetric('New jobs',r.last_new_jobs??0,'Last cycle')+agentMetric('Hiring posts',r.last_hiring_post_count??0,'Last cycle')+agentMetric('Recruiter targets',r.last_recruiter_count??0,'Approval planning')+agentMetric('Duration',formatDuration(r.last_duration_seconds),'Last cycle')+'</div>'+(r.last_error?'<div class="error" style="margin-top:10px">'+esc(r.last_error)+'</div>':'<div class="agent-note">✓ Last cycle completed without an error.</div>')+'</div>';
  document.getElementById('agentDetails').innerHTML=html;
- document.getElementById('lastRun').textContent=r.last_finished_at||r.updated_at||'No run recorded';
+ document.getElementById('lastRun').innerHTML='<div class="mini-run">'+
+   '<div class="system-status"><span class="badge '+(ok?'green':'amber')+'">'+esc(String(status))+'</span><span>'+esc(r.last_finished_at||r.updated_at||'No run recorded')+'</span></div>'+
+   '<div class="agent-last-grid">'+agentMetric('Jobs',r.last_job_count??0,'Last cycle')+agentMetric('New jobs',r.last_new_jobs??0,'Last cycle')+agentMetric('Hiring posts',r.last_hiring_post_count??0,'Last cycle')+'</div>'+
+   '</div>';
  document.getElementById('runMeta').textContent=r.last_finished_at||r.updated_at||'No run recorded';
 }
 async function refreshAll(){
@@ -558,14 +592,24 @@ async function transitionApplication(button){
  try{
    await api('/api/applications/transition',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_url:url,status})});
    refreshAll();
- }catch(e){alert(e.message);button.disabled=false}
+ }catch(e){
+   select.value=select.dataset.current||select.value;
+   alert(e.message);
+   button.disabled=false;
+ }
 }
-function renderSystem(){document.getElementById('systemDetails').textContent=JSON.stringify({
- skills:state.skills.length,
- warnings:state.summary?.warnings||[],
- last_run:state.summary?.last_run||{},
- activity_count:(state.summary?.activity||[]).length
-},null,2)}
+function renderSystem(){
+ const d=state.summary||{}, warnings=d.warnings||[], r=d.last_run||{};
+ document.getElementById('systemDetails').innerHTML='<div class="system-grid">'+
+   agentMetric('Skills',state.skills.length,'Registered')+
+   agentMetric('Jobs tracked',d.jobs_tracked??0,'Local history')+
+   agentMetric('Applications',d.application_count??0,'Pipeline')+
+   agentMetric('Pending approvals',d.pending_approvals??0,'Human review')+
+   '</div>'+
+   '<div class="system-status"><span class="badge '+(warnings.length?'amber':'green')+'">'+(warnings.length?'Attention needed':'System healthy')+'</span><span>'+esc(warnings.length?warnings.length+' warning(s) detected':'No dashboard data warnings')+'</span></div>'+
+   (warnings.length?'<details class="agent-tech"><summary>⚙ Warnings <span>Advanced</span></summary><pre>'+esc(JSON.stringify(warnings,null,2))+'</pre></details>':'')+
+   '<details class="agent-tech"><summary>⚙ Technical diagnostics <span>Advanced</span></summary><pre>'+esc(JSON.stringify({last_run:r,activity_count:(d.activity||[]).length},null,2))+'</pre></details>';
+}
 refreshAll();
 </script>
 </body></html>
@@ -614,7 +658,7 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/skill":
             try:
                 length = int(self.headers.get("Content-Length", "0"))
-                body = json.loads(self.rfile.read(length) or b"{}")
+                body = _read_json_body(self)
                 name = str(body.get("skill", "")).strip()
                 inputs = body.get("inputs") or {}
                 task_id = _task_submit(
@@ -627,6 +671,9 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/agent":
             try:
+                if _has_active_task("agent"):
+                    self._send(409, {"error": "An agent run is already queued or running."})
+                    return
                 from .daily_agent import run_agent_once
                 task_id = _task_submit("agent", lambda: asyncio.run(run_agent_once()))
                 self._send(202, {"task_id": task_id, "status": "queued"})
@@ -656,7 +703,7 @@ class _Handler(BaseHTTPRequestHandler):
                 length = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(length) or b"{}")
                 from .approval_queue import ApprovalQueue
-                changed = ApprovalQueue().decide(item_id, bool(body.get("approved", False)))
+                changed = ApprovalQueue().decide(item_id, _parse_approval_decision(body.get("approved", False)))
                 self._send(200 if changed else 404, {"changed": changed})
             except Exception as exc:
                 self._send(400, {"error": str(exc)})
