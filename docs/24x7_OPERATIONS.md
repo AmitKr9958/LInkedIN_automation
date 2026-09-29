@@ -13,7 +13,7 @@ Authenticated Playwright session (manual login)
     ↓
 Read-only discovery / intelligence
     ↓
-Filtering / ranking / deduplication (48h, locations, title family)
+Filtering / ranking / deduplication (4h, locations, title family)
     ↓
 Local persistence / reporting (SQLite, last_run.json, logs)
     ↓
@@ -73,7 +73,7 @@ Configured behavior:
 - Hidden (wscript → VBS → PowerShell `-WindowStyle Hidden`)
 - `MultipleInstances = IgnoreNew` (plus in-process `data/agent.lock`)
 - `ExecutionTimeLimit = 45 minutes` (exceeds measured worst-case cycle)
-- `HEADLESS=true`, `DRY_RUN=true`, `--max-posted-hours 48`
+- `HEADLESS=true`, `DRY_RUN=true`, `--max-posted-hours 4`
 
 ## 6. Health checks
 
