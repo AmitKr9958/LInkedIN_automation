@@ -6,7 +6,7 @@ The repository's automated production gates are green for code. Remaining valida
 - Complete-page job scrolling and post-scroll card re-location
 - Job-card/detail-page field hydration, including posted time and location
 - Strict India-scoped Delhi/Gurgaon/Noida filtering
-- Strict configurable freshness filtering (default **48 hours**)
+- Strict configurable freshness filtering (default **4 hours**)
 - Title-family filtering, ranking and deduplication
 - Recruiter/HR/hiring-manager discovery and draft generation
 - Local application/history tracking
@@ -14,7 +14,7 @@ The repository's automated production gates are green for code. Remaining valida
 - **28-skill** registry and deterministic skill tests
 - End-to-end governed agent command
 - Local control-center dashboard
-- Read-only Windows 2-hour scheduler using **`--max-posted-hours 48`**
+- Read-only Windows 2-hour scheduler using **`--max-posted-hours 4`**
 - Exclusive agent file lock (prevents concurrent cycles)
 - Last-run health status persistence (`data/last_run.json`) with consecutive failure tracking and health_state
 - Scheduler log rotation under `data/logs/` (keeps newest 30 files)
@@ -38,7 +38,7 @@ python -m app status
 python -m app agent-test --live
 ```
 
-The live run should report authenticated status and show eligible jobs when LinkedIn has postings matching the configured **48-hour** window. Zero results is valid when no eligible posting exists; inspect the emitted diagnostics rather than weakening the filters. Infrastructure failures (missing Chromium, locked profile, unauthenticated session) must exit non-zero and update `data/last_run.json` with `last_status=failure`.
+The live run should report authenticated status and show eligible jobs when LinkedIn has postings matching the configured **4-hour** window. Zero results is valid when no eligible posting exists; inspect the emitted diagnostics rather than weakening the filters. Infrastructure failures (missing Chromium, locked profile, unauthenticated session) must exit non-zero and update `data/last_run.json` with `last_status=failure`.
 
 ## Scheduler (local Windows automatic mode)
 ```powershell
