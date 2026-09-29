@@ -38,6 +38,8 @@ def test_dashboard_has_control_center_sections():
         "agent-section",
         "Technical diagnostics",
         "No LinkedIn account actions were performed",
+        "scrollbar-gutter:stable",
+        ".main::-webkit-scrollbar",
     ]:
         assert marker in _HTML
 
