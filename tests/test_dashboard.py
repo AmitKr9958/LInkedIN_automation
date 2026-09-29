@@ -147,3 +147,11 @@ def test_dashboard_hides_raw_overview_and_system_json_by_default():
     assert 'id="systemDetails"></pre>' not in _HTML
     assert "System health" in _HTML
     assert "Technical diagnostics" in _HTML
+
+
+def test_dashboard_manual_agent_uses_four_hour_freshness_window():
+    import inspect
+    import app.dashboard as dashboard
+
+    source = inspect.getsource(dashboard._Handler.do_POST)
+    assert "run_agent_once(max_posted_hours=4)" in source
