@@ -310,7 +310,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 </div>
 <div class="card" style="margin-top:15px"><div class="cardhead"><div><h2>Recent activity</h2><p>Local audit trail from the application database.</p></div></div><div class="tablewrap"><table class="table" id="activityTable"></table></div></div>
 </section>
-<section id="system" class="view"><div class="grid three"><div class="card"><h2>Safety</h2><p class="muted">Read-only LinkedIn discovery is automatic. Account-changing workflows remain approval-gated.</p></div><div class="card"><h2>Browser</h2><p class="muted">Uses your persistent local Playwright profile. Credentials remain on your machine.</p></div><div class="card"><h2>Performance</h2><p class="muted">Dashboard requests return immediately for long-running skills and poll for completion.</p></div></div><div class="card" style="margin-top:14px"><h2>System diagnostics</h2><pre id="systemDetails"></pre></div></section>
+<section id="system" class="view"><div class="grid three"><div class="card"><h2>Safety</h2><p class="muted">Read-only LinkedIn discovery is automatic. Account-changing workflows remain approval-gated.</p></div><div class="card"><h2>Browser</h2><p class="muted">Uses your persistent local Playwright profile. Credentials remain on your machine.</p></div><div class="card"><h2>Performance</h2><p class="muted">Dashboard requests return immediately for long-running skills and poll for completion.</p></div></div><div class="card" style="margin-top:14px"><div class="cardhead"><div><h2>System health</h2><p>Local service status and operational checks.</p></div></div><div id="systemDetails"></div></div></section>
 </main>
 </div>
 
