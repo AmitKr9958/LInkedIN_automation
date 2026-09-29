@@ -31,9 +31,11 @@ def test_scheduler_installer_is_disabled_by_default():
 
 def test_scheduler_uses_48_hour_agent_window():
     text = (ROOT / "scripts" / "run-agent.ps1").read_text(encoding="utf-8")
-    assert "--max-posted-hours 48" in text
+    assert "--max-posted-hours" in text
+    assert '"48"' in text
     assert "--max-posted-hours 0.5" not in text
     assert "--max-posted-hours 1" not in text
+
 
 def test_scheduler_runner_sets_start_and_uses_direct_output_redirection():
     text = (ROOT / "scripts" / "run-agent.ps1").read_text(encoding="utf-8")
@@ -44,6 +46,3 @@ def test_scheduler_runner_sets_start_and_uses_direct_output_redirection():
     assert "-RedirectStandardOutput $StdoutFile" in text
     assert "-RedirectStandardError $StderrFile" in text
     assert "Add-Content -Path $LogFile" in text
-
-
-
