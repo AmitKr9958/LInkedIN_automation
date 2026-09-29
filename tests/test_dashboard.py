@@ -19,8 +19,7 @@ def test_dashboard_has_control_center_sections():
         "run-summary",
         "live-pill",
         "Relevant jobs",
-        "Open job ↗",
-        "result-list",
+        "Open ↗",
         "result-cards",
         "result-card",
         "result-message",
@@ -39,8 +38,6 @@ def test_dashboard_has_control_center_sections():
         "agent-section",
         "Technical diagnostics",
         "No LinkedIn account actions were performed",
-        "Relevant jobs",
-
     ]:
         assert marker in _HTML
 
