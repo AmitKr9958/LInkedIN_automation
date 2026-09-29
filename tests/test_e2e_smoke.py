@@ -34,15 +34,15 @@ async def test_dashboard_browser_smoke():
                 errors = []
                 page.on("pageerror", lambda exc: errors.append(str(exc)))
                 await page.goto(f"http://127.0.0.1:{port}/", wait_until="networkidle")
-                await page.get_by_role("button", name="Jobs").click()
+                await page.locator('button[data-view="jobs"]').click()
                 assert await page.locator("#jobStatusFilter").count() == 1
                 assert await page.locator("#jobWorkplaceFilter").count() == 1
                 assert await page.locator("#jobScoreSort").count() == 1
                 await page.locator("#jobStatusFilter").select_option("new")
                 await page.locator("#jobScoreSort").select_option("asc")
-                await page.get_by_role("button", name="Approvals").click()
+                await page.locator('button[data-view="approvals"]').click()
                 assert await page.locator("#approvalCards").count() == 1
-                await page.get_by_role("button", name="Agent Runs").click()
+                await page.locator('button[data-view="agent"]').click()
                 assert await page.locator("#tasks").count() == 1
                 assert not errors, f"dashboard JavaScript errors: {errors}"
             finally:
