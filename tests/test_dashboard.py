@@ -61,7 +61,11 @@ def test_dashboard_task_runner_returns_immediately_and_completes():
 
 
 def test_dashboard_exposes_transition_constraints_and_empty_job_state():
-    assert "allowed_transitions" in __import__("app.dashboard", fromlist=["_summary"]).__dict__["_summary"].__code__.co_consts
+    import inspect
+    import app.dashboard as dashboard
+
+    assert "allowed_transitions" in inspect.getsource(dashboard._summary)
+    assert "X-Content-Type-Options" in inspect.getsource(dashboard._Handler._send)
     assert "No jobs stored yet." in _HTML
 
 
