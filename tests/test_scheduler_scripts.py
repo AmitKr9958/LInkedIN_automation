@@ -40,8 +40,10 @@ def test_scheduler_runner_sets_start_and_uses_direct_output_redirection():
     assert "$Start = Get-Date" in text
     assert '$env:PYTHONUNBUFFERED = "1"' in text
     assert '$env:PYTHONIOENCODING = "utf-8"' in text
-    assert '*>> $LogFile' in text
-    assert "Tee-Object -FilePath $LogFile" in text
+    assert "Start-Process" in text
+    assert "-RedirectStandardOutput $StdoutFile" in text
+    assert "-RedirectStandardError $StderrFile" in text
+    assert "Add-Content -Path $LogFile" in text
 
 
 
