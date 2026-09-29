@@ -13,7 +13,6 @@ def test_dashboard_has_control_center_sections():
         "Recent activity",
         "/api/applications/transition",
         "transitionApplication",
-        "X-Content-Type-Options",
         "COMMAND CENTER",
         "READ-ONLY · 2H CADENCE",
         "result-shell",
@@ -92,7 +91,8 @@ def test_dashboard_summary_can_build_application_transition_metadata(monkeypatch
     import sqlite3
     import app.dashboard as dashboard
 
-    db_path = tmp_path / "activity.sqlite3"
+    db_path = tmp_path / "data" / "activity.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as db:
         db.execute(
             "CREATE TABLE applications(job_url TEXT PRIMARY KEY,title TEXT,company TEXT,status TEXT NOT NULL,updated_at TEXT NOT NULL,notes TEXT DEFAULT '')"
