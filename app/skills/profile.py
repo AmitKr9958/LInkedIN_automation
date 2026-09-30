@@ -95,6 +95,9 @@ async def read_profile(page) -> ProfileSnapshot:
 
     await page.goto(profile_url, wait_until="domcontentloaded", timeout=60_000)
     await page.wait_for_timeout(2_500)
+    # LinkedIn lazy-loads profile sections while scrolling. The headed browser
+    # may not visibly show a scrollbar, so force a full programmatic scroll.
+    await _scroll_profile_to_bottom(page)
     state = await current_session_state(page)
 
     name_locator = page.locator("main h1, h1.text-heading-xlarge, h1").first
@@ -137,6 +140,36 @@ async def read_profile(page) -> ProfileSnapshot:
         sections["skills"],
         sections["featured"],
     )
+
+
+async def _scroll_profile_to_bottom(page, max_rounds: int = 24) -> None:
+    last_height = 0
+    stable_rounds = 0
+    for _ in range(max_rounds):
+        try:
+            height = await page.evaluate("document.scrollingElement ? document.scrollingElement.scrollHeight : document.body.scrollHeight")
+            viewport = await page.evaluate("window.innerHeight || document.documentElement.clientHeight || 0")
+            await page.evaluate("window.scrollBy(0, Math.max(600, Math.floor(window.innerHeight * 0.8)))")
+            await page.wait_for_timeout(450)
+            new_height = await page.evaluate("document.scrollingElement ? document.scrollingElement.scrollHeight : document.body.scrollHeight")
+            if new_height <= height and new_height <= last_height:
+                stable_rounds += 1
+            else:
+                stable_rounds = 0
+            last_height = max(last_height, new_height)
+            scroll_y = await page.evaluate("window.scrollY || window.pageYOffset || 0")
+            if viewport and scroll_y + viewport >= new_height - 8 and stable_rounds >= 2:
+                break
+            if stable_rounds >= 4:
+                break
+        except Exception:
+            break
+
+    try:
+        await page.evaluate("window.scrollTo(0, 0)")
+        await page.wait_for_timeout(250)
+    except Exception:
+        pass
 
 
 async def _first_text(page, selectors: tuple[str, ...]) -> str:
