@@ -85,13 +85,33 @@ def _is_valid_headline(text: str, known_name: str = "") -> bool:
     return re.fullmatch(r"(?i)(he|she|they)(?:[/ ](?:him|her|them))?", normalized) is None
 
 
-async def read_profile(page) -> ProfileSnapshot:
-    profile_url = str(settings.profile_url or "").strip()
-    if not re.match(r"^https://(?:www\.)?linkedin\.com/in/[^/?#]+/?(?:\?.*)?$", profile_url, re.I):
+_PROFILE_URL_RE = re.compile(
+    r"^https://(?:www\.)?linkedin\.com/in/[^/?#]+/?(?:\?.*)?$",
+    re.I,
+)
+
+
+def is_valid_profile_url(url: str) -> bool:
+    """Return True when url is a concrete LinkedIn /in/<slug> profile URL."""
+    return bool(_PROFILE_URL_RE.match(str(url or "").strip()))
+
+
+def require_configured_profile_url(url: str | None = None) -> str:
+    """Validate and return the configured authenticated profile URL.
+
+    Raises RuntimeError when the URL is missing or is the generic /in/ route.
+    """
+    profile_url = str(url if url is not None else settings.profile_url or "").strip()
+    if not is_valid_profile_url(profile_url):
         raise RuntimeError(
             "PROFILE_URL must point to the authenticated LinkedIn profile, "
             "for example https://www.linkedin.com/in/your-profile-slug/"
         )
+    return profile_url
+
+
+async def read_profile(page) -> ProfileSnapshot:
+    profile_url = require_configured_profile_url()
 
     await page.goto(profile_url, wait_until="domcontentloaded", timeout=60_000)
     await page.wait_for_timeout(2_500)
