@@ -118,9 +118,49 @@ def chat_json(*, system: str, user: str, temperature: float = 0.2, max_tokens: i
         retry_result = _parse_json_object(str(retry_content).strip())
     except (error.HTTPError, error.URLError, TimeoutError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
         raise LLMError(f"LLM returned non-JSON content for a JSON-only request: retry failed ({type(exc).__name__})") from exc
-    if retry_result is None:
-        raise LLMError("LLM returned non-JSON content for a JSON-only request after retry")
-    return retry_result
+    if retry_result is not None:
+        return retry_result
+
+    # Final recovery for reasoning/free models that ignore JSON mode and emit a
+    # truncated or verbose answer on the first retry. Give the provider a
+    # larger completion budget and explicitly request the same schema again.
+    final_payload = dict(retry_payload)
+    final_payload["temperature"] = 0
+    final_payload["max_tokens"] = max(int(max_tokens) * 2, 4800)
+    final_messages = list(final_payload["messages"])
+    final_messages[0] = {
+        "role": "system",
+        "content": (
+            str(final_messages[0].get("content", ""))
+            + "\nThis is a recovery attempt. Return exactly one complete JSON object. "
+              "Do not explain your reasoning. Do not use markdown. Ensure every string "
+              "and array is closed before ending the response."
+        ),
+    }
+    final_payload["messages"] = final_messages
+    final_req = request.Request(
+        endpoint,
+        data=json.dumps(final_payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with request.urlopen(final_req, timeout=settings.llm_timeout_seconds) as response:
+            final_raw = response.read().decode("utf-8")
+        final_envelope = json.loads(final_raw)
+        final_content = final_envelope["choices"][0]["message"]["content"]
+        if isinstance(final_content, list):
+            final_content = "".join(
+                part.get("text", "") for part in final_content if isinstance(part, dict)
+            )
+        final_result = _parse_json_object(str(final_content).strip())
+    except (error.HTTPError, error.URLError, TimeoutError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise LLMError(
+            f"LLM returned non-JSON content for a JSON-only request: final retry failed ({type(exc).__name__})"
+        ) from exc
+    if final_result is None:
+        raise LLMError("LLM returned non-JSON content for a JSON-only request after recovery retry")
+    return final_result
 
 
 def _parse_json_object(content: str) -> dict[str, Any] | None:
