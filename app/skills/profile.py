@@ -242,6 +242,60 @@ async def _expand_profile_sections(page) -> None:
         pass
 
 
+async def _read_profile_details_page(page, section_name: str) -> str:
+    """Read a section from LinkedIn's authenticated /details route as a fallback."""
+    details_path = {
+        "experience": "/details/experience/",
+        "skills": "/details/skills/",
+        "featured": "/details/featured/",
+    }.get(section_name)
+    if not details_path:
+        return ""
+
+    context = getattr(page, "context", None)
+    profile_url = str(settings.profile_url or "").strip().rstrip("/")
+    if context is None or not profile_url:
+        return ""
+
+    detail_page = None
+    try:
+        detail_page = await context.new_page()
+        await detail_page.goto(
+            profile_url + details_path,
+            wait_until="domcontentloaded",
+            timeout=45_000,
+        )
+        await detail_page.wait_for_timeout(1_500)
+
+        current_url = str(detail_page.url or "")
+        if "/in/" not in current_url.lower() or details_path.rstrip("/").lower() not in current_url.lower():
+            return ""
+
+        await _scroll_profile_to_bottom(detail_page, max_rounds=16)
+        raw = await detail_page.locator("main").first.inner_text()
+        raw = " ".join(str(raw or "").split())
+        if not raw:
+            return ""
+
+        extracted = _extract_section_from_text(raw, section_name)
+        if extracted:
+            return extracted
+
+        # Section-specific details pages may omit the section heading entirely.
+        # In that case the rendered main text is still section-scoped evidence.
+        if len(raw) > len(_normalize_section_heading(section_name)) + 20:
+            return raw
+    except Exception:
+        return ""
+    finally:
+        if detail_page is not None:
+            try:
+                await detail_page.close()
+            except Exception:
+                pass
+    return ""
+
+
 async def _read_profile_section(page, section_name: str) -> str:
     """Read one profile section using resilient, read-only DOM extraction."""
     title = _normalize_section_heading(section_name)
@@ -363,7 +417,7 @@ async def _read_profile_section(page, section_name: str) -> str:
         except Exception:
             pass
 
-    # Fallback 2: scan the rendered main text. This handles LinkedIn layouts
+    # Fallback 2: use LinkedIn's authenticated section-specific details route.\n    # Some current layouts expose only a link/card on the profile page while\n    # the actual Experience/Skills/Featured content lives on /details/... .\n    if section_name in {"experience", "skills", "featured"}:\n        value = await _read_profile_details_page(page, section_name)\n        if value:\n            return value\n\n    # Fallback 2: scan the rendered main text. This handles LinkedIn layouts
     # where the section title is a nested button/div/span rather than a semantic
     # heading. We only accept an exact section-title line and stop at the next
     # known profile section, so we do not accidentally return the whole page.
