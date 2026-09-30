@@ -70,13 +70,14 @@ class ApplicationTracker:
             raise ValueError("invalid status")
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as db:
-            db.execute("""INSERT OR IGNORE INTO applications
+            cur = db.execute("""INSERT OR IGNORE INTO applications
               (job_url,title,company,status,updated_at,notes,discovered_at,applied_at,
                source,location,recruiter,resume_version,next_follow_up,interview_date,salary_notes)
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
               (job_url, title, company, status, now, notes, discovered_at or now, applied_at,
                source, location, recruiter, resume_version, next_follow_up, interview_date, salary_notes))
             db.commit()
+            return cur.rowcount > 0
 
     def update_details(self, job_url, *, source=None, location=None, recruiter=None,
                        resume_version=None, next_follow_up=None, interview_date=None,
