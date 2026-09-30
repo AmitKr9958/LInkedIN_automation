@@ -81,9 +81,46 @@ def chat_json(*, system: str, user: str, temperature: float = 0.2, max_tokens: i
         content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
     content = str(content).strip()
     result = _parse_json_object(content)
-    if result is None:
-        raise LLMError("LLM returned non-JSON content for a JSON-only request")
-    return result
+    if result is not None:
+        return result
+
+    # Some OpenRouter/free models accept the request but ignore the
+    # response_format hint and return prose or fenced output. Retry once with
+    # an explicit JSON-only instruction and without response_format so the
+    # provider can use its native fallback behavior. This remains a read-only
+    # parsing retry; it does not alter any LinkedIn action or safety gate.
+    retry_payload = dict(payload)
+    retry_payload.pop("response_format", None)
+    retry_messages = list(retry_payload["messages"])
+    retry_messages[0] = {
+        "role": "system",
+        "content": (
+            str(retry_messages[0].get("content", ""))
+            + "\nReturn ONLY one valid JSON object. No markdown fences, no commentary, and no text before or after the JSON object."
+        ),
+    }
+    retry_payload["messages"] = retry_messages
+    retry_req = request.Request(
+        endpoint,
+        data=json.dumps(retry_payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with request.urlopen(retry_req, timeout=settings.llm_timeout_seconds) as response:
+            retry_raw = response.read().decode("utf-8")
+        retry_envelope = json.loads(retry_raw)
+        retry_content = retry_envelope["choices"][0]["message"]["content"]
+        if isinstance(retry_content, list):
+            retry_content = "".join(
+                part.get("text", "") for part in retry_content if isinstance(part, dict)
+            )
+        retry_result = _parse_json_object(str(retry_content).strip())
+    except (error.HTTPError, error.URLError, TimeoutError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise LLMError(f"LLM returned non-JSON content for a JSON-only request: retry failed ({type(exc).__name__})") from exc
+    if retry_result is None:
+        raise LLMError("LLM returned non-JSON content for a JSON-only request after retry")
+    return retry_result
 
 
 def _parse_json_object(content: str) -> dict[str, Any] | None:
