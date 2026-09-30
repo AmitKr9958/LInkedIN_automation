@@ -36,7 +36,7 @@ class ApplicationTracker:
             existing = {row[1] for row in db.execute("PRAGMA table_info(applications)").fetchall()}
             migrations = {
                 "discovered_at": "TEXT", "applied_at": "TEXT", "source": "TEXT DEFAULT ''",
-                "location": "TEXT DEFAULT ''", "recruiter": "TEXT DEFAULT '',
+                "location": "TEXT DEFAULT ''", "recruiter": "TEXT DEFAULT ''",
                 "resume_version": "TEXT DEFAULT ''", "next_follow_up": "TEXT DEFAULT ''",
                 "interview_date": "TEXT DEFAULT ''", "salary_notes": "TEXT DEFAULT ''",
             }
