@@ -58,6 +58,34 @@ def _json_value(value: str, default: Any = None) -> Any:
     try: return json.loads(value)
     except (TypeError, json.JSONDecodeError): return default
 
+
+def _verified_certifications(profile: dict[str, Any]) -> set[str]:
+    """Return certification-style codes explicitly present in profile evidence."""
+    import re
+    evidence = " ".join(
+        str(profile.get(field, "") or "")
+        for field in ("headline", "about", "experience", "skills", "featured")
+    )
+    return {token.upper() for token in re.findall(r"\\b(?:DP|PL|AZ|AI)-\\d{3}\\b", evidence, re.I)}
+
+
+def _sanitize_certification_claims(value: Any, allowed: set[str]) -> Any:
+    """Remove unsupported certification codes from model output without inventing facts."""
+    import re
+    if isinstance(value, dict):
+        return {k: _sanitize_certification_claims(v, allowed) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_certification_claims(v, allowed) for v in value]
+    if not isinstance(value, str):
+        return value
+
+    def clean(match: re.Match[str]) -> str:
+        token = match.group(0).upper()
+        return match.group(0) if token in allowed else ""
+
+    cleaned = re.sub(r"\\b(?:DP|PL|AZ|AI)-\\d{3}\\b", clean, value, flags=re.I)
+    return " ".join(cleaned.split()).strip()
+
 async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
     known = {s["name"] for s in skill_catalog()}
     if name not in known: raise ValueError(f"Unknown skill: {name}")
@@ -153,9 +181,23 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
         else:
             profile_data = _json_value(str(inputs.get("profile", "{}")), {}) or {}
         baseline = profile_audit(profile_data)
+        verified_certifications = sorted(_verified_certifications(profile_data))
         prompt = {
             "profile": profile_data,
             "audit": baseline,
+            "verified_evidence": {
+                "sections_present": {
+                    key: bool(profile_data.get(key))
+                    for key in ("headline", "about", "experience", "skills", "featured")
+                },
+                "certifications_explicitly_present": verified_certifications,
+            },
+            "evidence_rules": [
+                "Treat the supplied section audit as authoritative for whether a section is present.",
+                "Do not say Experience, Skills, or Featured are missing when the supplied profile field contains text.",
+                "Do not infer certifications from target roles, skills, technologies, or likely career paths.",
+                "Only mention a certification code if it appears explicitly in the supplied profile evidence.",
+            ],
             "target_roles": [
                 "Power BI Developer",
                 "Business Intelligence",
@@ -182,6 +224,7 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             temperature=0.2,
             max_tokens=2600,
         )
+        ai = _sanitize_certification_claims(ai, set(verified_certifications))
         sections = baseline.get("sections", {})
         readable = {
             "title": "Profile Optimizer",
