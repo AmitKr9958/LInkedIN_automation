@@ -389,6 +389,7 @@ async def run_agent_once(
         diagnostics["post_scan_window_hours"] = post_window
         diagnostics["feed_scan_enabled"] = True
         diagnostics["hiring_posts_matched"] = len(report.hiring_posts)
+        diagnostics["stale_jobs_removed"] = int(getattr(report, "diagnostics", {}).get("stale_jobs_removed", 0) or 0)
         diagnostics["shared_browser_session"] = use_shared
         timing["cycle_total"] = round(_time.monotonic() - cycle_started, 2)
         report.diagnostics = diagnostics
