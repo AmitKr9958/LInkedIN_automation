@@ -40,6 +40,7 @@ def test_section_heading_matching_tolerates_counts_and_whitespace():
     assert _normalize_section_heading("  Experience\u00a0") == "experience"
     assert _section_heading_matches("Experience", "experience")
     assert _section_heading_matches("Skills (25)", "skills")
+    assert _section_heading_matches("Experience 4", "experience")
     assert _section_heading_matches("Featured", "featured")
 
 
