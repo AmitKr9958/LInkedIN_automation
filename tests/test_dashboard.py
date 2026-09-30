@@ -43,6 +43,19 @@ def test_dashboard_has_control_center_sections():
         "No LinkedIn account actions were performed",
         "scrollbar-gutter:stable",
         ".main::-webkit-scrollbar",
+        "Application Pipeline",
+        "applicationMetrics",
+        "appStatusFilter",
+        "appSearch",
+        "saveApplicationDetails",
+        "Track application",
+        "/api/applications/add",
+        "/api/applications/details",
+        "Recruiter",
+        "Resume version",
+        "Next follow-up",
+        "Interview date",
+        "Salary / CTC notes",
     ]:
         assert marker in _HTML
 
