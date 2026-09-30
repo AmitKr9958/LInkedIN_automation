@@ -16,6 +16,18 @@ class Settings(BaseSettings):
         default=False,
         validation_alias="LINKEDIN_AGENT_ENABLED",
     )
+    telegram_notifications_enabled: bool = Field(
+        default=False,
+        validation_alias="TELEGRAM_NOTIFICATIONS_ENABLED",
+    )
+    telegram_bot_token: str | None = Field(
+        default=None,
+        validation_alias="TELEGRAM_BOT_TOKEN",
+    )
+    telegram_chat_id: str | None = Field(
+        default=None,
+        validation_alias="TELEGRAM_CHAT_ID",
+    )
     llm_provider: str = "none"
     openai_api_key: str | None = None
     linkedin_base_url: str = "https://www.linkedin.com"
