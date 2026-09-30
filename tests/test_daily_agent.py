@@ -292,3 +292,29 @@ def test_run_agent_once_emits_timings():
     assert "cycle_total" in timings
     assert "post_queries_total" in timings
     assert "feed_scan" in timings
+
+
+def test_run_agent_once_applies_four_hour_cleanup_window(monkeypatch):
+    calls = []
+
+    async def fake_read(skill, **kwargs):
+        if skill == "jobs":
+            return SimpleNamespace(data=[], diagnostics={"final_returned": 0})
+        return SimpleNamespace(data=[])
+
+    def fake_build(rows, **kwargs):
+        calls.append(kwargs.get("freshness_hours"))
+        return SimpleNamespace(ranked=[], new_count=0, removed_stale=3)
+
+    monkeypatch.setattr(daily_agent, "build_discovery_report", fake_build)
+
+    report = __import__("asyncio").run(
+        daily_agent.run_agent_once(
+            locations=["Delhi"],
+            read_fn=fake_read,
+            tracker=FakeTracker(),
+        )
+    )
+
+    assert calls == [4]
+    assert report.diagnostics["stale_jobs_removed"] == 3
