@@ -353,18 +353,25 @@ function renderMetrics(d){
 }
 function jobRows(rows){
  const list=rows||[];
- return '<thead><tr><th>Role</th><th>Company</th><th>Location</th><th>Workplace</th><th>Score ↕</th><th>Status</th><th>Seen</th></tr></thead><tbody>'+
+ return '<thead><tr><th>Role</th><th>Company</th><th>Location</th><th>Workplace</th><th>Score ↕</th><th>Status</th><th>Seen</th><th>Application</th></tr></thead><tbody>'+
  (list.length ? list.map(x=>{
    const link=x.url?'<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer" style="color:#8dccff;text-decoration:none">'+esc(x.title)+'</a>':'<b>'+esc(x.title)+'</b>';
    const wp=x.workplace_type||((String(x.location||'').toLowerCase().includes('remote'))?'remote':'');
    const reason=String(x.reasons||'').slice(0,180);
    const score=Number.isFinite(Number(x.score))?Number(x.score):'—';
-   return '<tr><td><b>'+link+'</b>'+(reason?'<div class="muted" style="font-size:11px;margin-top:3px">'+esc(reason)+'</div>':'')+'</td><td>'+esc(x.company)+'</td><td>'+esc(x.location)+'</td><td>'+(wp?'<span class="badge green">'+esc(wp)+'</span>':'<span class="muted">—</span>')+'</td><td><span class="score '+scoreClass(score)+'">'+esc(score)+'</span></td><td><span class="badge">'+esc(x.status||'new')+'</span></td><td>'+esc(x.updated_at)+'</td></tr>';
- }).join('') : '<tr><td colspan="7" class="empty">No jobs stored yet.</td></tr>')+
+   return '<tr><td><b>'+link+'</b>'+(reason?'<div class="muted" style="font-size:11px;margin-top:3px">'+esc(reason)+'</div>':'')+'</td><td>'+esc(x.company)+'</td><td>'+esc(x.location)+'</td><td>'+(wp?'<span class="badge green">'+esc(wp)+'</span>':'<span class="muted">—</span>')+'</td><td><span class="score '+scoreClass(score)+'">'+esc(score)+'</span></td><td><span class="badge">'+esc(x.status||'new')+'</span></td><td>'+esc(x.updated_at)+'</td><td><button class="btn" onclick="addApplication(this)" data-url="'+esc(x.url||'')+'" data-title="'+esc(x.title||'')+'" data-company="'+esc(x.company||'')+'" data-location="'+esc(x.location||'')+'">Track application</button></td></tr>';
+ }).join('') : '<tr><td colspan="8" class="empty">No jobs stored yet.</td></tr>')+
  '</tbody>';
 }
 function normalizeFilterValue(value){
  return String(value??'').trim().toLowerCase().replace(/_/g,'-');
+}
+async function addApplication(button){
+ const data={job_url:button.dataset.url,title:button.dataset.title,company:button.dataset.company,location:button.dataset.location,source:'LinkedIn'};
+ if(!data.job_url){alert('This job has no application URL.');return}
+ button.disabled=true;
+ try{const d=await api('/api/applications/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});button.textContent=d.added?'Tracked':'Already tracked';refreshAll()}
+ catch(e){alert(e.message);button.disabled=false}
 }
 function filterJobs(){
  const q=(document.getElementById('jobSearch')?.value||'').toLowerCase().trim();
@@ -729,6 +736,20 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(202, {"task_id": task_id, "status": "queued"})
             except Exception as exc:
                 self._send(400, {"error": f"{type(exc).__name__}: {exc}"})
+            return
+        if path == "/api/applications/add":
+            try:
+                body = _read_json_body(self)
+                from .application_tracker import ApplicationTracker
+                added = ApplicationTracker().add(
+                    body.get("job_url",""), body.get("title",""), body.get("company",""),
+                    "new", source=body.get("source","LinkedIn"), location=body.get("location","")
+                )
+                self._send(200, {"added": bool(added), "job_url": str(body.get("job_url","")).strip()})
+            except ValueError as exc:
+                self._send(400, {"error": str(exc)})
+            except Exception as exc:
+                self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
         if path == "/api/applications/details":
             try:
