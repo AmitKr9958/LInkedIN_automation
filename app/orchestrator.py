@@ -12,6 +12,7 @@ from .store import log_activity
 class DiscoveryReport:
     ranked: list[dict]
     new_count: int
+    removed_stale: int = 0
 
 
 def build_discovery_report(
@@ -40,7 +41,7 @@ def build_discovery_report(
         "ok",
         f"ranked={len(ranked)} new={new_count} removed_stale={removed} freshness_hours={freshness_hours:g}",
     )
-    return DiscoveryReport(ranked, new_count)
+    return DiscoveryReport(ranked, new_count, removed_stale=removed)
 
 
 def queue_message(target: str, message: str) -> str:
