@@ -50,6 +50,8 @@ def test_dashboard_has_control_center_sections():
         "appSearch",
         "saveApplicationDetails",
         "Track application",
+        "Tracked",
+        "state.summary?.applications",
         "/api/applications/add",
         "/api/applications/details",
         "Recruiter",
@@ -172,3 +174,8 @@ def test_dashboard_manual_agent_uses_four_hour_freshness_window():
 
     source = inspect.getsource(dashboard._Handler.do_POST)
     assert "run_agent_once(max_posted_hours=4)" in source
+
+def test_dashboard_track_application_marks_already_tracked_jobs():
+    assert "state.summary?.applications" in _HTML
+    assert "const isTracked=tracked.has" in _HTML
+    assert '<button class="btn" disabled>Tracked</button>' in _HTML
