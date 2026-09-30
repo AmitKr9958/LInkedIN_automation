@@ -66,7 +66,7 @@ def _verified_certifications(profile: dict[str, Any]) -> set[str]:
         str(profile.get(field, "") or "")
         for field in ("headline", "about", "experience", "skills", "featured")
     )
-    return {token.upper() for token in re.findall(r"\\b(?:DP|PL|AZ|AI)-\\d{3}\\b", evidence, re.I)}
+    return {token.upper() for token in re.findall(r"\b(?:DP|PL|AZ|AI)-\d{3}\b", evidence, re.I)}
 
 
 def _sanitize_certification_claims(value: Any, allowed: set[str]) -> Any:
@@ -83,7 +83,7 @@ def _sanitize_certification_claims(value: Any, allowed: set[str]) -> Any:
         token = match.group(0).upper()
         return match.group(0) if token in allowed else ""
 
-    cleaned = re.sub(r"\\b(?:DP|PL|AZ|AI)-\\d{3}\\b", clean, value, flags=re.I)
+    cleaned = re.sub(r"\b(?:DP|PL|AZ|AI)-\d{3}\b", clean, value, flags=re.I)
     return " ".join(cleaned.split()).strip()
 
 async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
