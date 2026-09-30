@@ -249,7 +249,7 @@ async def _read_profile_section(page, section_name: str) -> str:
                     const candidates = Array.from(document.querySelectorAll('main *'))
                         .filter(el => {
                             const text = norm(el.textContent);
-                            if (text !== wanted) return false;
+                            if (!matches(text)) return false;
                             const tag = (el.tagName || '').toLowerCase();
                             return tag !== 'main' && tag !== 'body' && tag !== 'section';
                         })
