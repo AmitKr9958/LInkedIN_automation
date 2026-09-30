@@ -350,23 +350,58 @@ def _extract_section_from_text(raw_text: str, section_name: str) -> str:
     ]
     lines = [line for line in lines if line]
     wanted = _normalize_section_heading(section_name)
-    start = -1
 
+    # Normal innerText normally preserves one heading per line.
     for index, line in enumerate(lines):
         if _section_heading_matches(line, wanted):
-            start = index
-            break
-    if start < 0:
+            content = []
+            for candidate in lines[index:]:
+                normalized = _normalize_section_heading(candidate)
+                if content and normalized in _PROFILE_SECTION_ORDER:
+                    break
+                content.append(candidate)
+            value = " ".join(content).strip()
+            if len(value) > len(wanted) + 8:
+                return value
+
+    # Some Chromium/LinkedIn layouts flatten large parts of the page into a
+    # single line. In that case, locate the requested heading in the normalized
+    # text and stop at the next known section heading.
+    flat = " ".join(lines).strip()
+    if not flat:
         return ""
 
-    content = []
-    for line in lines[start:]:
-        normalized = _normalize_section_heading(line)
-        if content and normalized in _PROFILE_SECTION_ORDER:
-            break
-        content.append(line)
+    heading_re = re.compile(
+        rf"(?<!\w){re.escape(wanted)}"
+        rf"(?:\s*\(\s*\d+\s*\)|\s+\d+)?(?!\w)",
+        re.I,
+    )
+    section_positions = {
+        section: [
+            match.start()
+            for match in re.finditer(
+                rf"(?<!\w){re.escape(section)}"
+                rf"(?:\s*\(\s*\d+\s*\)|\s+\d+)?(?!\w)",
+                flat,
+                re.I,
+            )
+        ]
+        for section in _PROFILE_SECTION_ORDER
+    }
+    starts = section_positions.get(wanted, [])
+    if not starts:
+        return ""
 
-    value = " ".join(content).strip()
+    start = starts[0]
+    following = [
+        position
+        for section, positions in section_positions.items()
+        if section != wanted
+        for position in positions
+        if position > start
+    ]
+    end = min(following) if following else len(flat)
+    value = flat[start:end].strip()
     return value if len(value) > len(wanted) + 8 else ""
 
 async def _top_card_text(page) -> str:
