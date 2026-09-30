@@ -12,3 +12,37 @@ def test_job_history_upsert_and_blank_url(tmp_path):
     assert len(h.recent()) == 2
     assert h.get_by_url(job["url"])[2] == "Noida"
     assert h.get_by_url("") is None
+
+
+def test_job_history_persists_posting_age_and_prunes_stale_rows(tmp_path):
+    h = History(str(tmp_path / "jobs.sqlite3"))
+    h.upsert_job(
+        {
+            "title": "Fresh",
+            "company": "Example",
+            "location": "Delhi, India",
+            "url": "https://example.test/job/fresh",
+            "posted_hours": 1.5,
+            "posted_text": "1 hour ago",
+        },
+        90,
+        ["fresh"],
+    )
+    h.upsert_job(
+        {
+            "title": "Stale",
+            "company": "Example",
+            "location": "Delhi, India",
+            "url": "https://example.test/job/stale",
+            "posted_hours": 5,
+            "posted_text": "5 hours ago",
+        },
+        70,
+        ["stale"],
+    )
+
+    removed = h.cleanup_older_than_hours(4)
+
+    assert removed == 1
+    assert h.get_by_url("https://example.test/job/fresh") is not None
+    assert h.get_by_url("https://example.test/job/stale") is None
