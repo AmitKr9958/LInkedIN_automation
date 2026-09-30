@@ -205,6 +205,19 @@ def status():
     }, indent=2, default=str))
 
 
+@app.command("telegram-test")
+def telegram_test():
+    """Send a test Telegram notification without running LinkedIn."""
+    from .telegram_notify import send_telegram_message
+
+    if not settings.telegram_notifications_enabled:
+        typer.echo("Telegram notifications are disabled. Set TELEGRAM_NOTIFICATIONS_ENABLED=true.")
+        raise typer.Exit(code=2)
+    ok = send_telegram_message("🔔 LinkedIn Automation\nTelegram notification test: connection is working.")
+    typer.echo("telegram: sent" if ok else "telegram: failed")
+    raise typer.Exit(code=0 if ok else 1)
+
+
 @app.command("debug-auth")
 def debug_auth():
     """Show non-secret browser/session diagnostics for troubleshooting."""
