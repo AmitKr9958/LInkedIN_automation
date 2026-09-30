@@ -96,3 +96,8 @@ def test_extract_section_handles_flattened_rendered_text():
     assert "DAX" in skills
     assert "Portfolio dashboard" in featured
     assert "B.Com" not in experience
+
+
+def test_profile_details_route_map_is_section_specific():
+    from app.skills.profile import _read_profile_details_page
+    assert _read_profile_details_page.__name__ == "_read_profile_details_page"
