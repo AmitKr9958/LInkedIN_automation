@@ -267,7 +267,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 <main class="main">
 <header class="topbar">
   <div class="title"><h1 id="pageTitle">Overview</h1><p>Read, research, draft and approve — from one place.</p></div>
-  <div class="actions"><span id="health" class="health"><i class="dot"></i> Checking</span><span class="live-pill"><i></i> READ-ONLY · 2H CADENCE</span><button class="btn" onclick="refreshAll()">↻ Refresh</button><button class="btn primary" onclick="startAgent()">Run Agent</button></div>
+  <div class="actions"><span id="health" class="health"><i class="dot"></i> Checking</span><span class="live-pill"><i></i> READ-ONLY · 2H CADENCE · 4H FRESHNESS</span><button class="btn" onclick="refreshAll()">↻ Refresh</button><button class="btn primary" onclick="startAgent()">Run Agent</button></div>
 </header>
 
 <section id="overview" class="view active">
@@ -528,6 +528,7 @@ function renderAgentResult(result){
  const cards='<div class="agent-summary-grid">'+
    agentMetric('Jobs found',r.jobs_found,'Discovered this cycle')+
    agentMetric('New jobs',r.new_jobs,'Not seen before')+
+   agentMetric('Stale removed',(d.stale_jobs_removed??0),'Older than 4 hours')+
    agentMetric('Relevant jobs',jobs.length,'Ranked for your preferences')+
    agentMetric('Hiring signals',posts.length,'Relevant hiring posts')+
    agentMetric('Applications sent',0,'Agent never auto-applies')+
@@ -536,7 +537,7 @@ function renderAgentResult(result){
  const diagnostics='<details class="agent-tech"><summary>⚙ Technical diagnostics <span>Advanced</span></summary><pre>'+esc(JSON.stringify(d,null,2))+'</pre></details>';
  return '<div class="agent-result"><div class="agent-success"><div><span class="badge green">✓ '+health+'</span><h3>Discovery completed successfully</h3><p>Your LinkedIn discovery cycle finished. Review the opportunities below.</p></div><div class="agent-safe">🔒 No LinkedIn account actions were performed</div></div>'+
  cards+
- '<section class="agent-section"><div class="agent-section-head"><div><h3>Relevant jobs</h3><p>Jobs matching your current search preferences.</p></div><span class="badge">'+esc(String(jobs.length))+'</span></div>'+renderAgentJobs(jobs)+'</section>'+
+ '<section class="agent-section"><div class="agent-section-head"><div><h3>Relevant jobs</h3><p>Jobs matching your current search preferences · posted within the last 4 hours.</p></div><span class="badge">'+esc(String(jobs.length))+'</span></div>'+renderAgentJobs(jobs)+'</section>'+
  '<section class="agent-section"><div class="agent-section-head"><div><h3>Hiring signals</h3><p>Public posts that matched your hiring criteria.</p></div><span class="badge">'+esc(String(posts.length))+'</span></div>'+renderAgentPosts(posts)+'</section>'+
  diagnostics+'</div>';
 }
