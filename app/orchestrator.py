@@ -14,10 +14,20 @@ class DiscoveryReport:
     new_count: int
 
 
-def build_discovery_report(rows: list[dict]) -> DiscoveryReport:
+def build_discovery_report(
+    rows: list[dict],
+    *,
+    freshness_hours: float | None = None,
+) -> DiscoveryReport:
     jobs = [JobRecord(**r) for r in rows]
     ranked = rank_jobs(jobs, DEFAULT_JOB_PREFERENCES)
     history = History()
+    # Keep the Jobs dashboard aligned with the same freshness contract as
+    # discovery. This runs on every agent cycle, so stale rows are removed even
+    # when the current LinkedIn search returns no jobs.
+    if freshness_hours is None:
+        freshness_hours = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+    removed = history.cleanup_older_than_hours(float(freshness_hours))
     new_count = 0
     for item in ranked:
         job = item["job"]
@@ -28,7 +38,7 @@ def build_discovery_report(rows: list[dict]) -> DiscoveryReport:
         "discovery_run",
         "linkedin_jobs",
         "ok",
-        f"ranked={len(ranked)} new={new_count}",
+        f"ranked={len(ranked)} new={new_count} removed_stale={removed} freshness_hours={freshness_hours:g}",
     )
     return DiscoveryReport(ranked, new_count)
 
