@@ -179,3 +179,8 @@ def test_dashboard_track_application_marks_already_tracked_jobs():
     assert "state.summary?.applications" in _HTML
     assert "const isTracked=tracked.has" in _HTML
     assert '<button class="btn" disabled>Tracked</button>' in _HTML
+
+def test_dashboard_application_actions_use_responsive_action_group():
+    assert "application-actions" in _HTML
+    assert "table-layout:fixed" in _HTML
+    assert "application-table th:nth-child(8)" in _HTML
