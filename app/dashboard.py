@@ -118,8 +118,9 @@ def _summary() -> dict:
         with _db(activity) as db:
             count = db.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
             rows = db.execute(
-                "SELECT job_url,title,company,status,updated_at,notes FROM applications "
-                "ORDER BY updated_at DESC LIMIT 50"
+                "SELECT job_url,title,company,status,updated_at,notes,discovered_at,applied_at,"
+                "source,location,recruiter,resume_version,next_follow_up,interview_date,salary_notes "
+                "FROM applications ORDER BY updated_at DESC LIMIT 50"
             ).fetchall()
             return count, [
                 {
@@ -295,7 +296,9 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 
 <section id="jobs" class="view"><div class="card"><div class="cardhead"><div><h2>Job Intelligence</h2><p>Stored discovery history and application signals.</p></div><button class="btn primary" onclick="openSkill('jobs')">Search LinkedIn jobs</button></div><div class="toolbar"><input class="search" id="jobSearch" placeholder="Search role, company, location…"><select id="jobStatusFilter"><option value="">All statuses</option><option value="new">New</option><option value="shortlisted">Shortlisted</option><option value="drafted">Drafted</option><option value="applied">Applied</option><option value="screening">Screening</option><option value="interview">Interview</option><option value="offer">Offer</option><option value="rejected">Rejected</option><option value="withdrawn">Withdrawn</option><option value="closed">Closed</option></select><select id="jobWorkplaceFilter"><option value="">All workplace types</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="on-site">On-site</option></select><select id="jobScoreSort" title="Sort jobs by score"><option value="desc">Score: High → Low</option><option value="asc">Score: Low → High</option></select></div><div class="tablewrap"><table class="table" id="jobsTable"></table></div></div></section>
 <section id="applications" class="view">
-<div class="card"><div class="cardhead"><div><h2>Application Pipeline</h2><p>Local application tracking with governed status transitions.</p></div></div>
+<div class="grid quick" id="applicationMetrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"></div>
+<div class="card"><div class="cardhead"><div><h2>Application Pipeline</h2><p>Track discovery, applications, recruiter follow-ups, interviews and offers in one local job-search CRM.</p></div>
+<div class="actions"><select id="appStatusFilter" class="btn"><option value="">All stages</option><option value="new">New</option><option value="shortlisted">Shortlisted</option><option value="drafted">Drafted</option><option value="applied">Applied</option><option value="screening">Screening</option><option value="interview">Interview</option><option value="offer">Offer</option><option value="rejected">Rejected</option><option value="withdrawn">Withdrawn</option><option value="closed">Closed</option></select><input class="search" id="appSearch" placeholder="Search role, company, recruiter…"></div></div>
 <div class="tablewrap"><table class="table" id="appsTable"></table></div></div>
 </section>
 <section id="approvals" class="view">
@@ -385,8 +388,29 @@ function renderTables(d){
  document.getElementById('jobsTable').innerHTML=jobRows(d.jobs);
  filterJobs();
  document.getElementById('overviewJobs').innerHTML=jobRows((d.jobs||[]).slice(0,8));
- document.getElementById('appsTable').innerHTML='<thead><tr><th>Role</th><th>Company</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>'+
- (d.applications||[]).map(x=>'<tr><td><b>'+esc(x.title)+'</b></td><td>'+esc(x.company)+'</td><td><select class="statusSelect" data-url="'+esc(x.job_url)+'" data-current="'+esc(x.status)+'">'+[x.status,...(x.allowed_transitions||[])].filter((v,i,a)=>a.indexOf(v)===i).map(s=>'<option value="'+esc(s)+'" '+(s===x.status?'selected':'')+'>'+esc(s)+'</option>').join('')+'</select></td><td>'+esc(x.updated_at)+'</td><td><button class="btn" onclick="transitionApplication(this)">Save</button></td></tr>').join('')+'</tbody>';
+ const apps=d.applications||[];
+ const counts={new:0,shortlisted:0,applied:0,screening:0,interview:0,offer:0};
+ apps.forEach(x=>{if(Object.prototype.hasOwnProperty.call(counts,x.status))counts[x.status]++});
+ document.getElementById('applicationMetrics').innerHTML=
+   [['Total',apps.length,'Tracked'],['Applied',counts.applied,'Submitted'],['Screening',counts.screening,'In progress'],['Interview',counts.interview,'Scheduled'],['Offer',counts.offer,'Offers']].map(x=>'<div class="quick"><button type="button"><b>'+esc(x[0]+': '+x[1])+'</b><span>'+esc(x[2])+'</span></button></div>').join('');
+ const renderAppRow=x=>{
+   const editId='app-'+Math.random().toString(36).slice(2);
+   const options=[x.status,...(x.allowed_transitions||[])].filter((v,i,a)=>a.indexOf(v)===i).map(s=>'<option value="'+esc(s)+'" '+(s===x.status?'selected':'')+'>'+esc(s)+'</option>').join('');
+   return '<tr><td><b>'+esc(x.title)+'</b><div class="muted">'+esc(x.location||'')+'</div></td><td>'+esc(x.company)+'</td><td>'+esc(x.source||'—')+'</td><td><select class="statusSelect" data-url="'+esc(x.job_url)+'" data-current="'+esc(x.status)+'">'+options+'</select></td><td>'+esc(x.applied_at||'—')+'</td><td>'+esc(x.next_follow_up||'—')+'</td><td>'+esc(x.recruiter||'—')+'</td><td><a class="btn" href="'+esc(x.job_url)+'" target="_blank" rel="noopener noreferrer">Open ↗</a> <button class="btn" onclick="transitionApplication(this)">Save stage</button><button class="btn" onclick="toggleAppDetails(this)">Edit details</button></td></tr>'+
+   '<tr class="app-details" style="display:none"><td colspan="8"><div class="app-detail-grid">'+
+   '<label>Source<input data-field="source" value="'+esc(x.source||'')+'" placeholder="LinkedIn / Naukri / Company"></label>'+
+   '<label>Location<input data-field="location" value="'+esc(x.location||'')+'" placeholder="Gurgaon / Remote India"></label>'+
+   '<label>Recruiter<input data-field="recruiter" value="'+esc(x.recruiter||'')+'" placeholder="Name / email"></label>'+
+   '<label>Resume version<input data-field="resume_version" value="'+esc(x.resume_version||'')+'" placeholder="Resume v3"></label>'+
+   '<label>Applied date<input data-field="applied_at" type="date" value="'+esc((x.applied_at||'').slice(0,10))+'"></label>'+
+   '<label>Follow-up date<input data-field="next_follow_up" type="date" value="'+esc((x.next_follow_up||'').slice(0,10))+'"></label>'+
+   '<label>Interview date<input data-field="interview_date" type="date" value="'+esc((x.interview_date||'').slice(0,10))+'"></label>'+
+   '<label>Salary / CTC notes<input data-field="salary_notes" value="'+esc(x.salary_notes||'')+'" placeholder="e.g. 18 LPA"></label>'+
+   '<label class="wide">Notes<textarea data-field="notes" placeholder="Follow-up notes, recruiter response, interview feedback…">'+esc(x.notes||'')+'</textarea></label>'+
+   '<div><button class="btn primary" onclick="saveApplicationDetails(this)" data-url="'+esc(x.job_url)+'">Save details</button></div></div></td></tr>';
+ };
+ document.getElementById('appsTable').innerHTML='<thead><tr><th>Role</th><th>Company</th><th>Source</th><th>Status</th><th>Applied</th><th>Next follow-up</th><th>Recruiter</th><th>Actions</th></tr></thead><tbody>'+apps.map(renderAppRow).join('')+'</tbody>';
+ filterApplications();
  document.getElementById('activityTable').innerHTML='<thead><tr><th>Time</th><th>Action</th><th>Target</th><th>Status</th><th>Details</th></tr></thead><tbody>'+
  (d.activity||[]).map(x=>'<tr><td>'+esc(x.created_at)+'</td><td>'+esc(x.action)+'</td><td>'+esc(x.target)+'</td><td><span class="badge">'+esc(x.status)+'</span></td><td>'+esc(x.details)+'</td></tr>').join('')+'</tbody>';
  const approvals=d.approvals||[];
@@ -599,6 +623,29 @@ async function transitionApplication(button){
    button.disabled=false;
  }
 }
+function filterApplications(){
+ const q=(document.getElementById('appSearch')?.value||'').toLowerCase().trim();
+ const status=document.getElementById('appStatusFilter')?.value||'';
+ document.querySelectorAll('#appsTable tbody tr').forEach((tr,i)=>{
+   if(tr.classList.contains('app-details')) return;
+   const text=tr.innerText.toLowerCase();
+   const sel=tr.querySelector('.statusSelect');
+   const ok=(!q||text.includes(q))&&(!status||sel?.value===status);
+   tr.style.display=ok?'':'none';
+   const detail=tr.nextElementSibling;if(detail?.classList.contains('app-details')) detail.style.display='none';
+ });
+}
+function toggleAppDetails(button){
+ const detail=button.closest('tr').nextElementSibling;
+ if(detail) detail.style.display=detail.style.display==='none'?'':'none';
+}
+async function saveApplicationDetails(button){
+ const row=button.closest('tr'); const data={job_url:button.dataset.url};
+ row.querySelectorAll('[data-field]').forEach(el=>data[el.dataset.field]=el.value);
+ button.disabled=true;
+ try{await api('/api/applications/details',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});refreshAll()}
+ catch(e){alert(e.message);button.disabled=false}
+}
 function renderSystem(){
  const d=state.summary||{}, warnings=d.warnings||[], r=d.last_run||{};
  document.getElementById('systemDetails').innerHTML='<div class="system-grid">'+
@@ -680,6 +727,22 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(202, {"task_id": task_id, "status": "queued"})
             except Exception as exc:
                 self._send(400, {"error": f"{type(exc).__name__}: {exc}"})
+            return
+        if path == "/api/applications/details":
+            try:
+                body = _read_json_body(self)
+                job_url = str(body.get("job_url", "")).strip()
+                allowed = {"source","location","recruiter","resume_version","next_follow_up","interview_date","salary_notes","notes","applied_at","discovered_at"}
+                fields = {k: body.get(k) for k in allowed if k in body}
+                from .application_tracker import ApplicationTracker
+                ApplicationTracker().update_details(job_url, **fields)
+                self._send(200, {"changed": True, "job_url": job_url})
+            except KeyError:
+                self._send(404, {"error": "Application not found"})
+            except ValueError as exc:
+                self._send(400, {"error": str(exc)})
+            except Exception as exc:
+                self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
         if path == "/api/applications/transition":
             try:
