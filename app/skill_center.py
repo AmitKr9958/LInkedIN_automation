@@ -177,6 +177,33 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             temperature=0.2,
             max_tokens=2600,
         )
+        sections = baseline.get("sections", {})
+        readable = {
+            "title": "Profile Optimizer",
+            "status": "Analysis completed",
+            "safety": "No LinkedIn profile changes were made.",
+            "profile": {
+                "name": profile_data.get("name", ""),
+                "headline": profile_data.get("headline", ""),
+                "location": profile_data.get("location", ""),
+            },
+            "section_audit": {
+                "Headline": "Found" if sections.get("headline") else "Not detected",
+                "About": "Found" if sections.get("about") else "Not detected",
+                "Experience": "Found" if sections.get("experience") else "Not detected",
+                "Skills": "Found" if sections.get("skills") else "Not detected",
+                "Featured": "Found" if sections.get("featured") else "Not detected",
+            },
+            "assessment": ai.get("overall_assessment", ""),
+            "headline_recommendations": ai.get("headline_options", []),
+            "about_recommendation": ai.get("about_draft", ""),
+            "experience_recommendations": ai.get("experience_improvements", []),
+            "skills_to_highlight": ai.get("skills_to_highlight", []),
+            "featured_recommendations": ai.get("featured_recommendations", []),
+            "strengths": ai.get("strengths", []),
+            "missing_information": ai.get("missing_information", []),
+            "next_actions": ai.get("next_actions", []),
+        }
         return {
             "skill": name,
             "mode": "local",
@@ -185,6 +212,7 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             "profile": profile_data,
             "baseline_audit": baseline,
             "ai_optimization": ai,
+            "readable_result": readable,
             "message": "AI generated recommendations only. No LinkedIn profile changes were made.",
         }
     if name=="interviewer": return {"questions":interviewer_questions(str(inputs.get("topic","")))}
