@@ -98,6 +98,194 @@ def test_extract_section_handles_flattened_rendered_text():
     assert "B.Com" not in experience
 
 
-def test_profile_details_route_map_is_section_specific():
-    from app.skills.profile import _read_profile_details_page
-    assert _read_profile_details_page.__name__ == "_read_profile_details_page"
+# ---- authenticated /details fallback (all browser objects are fakes) ----
+
+import asyncio
+
+from app.config import settings
+from app.skills import profile as profile_mod
+
+SLUG_URL = "https://www.linkedin.com/in/test-user-123/"
+
+
+class FakeLocator:
+    def __init__(self, text, fail=False):
+        self._text, self._fail = text, fail
+
+    @property
+    def first(self):
+        return self
+
+    async def inner_text(self):
+        if self._fail:
+            raise RuntimeError("boom")
+        return self._text
+
+
+class FakeDetailPage:
+    def __init__(self, final_url, text="", fail_extract=False, fail_goto=False):
+        self.url = final_url
+        self._text, self._fail_extract, self._fail_goto = text, fail_extract, fail_goto
+        self.closed = False
+        self.goto_url = None
+
+    async def goto(self, url, **kwargs):
+        self.goto_url = url
+        if self._fail_goto:
+            raise RuntimeError("nav failed")
+
+    async def wait_for_timeout(self, ms):
+        return None
+
+    def locator(self, selector):
+        return FakeLocator(self._text, self._fail_extract)
+
+    async def close(self):
+        self.closed = True
+
+
+class FakeContext:
+    def __init__(self, detail_page):
+        self.detail_page = detail_page
+        self.pages_created = 0
+
+    async def new_page(self):
+        self.pages_created += 1
+        return self.detail_page
+
+
+class FakeMainPage:
+    def __init__(self, context):
+        self.context = context
+
+
+def _run(section, detail_page, monkeypatch, profile_url=SLUG_URL, with_context=True):
+    monkeypatch.setattr(settings, "profile_url", profile_url)
+
+    async def no_scroll(page, max_rounds=24):
+        return None
+
+    monkeypatch.setattr(profile_mod, "_scroll_profile_to_bottom", no_scroll)
+    ctx = FakeContext(detail_page)
+    main = FakeMainPage(ctx if with_context else None)
+    result = asyncio.run(profile_mod._read_profile_details_page(main, section))
+    return result, ctx
+
+
+def test_details_route_mapping(monkeypatch):
+    for section, path in {
+        "experience": "/details/experience/",
+        "skills": "/details/skills/",
+        "featured": "/details/featured/",
+    }.items():
+        url = f"https://www.linkedin.com/in/test-user-123{path}"
+        page = FakeDetailPage(url, text="Team Lead Acme Corp 2020 - Present " * 3)
+        result, _ = _run(section, page, monkeypatch)
+        assert page.goto_url == url
+        assert result
+
+
+def test_unsupported_section_does_not_navigate(monkeypatch):
+    page = FakeDetailPage(SLUG_URL)
+    result, ctx = _run("education", page, monkeypatch)
+    assert result == ""
+    assert ctx.pages_created == 0
+
+
+def test_missing_context_fails_safely(monkeypatch):
+    result, ctx = _run("skills", FakeDetailPage(SLUG_URL), monkeypatch, with_context=False)
+    assert result == ""
+    assert ctx.pages_created == 0
+
+
+def test_invalid_configured_profile_url_does_not_navigate(monkeypatch):
+    result, ctx = _run("skills", FakeDetailPage(SLUG_URL), monkeypatch, profile_url="https://evil.com/in/x/")
+    assert result == ""
+    assert ctx.pages_created == 0
+
+
+def test_unexpected_redirects_rejected(monkeypatch):
+    bad_urls = [
+        "https://www.linkedin.com/authwall?trk=x",
+        "https://www.linkedin.com/login",
+        "https://www.linkedin.com/checkpoint/challenge/abc",
+        "https://www.linkedin.com/in/someone-else/details/skills/",
+        "https://www.linkedin.com/in/test-user-123/",
+        "https://www.linkedin.com/in/test-user-123/details/experience/",
+        "https://evil.com/in/test-user-123/details/skills/",
+        "http://www.linkedin.com/in/test-user-123/details/skills/",
+    ]
+    for url in bad_urls:
+        page = FakeDetailPage(url, text="Python DAX SQL Power BI " * 5)
+        result, _ = _run("skills", page, monkeypatch)
+        assert result == "", url
+        assert page.closed
+
+
+def test_correct_url_accepted_case_insensitive(monkeypatch):
+    page = FakeDetailPage(
+        "https://in.linkedin.com/in/Test-User-123/details/skills",
+        text="Power BI DAX SQL Power Query Data Modeling",
+    )
+    result, _ = _run("skills", page, monkeypatch)
+    assert "DAX" in result
+
+
+def test_temp_page_closed_on_extraction_failure(monkeypatch):
+    page = FakeDetailPage(
+        "https://www.linkedin.com/in/test-user-123/details/skills/", fail_extract=True
+    )
+    result, _ = _run("skills", page, monkeypatch)
+    assert result == ""
+    assert page.closed
+
+
+def test_temp_page_closed_on_navigation_failure(monkeypatch):
+    page = FakeDetailPage(SLUG_URL, fail_goto=True)
+    result, _ = _run("skills", page, monkeypatch)
+    assert result == ""
+    assert page.closed
+
+
+def test_temp_page_closed_on_success(monkeypatch):
+    page = FakeDetailPage(
+        "https://www.linkedin.com/in/test-user-123/details/skills/",
+        text="Power BI DAX SQL Power Query Data Modeling",
+    )
+    _run("skills", page, monkeypatch)
+    assert page.closed
+
+
+def test_scoped_page_without_heading_is_used(monkeypatch):
+    page = FakeDetailPage(
+        "https://www.linkedin.com/in/test-user-123/details/experience/",
+        text="Team Leader Acme Outsourcing Mar 2022 - Jul 2026 Led analysts",
+    )
+    result, _ = _run("experience", page, monkeypatch)
+    assert "Team Leader" in result
+
+
+def test_noise_below_content_is_cut_and_short_content_rejected(monkeypatch):
+    page = FakeDetailPage(
+        "https://www.linkedin.com/in/test-user-123/details/skills/",
+        text="Power BI DAX SQL Power Query Data Modeling More profiles for you Random Person",
+    )
+    result, _ = _run("skills", page, monkeypatch)
+    assert "Random Person" not in result and "DAX" in result
+
+    tiny = FakeDetailPage(
+        "https://www.linkedin.com/in/test-user-123/details/skills/", text="Skills"
+    )
+    result, _ = _run("skills", tiny, monkeypatch)
+    assert result == ""
+
+
+def test_read_profile_section_actually_calls_details_fallback(monkeypatch):
+    """Regression: PR #23 shipped the fallback call inside a comment (dead code)."""
+    import inspect
+
+    src = inspect.getsource(profile_mod._read_profile_section)
+    assert "await _read_profile_details_page(page, section_name)" in src
+    for line in src.splitlines():
+        if "_read_profile_details_page" in line:
+            assert not line.strip().startswith("#")
