@@ -13,6 +13,7 @@ from .skill_registry import list_skills
 from .browser import linkedin_browser
 from .skill_runtime import ensure_authenticated, run_read, run_read_on_page
 from .workflows import login_check
+from .llm_client import chat_json, provider_status
 
 READ_SKILLS = {"auth", "profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
 APPROVAL_SKILLS = {"connections", "messaging", "engagement", "followups", "outreach"}
@@ -33,7 +34,10 @@ def skill_catalog() -> list[dict[str, Any]]:
         "humanizer": [{"name":"text","label":"Draft to clean","type":"textarea"}],
         "hook_extractor": [{"name":"text","label":"Post text","type":"textarea"}],
         "repurposer": [{"name":"source","label":"Source content","type":"textarea"},{"name":"goal","label":"Goal","default":"engagement"}],
-        "profile_optimizer": [{"name":"profile","label":"Profile JSON","type":"textarea","default":'{"headline":"","about":"","experience":"","skills":"","featured":""}'}],
+        "profile_optimizer": [
+            {"name":"source","label":"Profile source","type":"select","options":["live","manual"],"default":"live"},
+            {"name":"profile","label":"Profile JSON (used for manual source)","type":"textarea","default":'{"name":"","headline":"","about":"","experience":"","skills":"","featured":""}'},
+        ],
         "interviewer": [{"name":"topic","label":"Topic"}], "story_bank": [],
         "engager_analytics": [{"name":"rows","label":"Engager records JSON","type":"textarea","default":"[]"},{"name":"target_titles","label":"Target titles (comma separated)"}],
         "thread_monitor": [{"name":"rows","label":"Thread records JSON","type":"textarea","default":"[]"}],
@@ -136,7 +140,53 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
     if name=="humanizer": return humanize(str(inputs.get("text","")))
     if name=="hook_extractor": return extract_hook(str(inputs.get("text","")))
     if name=="repurposer": return repurpose(str(inputs.get("source","")),str(inputs.get("goal","engagement"))).__dict__
-    if name=="profile_optimizer": return profile_audit(_json_value(str(inputs.get("profile","{}")),{}) or {})
+    if name == "profile_optimizer":
+        source = str(inputs.get("source", "live")).strip().lower()
+        if source == "live":
+            live = await run_read("profile")
+            profile_data = live.data.to_dict() if hasattr(live.data, "to_dict") else dict(live.data or {})
+        else:
+            profile_data = _json_value(str(inputs.get("profile", "{}")), {}) or {}
+        baseline = profile_audit(profile_data)
+        prompt = {
+            "profile": profile_data,
+            "audit": baseline,
+            "target_roles": [
+                "Power BI Developer",
+                "Business Intelligence",
+                "Data Analyst",
+                "Reporting / MIS",
+                "BI Lead / Consultant",
+            ],
+            "target_market": "Delhi NCR / Gurgaon / Noida / Remote India",
+        }
+        ai = chat_json(
+            system=(
+                "You are a senior LinkedIn profile strategist and ATS-aware recruiter. "
+                "Improve a professional LinkedIn profile for the stated target roles. "
+                "Use only evidence present in the supplied profile; never invent employers, "
+                "job titles, certifications, metrics, technologies, or achievements. "
+                "Return JSON with keys: overall_assessment, strengths, missing_information, "
+                "headline_options, about_draft, experience_improvements, skills_to_highlight, "
+                "featured_recommendations, keyword_strategy, next_actions. "
+                "headline_options must be an array of 3 strings. experience_improvements "
+                "and next_actions must be arrays. Clearly mark recommendations that require "
+                "the user to supply missing facts."
+            ),
+            user=json.dumps(prompt, ensure_ascii=False),
+            temperature=0.2,
+            max_tokens=2600,
+        )
+        return {
+            "skill": name,
+            "mode": "local",
+            "source": source,
+            "provider": provider_status(),
+            "profile": profile_data,
+            "baseline_audit": baseline,
+            "ai_optimization": ai,
+            "message": "AI generated recommendations only. No LinkedIn profile changes were made.",
+        }
     if name=="interviewer": return {"questions":interviewer_questions(str(inputs.get("topic","")))}
     if name=="story_bank":
         from .story_bank import StoryBank
