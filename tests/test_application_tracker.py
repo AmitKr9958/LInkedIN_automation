@@ -13,3 +13,10 @@ def test_invalid_transition_rejected(tmp_path):
     t=ApplicationTracker(str(tmp_path/"db.sqlite3"))
     t.add("job-1")
     with pytest.raises(ValueError): t.transition("job-1","interview")
+
+def test_same_status_is_idempotent(tmp_path):
+    t=ApplicationTracker(str(tmp_path/"db.sqlite3"))
+    t.add("job-1","Power BI Developer","Example")
+    assert t.transition("job-1","new") is False
+    assert t.list()[0][3] == "new"
+
