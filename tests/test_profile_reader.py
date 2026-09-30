@@ -280,12 +280,29 @@ def test_noise_below_content_is_cut_and_short_content_rejected(monkeypatch):
     assert result == ""
 
 
-def test_read_profile_section_actually_calls_details_fallback(monkeypatch):
-    """Regression: PR #23 shipped the fallback call inside a comment (dead code)."""
-    import inspect
+def test_read_profile_section_invokes_details_fallback(monkeypatch):
+    class EmptyLocator:
+        @property
+        def first(self):
+            return self
 
-    src = inspect.getsource(profile_mod._read_profile_section)
-    assert "await _read_profile_details_page(page, section_name)" in src
-    for line in src.splitlines():
-        if "_read_profile_details_page" in line:
-            assert not line.strip().startswith("#")
+        async def count(self):
+            return 0
+
+        async def inner_text(self):
+            return ""
+
+    class Page:
+        def locator(self, selector):
+            return EmptyLocator()
+
+        async def evaluate(self, *args, **kwargs):
+            raise RuntimeError("no DOM match")
+
+    async def fake_details(page, section_name):
+        assert section_name == "experience"
+        return "Senior Power BI Developer at Acme"
+
+    monkeypatch.setattr(profile_mod, "_read_profile_details_page", fake_details)
+    result = asyncio.run(profile_mod._read_profile_section(Page(), "experience"))
+    assert result == "Senior Power BI Developer at Acme"
