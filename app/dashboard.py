@@ -540,6 +540,18 @@ function renderResultCards(rows){
  }).join('')+'</div>';
 }
 function renderObjectResult(result,data){
+ if(data?.readable_result && result?.skill==='profile_optimizer'){
+   const p=data.readable_result, profile=p.profile||{}, audit=p.section_audit||{};
+   const list=(v)=>Array.isArray(v)?v.filter(Boolean).map(x=>'<li>'+esc(typeof x==='object'?JSON.stringify(x):String(x))+'</li>').join(''):'';
+   let h='<div class="result-shell"><div class="result-head"><div><div class="result-title">Profile Optimizer</div><div class="result-meta">'+esc(p.status||'Analysis completed')+'</div></div></div>';
+   h+='<div class="result-message">'+esc(p.safety||'No LinkedIn profile changes were made.')+'</div>';
+   h+='<div class="result-fields result-summary"><div class="result-field"><span>Name</span><b>'+esc(profile.name||'Not detected')+'</b></div><div class="result-field"><span>Headline</span><b>'+esc(profile.headline||'Not detected')+'</b></div><div class="result-field"><span>Location</span><b>'+esc(profile.location||'Not detected')+'</b></div></div>';
+   h+='<div class="result-subhead">Profile Audit</div><div class="result-fields result-summary">'+Object.entries(audit).map(([k,v])=>'<div class="result-field"><span>'+esc(k)+'</span><b>'+esc(String(v))+'</b></div>').join('')+'</div>';
+   if(p.assessment) h+='<div class="result-subhead">Assessment</div><div class="result-message">'+esc(p.assessment)+'</div>';
+   const sections=[['Headline Recommendations',p.headline_recommendations],['About Recommendation',p.about_recommendation],['Experience Recommendations',p.experience_recommendations],['Skills to Highlight',p.skills_to_highlight],['Featured Recommendations',p.featured_recommendations],['Strengths',p.strengths],['Missing Information',p.missing_information],['Next Actions',p.next_actions]];
+   sections.forEach(([title,value])=>{ if(!value || (Array.isArray(value)&&!value.length)) return; h+='<div class="result-subhead">'+esc(title)+'</div>'; if(Array.isArray(value)) h+='<ul class="result-list">'+list(value)+'</ul>'; else h+='<div class="result-message">'+esc(String(value))+'</div>'; });
+   return h+'</div>';
+ }
  const entries=Object.entries(data||{}).filter(([k,v])=>v!==undefined&&v!==null&&v!=='');
  const message=data?.message||data?.details||data?.status;
  const arrays=entries.filter(([_,v])=>Array.isArray(v));
