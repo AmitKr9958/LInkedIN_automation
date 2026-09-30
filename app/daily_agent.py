@@ -133,9 +133,10 @@ def build_agent_report(
     *,
     tracker: ApplicationTracker | None = None,
     post_batches: list[list[dict]] | None = None,
+    freshness_hours: float | None = None,
 ) -> AgentRunReport:
     rows = dedupe_jobs([row for batch in job_batches for row in batch])
-    discovery = build_discovery_report(rows)
+    discovery = build_discovery_report(rows, freshness_hours=freshness_hours)
     ranked = discovery.ranked
     tracker = tracker or ApplicationTracker()
     tracked = 0
@@ -186,7 +187,7 @@ def build_agent_report(
         connection_drafts=drafts,
         hiring_posts=hiring_posts,
         hiring_post_targets=post_targets,
-        diagnostics={},
+        diagnostics={"stale_jobs_removed": int(getattr(discovery, "removed_stale", 0) or 0)},
     )
 
 
@@ -381,6 +382,7 @@ async def run_agent_once(
             people,
             tracker=tracker,
             post_batches=post_batches,
+            freshness_hours=post_window,
         )
         diagnostics["post_scan_queries"] = len(unique_post_queries)
         diagnostics["post_scan_candidates"] = sum(len(batch) for batch in post_batches)
