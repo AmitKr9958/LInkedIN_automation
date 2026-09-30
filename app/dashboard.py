@@ -422,12 +422,17 @@ function renderTables(d){
  const counts={new:0,shortlisted:0,applied:0,screening:0,interview:0,offer:0};
  apps.forEach(x=>{if(Object.prototype.hasOwnProperty.call(counts,x.status))counts[x.status]++});
  document.getElementById('applicationMetrics').innerHTML=
-   [['Total',apps.length,'Tracked'],['Applied',counts.applied,'Submitted'],['Screening',counts.screening,'In progress'],['Interview',counts.interview,'Scheduled'],['Offer',counts.offer,'Offers']].map(x=>'<div class="quick"><button type="button"><b>'+esc(x[0]+': '+x[1])+'</b><span>'+esc(x[2])+'</span></button></div>').join('');
+   [['Total',apps.length,'Tracked opportunities'],['Applied',counts.applied,'Submitted'],['Screening',counts.screening,'In progress'],['Interview',counts.interview,'Scheduled'],['Offer',counts.offer,'Offers']].map(x=>'<button type="button"><b>'+esc(String(x[1]))+'</b><span>'+esc(x[0])+'</span><small>'+esc(x[2])+'</small></button>').join('');
+ const stages=['new','shortlisted','drafted','applied','screening','interview','offer','rejected','withdrawn','closed'];
+ document.getElementById('applicationPipelineStrip').innerHTML=stages.map(s=>{
+   const n=apps.filter(x=>x.status===s).length;
+   return '<button class="pipeline-stage" type="button" onclick="document.getElementById(\'appStatusFilter\').value=\''+s+'\';filterApplications()"><span>'+esc(s.replaceAll('_',' '))+'</span><span class="count">'+n+'</span></button>';
+ }).join('');
  const renderAppRow=x=>{
    const editId='app-'+Math.random().toString(36).slice(2);
    const options=[x.status,...(x.allowed_transitions||[])].filter((v,i,a)=>a.indexOf(v)===i).map(s=>'<option value="'+esc(s)+'" '+(s===x.status?'selected':'')+'>'+esc(s)+'</option>').join('');
    return '<tr><td><b>'+esc(x.title)+'</b><div class="muted">'+esc(x.location||'')+'</div></td><td>'+esc(x.company)+'</td><td>'+esc(x.source||'—')+'</td><td><select class="statusSelect" data-url="'+esc(x.job_url)+'" data-current="'+esc(x.status)+'">'+options+'</select></td><td>'+esc(x.applied_at||'—')+'</td><td>'+esc(x.next_follow_up||'—')+'</td><td>'+esc(x.recruiter||'—')+'</td><td><a class="btn" href="'+esc(x.job_url)+'" target="_blank" rel="noopener noreferrer">Open ↗</a> <button class="btn" onclick="transitionApplication(this)">Save stage</button><button class="btn" onclick="toggleAppDetails(this)">Edit details</button></td></tr>'+
-   '<tr class="app-details" style="display:none"><td colspan="8"><div class="app-detail-grid">'+
+   '<tr class="app-details"><td colspan="8"><div class="app-detail-grid">'+
    '<label>Source<input data-field="source" value="'+esc(x.source||'')+'" placeholder="LinkedIn / Naukri / Company"></label>'+
    '<label>Location<input data-field="location" value="'+esc(x.location||'')+'" placeholder="Gurgaon / Remote India"></label>'+
    '<label>Recruiter<input data-field="recruiter" value="'+esc(x.recruiter||'')+'" placeholder="Name / email"></label>'+
@@ -667,7 +672,7 @@ function filterApplications(){
 }
 function toggleAppDetails(button){
  const detail=button.closest('tr').nextElementSibling;
- if(detail) detail.style.display=detail.style.display==='none'?'':'none';
+ if(detail) detail.classList.toggle('open');
 }
 async function saveApplicationDetails(button){
  const row=button.closest('tr'); const data={job_url:button.dataset.url};
