@@ -73,12 +73,40 @@ def chat_json(*, system: str, user: str, temperature: float = 0.2, max_tokens: i
     if isinstance(content, list):
         content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
     content = str(content).strip()
-    if not content.startswith("{") or not content.endswith("}"):
+    result = _parse_json_object(content)
+    if result is None:
         raise LLMError("LLM returned non-JSON content for a JSON-only request")
-    try:
-        result = json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise LLMError("LLM returned invalid JSON") from exc
-    if not isinstance(result, dict):
-        raise LLMError("LLM JSON response must be an object")
     return result
+
+
+def _parse_json_object(content: str) -> dict[str, Any] | None:
+    """Extract a JSON object from strict JSON, fenced JSON, or light prose wrappers."""
+    text = content.strip()
+    if not text:
+        return None
+
+    # Common provider/model format: fenced JSON.
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].strip().lower().startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        pass
+
+    # Some models add a short sentence before/after the JSON. Decode the first
+    # complete JSON object rather than requiring the entire response to be JSON.
+    start = text.find("{")
+    if start < 0:
+        return None
+    try:
+        parsed, _ = json.JSONDecoder().raw_decode(text[start:])
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
