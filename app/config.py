@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     # intentionally read-only and prevents the optimizer from opening the
     # generic /in/ landing route.
     profile_url: str = Field(
-        default="https://www.linkedin.com/in/",
+        default="https://www.linkedin.com/in/amit-kumar-272071153/",
         validation_alias="PROFILE_URL",
     )
 
