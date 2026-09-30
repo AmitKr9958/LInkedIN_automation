@@ -16,6 +16,10 @@ class ProfileSnapshot:
     name: str = ""
     headline: str = ""
     location: str = ""
+    about: str = ""
+    experience: str = ""
+    skills: str = ""
+    featured: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -34,7 +38,6 @@ PROFILE_HEADLINE_SELECTORS = (
     "main .text-body-medium",
     "[data-generated-suggestion-target*='headline']",
     "[class*='headline']",
-    "[class*='text-body-medium']",
 )
 
 PROFILE_LOCATION_SELECTORS = (
@@ -64,6 +67,9 @@ _PROFILE_NOISE = {
     "more",
     "message",
     "connect",
+    "he/him",
+    "she/her",
+    "they/them",
 }
 
 
@@ -78,7 +84,7 @@ async def read_profile(page) -> ProfileSnapshot:
         pass
 
     name = await _first_text(page, PROFILE_NAME_SELECTORS)
-    headline = await _first_text(page, PROFILE_HEADLINE_SELECTORS)
+    headline = await _first_valid_text(page, PROFILE_HEADLINE_SELECTORS, name)
     location = await _first_text(page, PROFILE_LOCATION_SELECTORS)
 
     # LinkedIn changes profile markup frequently. Use the rendered top-card text
@@ -94,6 +100,13 @@ async def read_profile(page) -> ProfileSnapshot:
         headline = headline or fallback_headline
         location = location or fallback_location
 
+    sections = {
+        "about": await _read_profile_section(page, "about"),
+        "experience": await _read_profile_section(page, "experience"),
+        "skills": await _read_profile_section(page, "skills"),
+        "featured": await _read_profile_section(page, "featured"),
+    }
+
     return ProfileSnapshot(
         state["authenticated"],
         state["url"],
@@ -101,6 +114,10 @@ async def read_profile(page) -> ProfileSnapshot:
         name,
         headline,
         location,
+        sections["about"],
+        sections["experience"],
+        sections["skills"],
+        sections["featured"],
     )
 
 
@@ -112,6 +129,41 @@ async def _first_text(page, selectors: tuple[str, ...]) -> str:
                 text = await loc.first.text_content()
                 if text and text.strip():
                     return " ".join(text.split())
+        except Exception:
+            continue
+    return ""
+
+
+async def _first_valid_text(page, selectors: tuple[str, ...], known_name: str = "") -> str:
+    for selector in selectors:
+        loc = page.locator(selector)
+        try:
+            count = await loc.count()
+            for index in range(min(count, 5)):
+                text = " ".join((await loc.nth(index).text_content() or "").split())
+                if text and text.lower() not in _PROFILE_NOISE and text.lower() != known_name.lower():
+                    if not re.fullmatch(r"(?i)(he|she|they)(?:[/ ](?:him|her|them))?", text):
+                        return text
+        except Exception:
+            continue
+    return ""
+
+
+async def _read_profile_section(page, section_name: str) -> str:
+    selectors = (
+        f"section#{section_name}",
+        f"div#{section_name}",
+        f"[data-section='{section_name}']",
+        f"[data-section-id='{section_name}']",
+        f"section:has(h2:has-text('{section_name.title()}'))",
+    )
+    for selector in selectors:
+        loc = page.locator(selector).first
+        try:
+            if await loc.count():
+                text = " ".join((await loc.inner_text()).split())
+                if text:
+                    return text
         except Exception:
             continue
     return ""
