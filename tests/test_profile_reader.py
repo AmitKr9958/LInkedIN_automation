@@ -40,6 +40,7 @@ def test_section_heading_matching_tolerates_counts_and_whitespace():
     assert _normalize_section_heading("  Experience\u00a0") == "experience"
     assert _section_heading_matches("Experience", "experience")
     assert _section_heading_matches("Skills (25)", "skills")
+    assert _section_heading_matches("Experience 4", "experience")
     assert _section_heading_matches("Featured", "featured")
 
 
@@ -77,3 +78,21 @@ def test_extract_section_handles_decorated_heading():
 
     raw = "Skills (25)\nPower BI\nDAX\nFeatured\nDashboard"
     assert "Power BI" in _extract_section_from_text(raw, "skills")
+
+def test_extract_section_handles_flattened_rendered_text():
+    from app.skills.profile import _extract_section_from_text
+
+    raw = (
+        "About Power BI professional "
+        "Experience Experience 4 Senior Power BI Developer Bill Gosling Outsourcing "
+        "Education B.Com "
+        "Skills Skills (25) Power BI DAX SQL "
+        "Featured Portfolio dashboard"
+    )
+    experience = _extract_section_from_text(raw, "experience")
+    skills = _extract_section_from_text(raw, "skills")
+    featured = _extract_section_from_text(raw, "featured")
+    assert "Bill Gosling Outsourcing" in experience
+    assert "DAX" in skills
+    assert "Portfolio dashboard" in featured
+    assert "B.Com" not in experience
