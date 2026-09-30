@@ -317,4 +317,4 @@ def test_run_agent_once_applies_four_hour_cleanup_window(monkeypatch):
     )
 
     assert calls == [4]
-    assert report.diagnostics["stale_jobs_removed"] == 3
+    assert report.diagnostics.get("stale_jobs_removed", 0) == 3
