@@ -689,8 +689,8 @@ class _Handler(BaseHTTPRequestHandler):
                 status = str(body.get("status", "")).strip()
                 if status not in STATUSES:
                     raise ValueError("Invalid application status")
-                ApplicationTracker().transition(job_url, status)
-                self._send(200, {"changed": True, "job_url": job_url, "status": status})
+                changed = ApplicationTracker().transition(job_url, status)
+                self._send(200, {"changed": bool(changed), "job_url": job_url, "status": status})
             except KeyError:
                 self._send(404, {"error": "Application not found"})
             except ValueError as exc:
