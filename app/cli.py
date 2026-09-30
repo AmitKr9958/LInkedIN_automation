@@ -356,14 +356,14 @@ def read(
         None,
         help=(
             "Maximum job posting age in hours. Defaults to the configured "
-            "job preference (48 hours). Pass a negative value to disable the "
+            "job preference (6 hours). Pass a negative value to disable the "
             "freshness filter and return all ages."
         ),
     ),
 ):
     """Run a read-only skill and print JSON.
 
-    For jobs, the centralized preference posted_within_hours (48 hours) is applied
+    For jobs, the centralized preference posted_within_hours (6 hours) is applied
     by default. Pass --max-posted-hours <N> to override, or a negative value
     to disable freshness filtering.
     """
@@ -407,7 +407,7 @@ def agent(
     max_posted_hours: Optional[float] = typer.Option(
         None,
         "--max-posted-hours",
-        help="Override the 4-hour job freshness window. Use a negative value to disable it.",
+        help="Override the 6-hour job freshness window. Use a negative value to disable it.",
     ),
 ):
     """Run the governed end-to-end workflow: discover, rank, track, target and draft."""
@@ -431,7 +431,7 @@ def agent(
     started_at = datetime.now(timezone.utc).isoformat()
     typer.echo(
         f"agent: starting (headless={settings.headless}, dry_run={settings.dry_run}, "
-        f"max_posted_hours={window if window is not None else 'default-4'})",
+        f"max_posted_hours={window if window is not None else 'default-6'})",
         err=True,
     )
     try:

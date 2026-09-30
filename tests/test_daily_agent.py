@@ -232,7 +232,6 @@ def test_run_agent_once_scans_hiring_posts():
     assert report.diagnostics["post_scan_queries"] > 0
 
 
-
 def test_run_agent_once_scans_personalized_feed_with_configured_window():
     calls = []
 
@@ -258,7 +257,7 @@ def test_run_agent_once_scans_personalized_feed_with_configured_window():
 
     feed_calls = [kwargs for skill, kwargs in calls if skill == "posts" and kwargs.get("feed")]
     assert feed_calls
-    assert feed_calls[0]["max_posted_hours"] == 4
+    assert feed_calls[0]["max_posted_hours"] == 6
     assert feed_calls[0]["max_scrolls"] == 6
     assert report.diagnostics["feed_scan_enabled"] is True
 
@@ -294,7 +293,7 @@ def test_run_agent_once_emits_timings():
     assert "feed_scan" in timings
 
 
-def test_run_agent_once_applies_four_hour_cleanup_window(monkeypatch):
+def test_run_agent_once_applies_six_hour_cleanup_window(monkeypatch):
     calls = []
 
     async def fake_read(skill, **kwargs):
@@ -316,5 +315,5 @@ def test_run_agent_once_applies_four_hour_cleanup_window(monkeypatch):
         )
     )
 
-    assert calls == [4]
+    assert calls == [6]
     assert report.diagnostics.get("stale_jobs_removed", 0) == 3

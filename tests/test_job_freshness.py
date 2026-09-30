@@ -9,20 +9,20 @@ class FakeJob:
     posted_hours: float | None
 
 
-def test_default_preference_is_4_hours():
-    assert DEFAULT_JOB_PREFERENCES.posted_within_hours == 4
+def test_default_preference_is_6_hours():
+    assert DEFAULT_JOB_PREFERENCES.posted_within_hours == 6
 
 
-def test_default_job_freshness_keeps_jobs_within_4_hours():
+def test_default_job_freshness_keeps_jobs_within_6_hours():
     """Strict policy: known ages within window are kept; unknown ages are excluded."""
     result = _filter_jobs_by_freshness([
         FakeJob(0),
         FakeJob(3.5),
-        FakeJob(4),
-        FakeJob(4.1),
+        FakeJob(6),
+        FakeJob(6.1),
         FakeJob(None),
     ], DEFAULT_JOB_PREFERENCES.posted_within_hours)
-    assert [job.posted_hours for job in result] == [0, 3.5, 4]
+    assert [job.posted_hours for job in result] == [0, 3.5, 6]
 
 
 def test_job_freshness_excludes_unknown_age_by_default():
@@ -49,9 +49,9 @@ def test_job_freshness_custom_window():
     assert [job.posted_hours for job in result] == [23, 24]
 
 
-def test_job_freshness_boundary_exactly_4_hours_custom_window():
-    result = _filter_jobs_by_freshness([FakeJob(4.0), FakeJob(4.01)], 4)
-    assert [job.posted_hours for job in result] == [4.0]
+def test_job_freshness_boundary_exactly_6_hours_custom_window():
+    result = _filter_jobs_by_freshness([FakeJob(6.0), FakeJob(6.01)], 6)
+    assert [job.posted_hours for job in result] == [6.0]
 
 
 def test_job_freshness_rejects_old_relative_ages():
@@ -88,7 +88,7 @@ def test_zero_result_reason_mentions_location_and_window():
     diagnostics = {
         "requested_location": "Noida",
         "returned_after_location": 0,
-        "freshness_window_hours": 4,
+        "freshness_window_hours": 6,
         "final_returned": 0,
         "unknown_posted_age": 3,
         "rejected_freshness": 5,
@@ -101,7 +101,7 @@ def test_zero_result_reason_mentions_location_and_window():
         "(unknown posting ages remain excluded by default)."
     )
     assert "Noida" in reason
-    assert "4" in reason
+    assert "6" in reason
     assert "unknown" in reason.lower()
 
 
