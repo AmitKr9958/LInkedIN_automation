@@ -11,8 +11,8 @@ class FakeJob:
     company: str = ""
 
 
-def test_default_search_window_is_4_hours():
-    assert DEFAULT_JOB_PREFERENCES.posted_within_hours == 4
+def test_default_search_window_is_6_hours():
+    assert DEFAULT_JOB_PREFERENCES.posted_within_hours == 6
 
 
 def test_default_search_query_contains_target_roles():
