@@ -41,3 +41,10 @@ def test_remote_india_uses_workplace_filter():
     assert "f_WT=2" in url
     assert _location_matches_requested("India (Remote)", "Remote India")
     assert not _location_matches_requested("Gurgaon, Haryana, India", "Remote India")
+
+def test_profile_optimizer_is_ai_ready_and_live_by_default():
+    item = next(x for x in skill_catalog() if x["name"] == "profile_optimizer")
+    source = next(x for x in item["fields"] if x["name"] == "source")
+    assert source["type"] == "select"
+    assert source["default"] == "live"
+    assert source["options"] == ["live", "manual"]
