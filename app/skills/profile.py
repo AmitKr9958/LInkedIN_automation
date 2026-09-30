@@ -199,47 +199,117 @@ async def _first_valid_text(page, selectors: tuple[str, ...], known_name: str = 
     return ""
 
 
-async def _read_profile_section(page, section_name: str) -> str:
-    title = section_name.strip().lower()
+def _normalize_section_heading(value: str) -> str:
+    """Normalize LinkedIn section headings for tolerant matching."""
+    return " ".join(str(value or "").replace("\u00a0", " ").split()).strip().lower()
 
-    # Prefer semantic section headings over LinkedIn's frequently changing
-    # generated IDs/classes. The returned text is read-only DOM content.
+
+def _section_heading_matches(value: str, section_name: str) -> bool:
+    """Return True for exact or decorated LinkedIn section headings."""
+    heading = _normalize_section_heading(value)
+    wanted = _normalize_section_heading(section_name)
+    return bool(heading and wanted and (
+        heading == wanted
+        or heading.startswith(wanted + " ")
+        or heading.startswith(wanted + "(")
+    ))
+
+
+async def _read_profile_section(page, section_name: str) -> str:
+    """Read one profile section using resilient, read-only DOM extraction."""
+    title = _normalize_section_heading(section_name)
+
+    # LinkedIn's profile DOM is client-rendered and its wrapper elements change
+    # over time. Find the semantic heading first, then walk to the smallest
+    # useful profile-card/container that owns the heading. This avoids relying
+    # on generated class names while still returning the actual read-only DOM.
     try:
         value = await page.evaluate(
             """(wanted) => {
                 const norm = value => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-                const headings = Array.from(document.querySelectorAll('main h2, main h3'));
-                const heading = headings.find(h => norm(h.textContent) === wanted);
+                const matches = value => {
+                    const text = norm(value);
+                    return text === wanted ||
+                        text.startsWith(wanted + ' ') ||
+                        text.startsWith(wanted + '(');
+                };
+
+                const headingSelector = [
+                    'main h1', 'main h2', 'main h3',
+                    'main [role="heading"]', 'main [aria-level]',
+                ].join(', ');
+                const headings = Array.from(document.querySelectorAll(headingSelector));
+                let heading = headings.find(h => matches(h.textContent));
+
+                // Some LinkedIn layouts use a plain div/span as the section title.
+                // Accept short leaf elements whose complete text is the heading.
+                if (!heading) {
+                    const leaves = Array.from(document.querySelectorAll('main *'))
+                        .filter(el => {
+                            const text = norm(el.textContent);
+                            return text === wanted && el.children.length === 0;
+                        });
+                    heading = leaves[0] || null;
+                }
                 if (!heading) return '';
-                const section = heading.closest('section') || heading.parentElement;
-                return section ? (section.innerText || '') : '';
+
+                // Prefer stable profile-card boundaries before generic parents.
+                const stable = heading.closest(
+                    'section, [data-view-name], .artdeco-card, [class*="pv-profile-card"]'
+                );
+                if (stable) {
+                    const text = (stable.innerText || '').replace(/\\s+/g, ' ').trim();
+                    if (text.length > wanted.length + 8) return text;
+                }
+
+                // Otherwise climb until the container contains meaningful content.
+                let node = heading.parentElement;
+                let best = '';
+                for (let i = 0; i < 8 && node; i += 1) {
+                    const text = (node.innerText || '').replace(/\\s+/g, ' ').trim();
+                    if (text.length > wanted.length + 8 && text.length < 30000) {
+                        best = text;
+                        // Stop at a likely card boundary; otherwise keep the
+                        // smallest useful ancestor discovered so far.
+                        const tag = (node.tagName || '').toLowerCase();
+                        if (tag === 'section' || node.getAttribute('data-view-name')) {
+                            break;
+                        }
+                    }
+                    node = node.parentElement;
+                }
+                return best;
             }""",
             title,
         )
         value = " ".join(str(value or "").split())
-        if value:
+        if value and len(value) > len(title) + 8:
             return value
     except Exception:
         pass
 
-    # Fallbacks for older LinkedIn markup.
+    # Explicit IDs/ARIA/data attributes are useful fallbacks for older and
+    # accessibility-oriented LinkedIn markup.
     selectors = (
-        f"section#{section_name}",
-        f"div#{section_name}",
-        f"[data-section='{section_name}']",
-        f"[data-section-id='{section_name}']",
+        f"main section#{section_name}",
+        f"main div#{section_name}",
+        f"main [data-section='{section_name}']",
+        f"main [data-section-id='{section_name}']",
+        f"main [aria-label*='{section_name}' i]",
+        f"main a[href$='#{section_name}']",
+        f"main [id*='-{section_name}-']",
     )
     for selector in selectors:
         loc = page.locator(selector).first
         try:
             if await loc.count():
                 text = " ".join((await loc.inner_text()).split())
-                if text:
+                if text and len(text) > len(title) + 8:
                     return text
         except Exception:
             continue
-    return ""
 
+    return ""
 
 async def _top_card_text(page) -> str:
     for selector in (
