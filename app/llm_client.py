@@ -47,6 +47,13 @@ def chat_json(*, system: str, user: str, temperature: float = 0.2, max_tokens: i
         "max_tokens": max_tokens,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "response_format": {"type": "json_object"},
+    if _provider() == "openrouter":
+        # Free endpoints can temporarily exhaust their shared upstream pool.
+        # Keep the configured model first, then use OpenRouter free-router fallback.
+        fallback_models = [settings.llm_model]
+        if settings.llm_model != "openrouter/free":
+            fallback_models.append("openrouter/free")
+        payload["models"] = fallback_models
     }
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if settings.llm_api_key:
