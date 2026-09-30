@@ -28,7 +28,25 @@ class ApplicationTracker:
         with self._connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS applications(
               job_url TEXT PRIMARY KEY, title TEXT, company TEXT, status TEXT NOT NULL,
-              updated_at TEXT NOT NULL, notes TEXT DEFAULT '')""")
+              updated_at TEXT NOT NULL, notes TEXT DEFAULT '',
+              discovered_at TEXT, applied_at TEXT, source TEXT DEFAULT '',
+              location TEXT DEFAULT '', recruiter TEXT DEFAULT '',
+              resume_version TEXT DEFAULT '', next_follow_up TEXT DEFAULT '',
+              interview_date TEXT DEFAULT '', salary_notes TEXT DEFAULT '')""")
+            existing = {row[1] for row in db.execute("PRAGMA table_info(applications)").fetchall()}
+            migrations = {
+                "discovered_at": "TEXT", "applied_at": "TEXT", "source": "TEXT DEFAULT ''",
+                "location": "TEXT DEFAULT ''", "recruiter": "TEXT DEFAULT '',
+                "resume_version": "TEXT DEFAULT ''", "next_follow_up": "TEXT DEFAULT ''",
+                "interview_date": "TEXT DEFAULT ''", "salary_notes": "TEXT DEFAULT ''",
+            }
+            for column, definition in migrations.items():
+                if column not in existing:
+                    db.execute(f"ALTER TABLE applications ADD COLUMN {column} {definition}")
+            db.execute(
+                "UPDATE applications SET discovered_at=COALESCE(discovered_at,updated_at) "
+                "WHERE discovered_at IS NULL OR discovered_at=''"
+            )
             db.commit()
 
     @contextmanager
@@ -39,17 +57,53 @@ class ApplicationTracker:
         finally:
             db.close()
 
-    def add(self, job_url, title="", company="", status="new"):
+    def add(
+        self, job_url, title="", company="", status="new", *,
+        source="", location="", recruiter="", resume_version="",
+        next_follow_up="", interview_date="", salary_notes="", notes="",
+        applied_at="", discovered_at="",
+    ):
         job_url = str(job_url or "").strip()
         if not job_url:
             raise ValueError("job_url is required")
         if status not in STATUSES:
             raise ValueError("invalid status")
+        now = datetime.now(timezone.utc).isoformat()
         with self._connect() as db:
             db.execute("""INSERT OR IGNORE INTO applications
-              (job_url,title,company,status,updated_at) VALUES(?,?,?,?,?)""",
-              (job_url, title, company, status, datetime.now(timezone.utc).isoformat()))
+              (job_url,title,company,status,updated_at,notes,discovered_at,applied_at,
+               source,location,recruiter,resume_version,next_follow_up,interview_date,salary_notes)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+              (job_url, title, company, status, now, notes, discovered_at or now, applied_at,
+               source, location, recruiter, resume_version, next_follow_up, interview_date, salary_notes))
             db.commit()
+
+    def update_details(self, job_url, *, source=None, location=None, recruiter=None,
+                       resume_version=None, next_follow_up=None, interview_date=None,
+                       salary_notes=None, notes=None, applied_at=None, discovered_at=None):
+        job_url = str(job_url or "").strip()
+        if not job_url:
+            raise ValueError("job_url is required")
+        fields = {
+            "source": source, "location": location, "recruiter": recruiter,
+            "resume_version": resume_version, "next_follow_up": next_follow_up,
+            "interview_date": interview_date, "salary_notes": salary_notes,
+            "notes": notes, "applied_at": applied_at, "discovered_at": discovered_at,
+        }
+        fields = {k: v for k, v in fields.items() if v is not None}
+        with self._connect() as db:
+            row = db.execute("SELECT job_url FROM applications WHERE job_url=?", (job_url,)).fetchone()
+            if not row:
+                raise KeyError(job_url)
+            if fields:
+                assignments = ", ".join(f"{k}=?" for k in fields)
+                values = list(fields.values()) + [datetime.now(timezone.utc).isoformat(), job_url]
+                db.execute(
+                    f"UPDATE applications SET {assignments}, updated_at=? WHERE job_url=?",
+                    values,
+                )
+                db.commit()
+            return True
 
     def transition(self, job_url, new_status, notes=""):
         job_url = str(job_url or "").strip()
