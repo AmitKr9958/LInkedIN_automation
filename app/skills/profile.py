@@ -56,6 +56,15 @@ _LOCATION_RE = re.compile(
     r"mumbai|bengaluru|bangalore|hyderabad|pune|chennai|kolkata)\b"
 )
 
+def _is_valid_headline(text: str, known_name: str = "") -> bool:
+    normalized = " ".join((text or "").split())
+    if not normalized or normalized.lower() in _PROFILE_NOISE:
+        return False
+    if known_name and normalized.lower() == known_name.strip().lower():
+        return False
+    return re.fullmatch(r"(?i)(he|she|they)(?:[/ ](?:him|her|them))?", normalized) is None
+
+
 _PROFILE_NOISE = {
     "1st",
     "2nd",
@@ -141,9 +150,8 @@ async def _first_valid_text(page, selectors: tuple[str, ...], known_name: str = 
             count = await loc.count()
             for index in range(min(count, 5)):
                 text = " ".join((await loc.nth(index).text_content() or "").split())
-                if text and text.lower() not in _PROFILE_NOISE and text.lower() != known_name.lower():
-                    if not re.fullmatch(r"(?i)(he|she|they)(?:[/ ](?:him|her|them))?", text):
-                        return text
+                if _is_valid_headline(text, known_name):
+                    return text
         except Exception:
             continue
     return ""
@@ -216,7 +224,8 @@ def _parse_top_card(raw_text: str, known_name: str) -> tuple[str, str, str]:
         if not headline and 2 <= len(line) <= 180:
             # Skip obvious navigation/metric lines.
             if not re.search(r"\b(followers?|connections?|experience|education)\b", lower):
-                headline = line
+                if _is_valid_headline(line, name):
+                    headline = line
         if headline and location:
             break
 
