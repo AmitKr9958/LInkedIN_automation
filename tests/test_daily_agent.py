@@ -32,7 +32,7 @@ def test_build_agent_report_tracks_top_jobs_and_drafts_recruiter(monkeypatch):
     monkeypatch.setattr(
         daily_agent,
         "build_discovery_report",
-        lambda rows: SimpleNamespace(ranked=ranked, new_count=1),
+        lambda rows, **kwargs: SimpleNamespace(ranked=ranked, new_count=1, removed_stale=0),
     )
     monkeypatch.setattr(daily_agent, "build_outreach_plan", lambda people, job: [FakeTarget()])
     monkeypatch.setattr(
