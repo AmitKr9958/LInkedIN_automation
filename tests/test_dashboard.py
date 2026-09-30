@@ -5,7 +5,7 @@ def test_dashboard_has_control_center_sections():
     for marker in [
         "Skill Center",
         "Job Intelligence",
-        "Application Pipeline",
+        "Application Workspace",
         "Approval Queue",
         "Agent Runs",
         "/api/tasks/",
