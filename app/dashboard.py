@@ -117,18 +117,34 @@ def _summary() -> dict:
     def load_applications():
         with _db(activity) as db:
             count = db.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
-            rows = db.execute(
-                "SELECT job_url,title,company,status,updated_at,notes,discovered_at,applied_at,"
-                "source,location,recruiter,resume_version,next_follow_up,interview_date,salary_notes "
-                "FROM applications ORDER BY updated_at DESC LIMIT 50"
-            ).fetchall()
-            return count, [
-                {
-                    **dict(r),
-                    "allowed_transitions": sorted(TRANSITIONS.get(r["status"], set())),
-                }
-                for r in rows
+            columns = {row[1] for row in db.execute("PRAGMA table_info(applications)").fetchall()}
+            wanted = [
+                "job_url", "title", "company", "status", "updated_at", "notes",
+                "discovered_at", "applied_at", "source", "location", "recruiter",
+                "resume_version", "next_follow_up", "interview_date", "salary_notes",
             ]
+            if all(column in columns for column in wanted):
+                rows = db.execute(
+                    "SELECT " + ",".join(wanted) +
+                    " FROM applications ORDER BY updated_at DESC LIMIT 50"
+                ).fetchall()
+            else:
+                # Backward-compatible read path for test fixtures or an older
+                # activity database that has not yet been migrated.
+                rows = db.execute(
+                    "SELECT job_url,title,company,status,updated_at,notes "
+                    "FROM applications ORDER BY updated_at DESC LIMIT 50"
+                ).fetchall()
+            out = []
+            for r in rows:
+                item = dict(r)
+                for key in wanted:
+                    item.setdefault(key, "")
+                item["allowed_transitions"] = sorted(
+                    TRANSITIONS.get(item["status"], set())
+                )
+                out.append(item)
+            return count, out
 
     def load_jobs():
         with _db(activity) as db:
