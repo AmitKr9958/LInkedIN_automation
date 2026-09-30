@@ -56,15 +56,6 @@ _LOCATION_RE = re.compile(
     r"mumbai|bengaluru|bangalore|hyderabad|pune|chennai|kolkata)\b"
 )
 
-def _is_valid_headline(text: str, known_name: str = "") -> bool:
-    normalized = " ".join((text or "").split())
-    if not normalized or normalized.lower() in _PROFILE_NOISE:
-        return False
-    if known_name and normalized.lower() == known_name.strip().lower():
-        return False
-    return re.fullmatch(r"(?i)(he|she|they)(?:[/ ](?:him|her|them))?", normalized) is None
-
-
 _PROFILE_NOISE = {
     "1st",
     "2nd",
@@ -79,11 +70,34 @@ _PROFILE_NOISE = {
     "he/him",
     "she/her",
     "they/them",
+    "he him",
+    "she her",
+    "they them",
 }
 
 
+def _is_valid_headline(text: str, known_name: str = "") -> bool:
+    normalized = " ".join((text or "").split())
+    if not normalized or normalized.lower() in _PROFILE_NOISE:
+        return False
+    if known_name and normalized.lower() == known_name.strip().lower():
+        return False
+    return re.fullmatch(r"(?i)(he|she|they)(?:[/ ](?:him|her|them))?", normalized) is None
+
+
 async def read_profile(page) -> ProfileSnapshot:
-    await page.goto(f"{settings.linkedin_base_url}/in/", wait_until="domcontentloaded")
+    profile_url = str(settings.profile_url or "").strip()
+    if not re.match(r"^https://(?:www\.)?linkedin\.com/in/[^/?#]+/?(?:\?.*)?$", profile_url, re.I):
+        raise RuntimeError(
+            "PROFILE_URL must point to the authenticated LinkedIn profile, "
+            "for example https://www.linkedin.com/in/your-profile-slug/"
+        )
+
+    await page.goto(profile_url, wait_until="domcontentloaded", timeout=60_000)
+    await page.wait_for_timeout(2_500)
+    # LinkedIn lazy-loads profile sections while scrolling. The headed browser
+    # may not visibly show a scrollbar, so force a full programmatic scroll.
+    await _scroll_profile_to_bottom(page)
     state = await current_session_state(page)
 
     name_locator = page.locator("main h1, h1.text-heading-xlarge, h1").first
@@ -94,10 +108,8 @@ async def read_profile(page) -> ProfileSnapshot:
 
     name = await _first_text(page, PROFILE_NAME_SELECTORS)
     headline = await _first_valid_text(page, PROFILE_HEADLINE_SELECTORS, name)
-    location = await _first_text(page, PROFILE_LOCATION_SELECTORS)
+    location = await _first_valid_text(page, PROFILE_LOCATION_SELECTORS, name)
 
-    # LinkedIn changes profile markup frequently. Use the rendered top-card text
-    # as a semantic fallback instead of depending on one CSS class family.
     top_text = await _top_card_text(page)
     if not name:
         name = _name_from_title(state["title"])
@@ -130,6 +142,36 @@ async def read_profile(page) -> ProfileSnapshot:
     )
 
 
+async def _scroll_profile_to_bottom(page, max_rounds: int = 24) -> None:
+    last_height = 0
+    stable_rounds = 0
+    for _ in range(max_rounds):
+        try:
+            height = await page.evaluate("document.scrollingElement ? document.scrollingElement.scrollHeight : document.body.scrollHeight")
+            viewport = await page.evaluate("window.innerHeight || document.documentElement.clientHeight || 0")
+            await page.evaluate("window.scrollBy(0, Math.max(600, Math.floor(window.innerHeight * 0.8)))")
+            await page.wait_for_timeout(450)
+            new_height = await page.evaluate("document.scrollingElement ? document.scrollingElement.scrollHeight : document.body.scrollHeight")
+            if new_height <= height and new_height <= last_height:
+                stable_rounds += 1
+            else:
+                stable_rounds = 0
+            last_height = max(last_height, new_height)
+            scroll_y = await page.evaluate("window.scrollY || window.pageYOffset || 0")
+            if viewport and scroll_y + viewport >= new_height - 8 and stable_rounds >= 2:
+                break
+            if stable_rounds >= 4:
+                break
+        except Exception:
+            break
+
+    try:
+        await page.evaluate("window.scrollTo(0, 0)")
+        await page.wait_for_timeout(250)
+    except Exception:
+        pass
+
+
 async def _first_text(page, selectors: tuple[str, ...]) -> str:
     for selector in selectors:
         loc = page.locator(selector)
@@ -148,7 +190,7 @@ async def _first_valid_text(page, selectors: tuple[str, ...], known_name: str = 
         loc = page.locator(selector)
         try:
             count = await loc.count()
-            for index in range(min(count, 5)):
+            for index in range(min(count, 10)):
                 text = " ".join((await loc.nth(index).text_content() or "").split())
                 if _is_valid_headline(text, known_name):
                     return text
@@ -158,12 +200,34 @@ async def _first_valid_text(page, selectors: tuple[str, ...], known_name: str = 
 
 
 async def _read_profile_section(page, section_name: str) -> str:
+    title = section_name.strip().lower()
+
+    # Prefer semantic section headings over LinkedIn's frequently changing
+    # generated IDs/classes. The returned text is read-only DOM content.
+    try:
+        value = await page.evaluate(
+            """(wanted) => {
+                const norm = value => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                const headings = Array.from(document.querySelectorAll('main h2, main h3'));
+                const heading = headings.find(h => norm(h.textContent) === wanted);
+                if (!heading) return '';
+                const section = heading.closest('section') || heading.parentElement;
+                return section ? (section.innerText || '') : '';
+            }""",
+            title,
+        )
+        value = " ".join(str(value or "").split())
+        if value:
+            return value
+    except Exception:
+        pass
+
+    # Fallbacks for older LinkedIn markup.
     selectors = (
         f"section#{section_name}",
         f"div#{section_name}",
         f"[data-section='{section_name}']",
         f"[data-section-id='{section_name}']",
-        f"section:has(h2:has-text('{section_name.title()}'))",
     )
     for selector in selectors:
         loc = page.locator(selector).first
@@ -222,7 +286,6 @@ def _parse_top_card(raw_text: str, known_name: str) -> tuple[str, str, str]:
             location = line
             continue
         if not headline and 2 <= len(line) <= 180:
-            # Skip obvious navigation/metric lines.
             if not re.search(r"\b(followers?|connections?|experience|education)\b", lower):
                 if _is_valid_headline(line, name):
                     headline = line
