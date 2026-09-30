@@ -376,13 +376,18 @@ function renderMetrics(d){
 }
 function jobRows(rows){
  const list=rows||[];
+ const tracked=new Set((state.summary?.applications||[]).map(x=>String(x?.job_url||'').trim()).filter(Boolean));
  return '<thead><tr><th>Role</th><th>Company</th><th>Location</th><th>Workplace</th><th>Score ↕</th><th>Status</th><th>Seen</th><th>Application</th></tr></thead><tbody>'+
  (list.length ? list.map(x=>{
    const link=x.url?'<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer" style="color:#8dccff;text-decoration:none">'+esc(x.title)+'</a>':'<b>'+esc(x.title)+'</b>';
    const wp=x.workplace_type||((String(x.location||'').toLowerCase().includes('remote'))?'remote':'');
    const reason=String(x.reasons||'').slice(0,180);
    const score=Number.isFinite(Number(x.score))?Number(x.score):'—';
-   return '<tr><td><b>'+link+'</b>'+(reason?'<div class="muted" style="font-size:11px;margin-top:3px">'+esc(reason)+'</div>':'')+'</td><td>'+esc(x.company)+'</td><td>'+esc(x.location)+'</td><td>'+(wp?'<span class="badge green">'+esc(wp)+'</span>':'<span class="muted">—</span>')+'</td><td><span class="score '+scoreClass(score)+'">'+esc(score)+'</span></td><td><span class="badge">'+esc(x.status||'new')+'</span></td><td>'+esc(x.updated_at)+'</td><td><button class="btn" onclick="addApplication(this)" data-url="'+esc(x.url||'')+'" data-title="'+esc(x.title||'')+'" data-company="'+esc(x.company||'')+'" data-location="'+esc(x.location||'')+'">Track application</button></td></tr>';
+   const isTracked=tracked.has(String(x.url||'').trim());
+   const applicationButton=isTracked
+     ? '<button class="btn" disabled>Tracked</button>'
+     : '<button class="btn" onclick="addApplication(this)" data-url="'+esc(x.url||'')+'" data-title="'+esc(x.title||'')+'" data-company="'+esc(x.company||'')+'" data-location="'+esc(x.location||'')+'">Track application</button>';
+   return '<tr><td><b>'+link+'</b>'+(reason?'<div class="muted" style="font-size:11px;margin-top:3px">'+esc(reason)+'</div>':'')+'</td><td>'+esc(x.company)+'</td><td>'+esc(x.location)+'</td><td>'+(wp?'<span class="badge green">'+esc(wp)+'</span>':'<span class="muted">—</span>')+'</td><td><span class="score '+scoreClass(score)+'">'+esc(score)+'</span></td><td><span class="badge">'+esc(x.status||'new')+'</span></td><td>'+esc(x.updated_at)+'</td><td>'+applicationButton+'</td></tr>';
  }).join('') : '<tr><td colspan="8" class="empty">No jobs stored yet.</td></tr>')+
  '</tbody>';
 }
