@@ -121,6 +121,11 @@ async def read_profile(page) -> ProfileSnapshot:
         headline = headline or fallback_headline
         location = location or fallback_location
 
+    # Expand read-only "Show all" controls so lazy/condensed sections expose
+    # their actual content to the extractor. This only changes the current
+    # browser view; it does not edit the LinkedIn profile.
+    await _expand_profile_sections(page)
+
     sections = {
         "about": await _read_profile_section(page, "about"),
         "experience": await _read_profile_section(page, "experience"),
@@ -215,6 +220,28 @@ def _section_heading_matches(value: str, section_name: str) -> bool:
     ))
 
 
+async def _expand_profile_sections(page) -> None:
+    """Open read-only profile section expanders when LinkedIn hides content."""
+    try:
+        await page.evaluate(
+            """() => {
+                const wanted = /(?:show all|show more|see all)/i;
+                const nodes = Array.from(document.querySelectorAll(
+                    'main button, main a, main [role="button"]'
+                ));
+                for (const node of nodes) {
+                    const text = (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim();
+                    const aria = (node.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim();
+                    if (!wanted.test(text) && !wanted.test(aria)) continue;
+                    try { node.click(); } catch (_) {}
+                }
+            }"""
+        )
+        await page.wait_for_timeout(700)
+    except Exception:
+        pass
+
+
 async def _read_profile_section(page, section_name: str) -> str:
     """Read one profile section using resilient, read-only DOM extraction."""
     title = _normalize_section_heading(section_name)
@@ -303,7 +330,40 @@ async def _read_profile_section(page, section_name: str) -> str:
     except Exception:
         pass
 
-    # Fallback 1: scan the rendered main text. This handles LinkedIn layouts
+    # Fallback 1: LinkedIn exposes stable details URLs even when section
+    # headings are wrapped in generated markup. Recover the owning profile card
+    # without depending on generated CSS class names.
+    details_hrefs = {
+        "experience": "/details/experience",
+        "skills": "/details/skills",
+        "featured": "/details/featured",
+    }
+    href = details_hrefs.get(section_name)
+    if href:
+        try:
+            links = page.locator(f'main a[href*="{href}"]')
+            count = await links.count()
+            for index in range(min(count, 5)):
+                link = links.nth(index)
+                value = await link.evaluate(
+                    """el => {
+                        const candidates = [];
+                        let node = el;
+                        for (let i = 0; i < 8 && node; i += 1, node = node.parentElement) {
+                            const text = (node.innerText || '').replace(/\\s+/g, ' ').trim();
+                            if (text && text.length > 20 && text.length < 30000) candidates.push(text);
+                            if ((node.tagName || '').toLowerCase() === 'section') break;
+                        }
+                        return candidates.sort((a, b) => a.length - b.length)[0] || '';
+                    }"""
+                )
+                value = " ".join(str(value or "").split())
+                if value and len(value) > len(title) + 8:
+                    return value
+        except Exception:
+            pass
+
+    # Fallback 2: scan the rendered main text. This handles LinkedIn layouts
     # where the section title is a nested button/div/span rather than a semantic
     # heading. We only accept an exact section-title line and stop at the next
     # known profile section, so we do not accidentally return the whole page.
@@ -315,7 +375,7 @@ async def _read_profile_section(page, section_name: str) -> str:
     except Exception:
         pass
 
-    # Fallback 2: explicit IDs/ARIA/data attributes used by older and
+    # Fallback 3: explicit IDs/ARIA/data attributes used by older and
     # accessibility-oriented LinkedIn markup.
     selectors = (
         f"main section#{section_name}",
