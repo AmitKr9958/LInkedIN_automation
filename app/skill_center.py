@@ -145,6 +145,11 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
         if source == "live":
             live = await run_read("profile")
             profile_data = live.data.to_dict() if hasattr(live.data, "to_dict") else dict(live.data or {})
+            # Never expose LinkedIn pronouns as a professional headline. LinkedIn's
+            # top-card DOM changes frequently and can place pronouns beside the name.
+            headline = " ".join(str(profile_data.get("headline", "")).split())
+            if headline.lower() in {"he/him", "she/her", "they/them", "he him", "she her", "they them"}:
+                profile_data["headline"] = ""
         else:
             profile_data = _json_value(str(inputs.get("profile", "{}")), {}) or {}
         baseline = profile_audit(profile_data)

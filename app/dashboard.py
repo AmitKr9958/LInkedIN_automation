@@ -540,7 +540,7 @@ function renderResultCards(rows){
  }).join('')+'</div>';
 }
 function renderObjectResult(result,data){
- if(data?.readable_result && result?.skill==='profile_optimizer'){
+ if(data?.readable_result && (result?.skill==='profile_optimizer'||data?.skill==='profile_optimizer')){
    const p=data.readable_result, profile=p.profile||{}, audit=p.section_audit||{};
    const list=(v)=>Array.isArray(v)?v.filter(Boolean).map(x=>'<li>'+esc(typeof x==='object'?JSON.stringify(x):String(x))+'</li>').join(''):'';
    let h='<div class="result-shell"><div class="result-head"><div><div class="result-title">Profile Optimizer</div><div class="result-meta">'+esc(p.status||'Analysis completed')+'</div></div></div>';
