@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from typing import Any
+import logging
 import re
+from urllib.parse import unquote, urlparse
 
 from ..linkedin_reader import current_session_state
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -242,6 +246,109 @@ async def _expand_profile_sections(page) -> None:
         pass
 
 
+_DETAILS_PATHS = {
+    "experience": "/details/experience/",
+    "skills": "/details/skills/",
+    "featured": "/details/featured/",
+}
+_DETAILS_MAX_CHARS = 12_000
+_DETAILS_MIN_CHARS = 40
+# Text LinkedIn appends below section content; never part of the section.
+_DETAILS_NOISE_MARKERS = (
+    "more profiles for you",
+    "people you may know",
+    "explore premium profiles",
+    "you might like",
+    "about accessibility",
+)
+_AUTH_WALL_MARKERS = ("/authwall", "/login", "/checkpoint", "/uas/")
+
+
+def _profile_slug(profile_url: str) -> str:
+    match = re.match(r"^https://(?:www\.)?linkedin\.com/in/([^/?#]+)", str(profile_url or "").strip(), re.I)
+    return unquote(match.group(1)).lower() if match else ""
+
+
+def _details_url_matches(current_url: str, slug: str, section_name: str) -> bool:
+    """True only if the browser is on the expected profile's expected details page."""
+    if not slug or section_name not in _DETAILS_PATHS:
+        return False
+    try:
+        parsed = urlparse(str(current_url or ""))
+    except Exception:
+        return False
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not (host == "linkedin.com" or host.endswith(".linkedin.com")):
+        return False
+    path = unquote(parsed.path or "").lower().rstrip("/")
+    if any(marker in path for marker in _AUTH_WALL_MARKERS):
+        return False
+    return path == f"/in/{slug}{_DETAILS_PATHS[section_name].rstrip('/')}"
+
+
+def _clean_details_text(raw: str) -> str:
+    text = " ".join(str(raw or "").split())
+    lowered = text.lower()
+    cut = len(text)
+    for marker in _DETAILS_NOISE_MARKERS:
+        idx = lowered.find(marker)
+        if idx != -1:
+            cut = min(cut, idx)
+    return text[:cut].strip()[:_DETAILS_MAX_CHARS]
+
+
+async def _read_profile_details_page(page, section_name: str) -> str:
+    """Read one section from LinkedIn's authenticated /details route (read-only).
+
+    Reuses the existing browser context, opens one temporary tab, validates that
+    the final URL is the configured profile's details page, and always closes
+    the tab. Returns "" on any failure or when no meaningful content is found.
+    """
+    if section_name not in _DETAILS_PATHS:
+        return ""
+
+    context = getattr(page, "context", None)
+    profile_url = str(settings.profile_url or "").strip()
+    slug = _profile_slug(profile_url)
+    if context is None or not slug:
+        return ""
+
+    target_url = f"https://www.linkedin.com/in/{slug}{_DETAILS_PATHS[section_name]}"
+    detail_page = None
+    try:
+        detail_page = await context.new_page()
+        await detail_page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
+        await detail_page.wait_for_timeout(1_500)
+
+        if not _details_url_matches(str(detail_page.url or ""), slug, section_name):
+            logger.warning("Details fallback rejected unexpected URL for %s", section_name)
+            return ""
+
+        await _scroll_profile_to_bottom(detail_page, max_rounds=16)
+        raw = await detail_page.locator("main").first.inner_text()
+        text = _clean_details_text(raw)
+        if not text:
+            return ""
+
+        extracted = _extract_section_from_text(text, section_name)
+        if extracted:
+            return extracted
+
+        # Section-scoped page without an explicit heading: the page itself is the scope.
+        if len(text) >= _DETAILS_MIN_CHARS:
+            return text
+    except Exception as exc:
+        logger.warning("Details fallback failed for %s: %s", section_name, type(exc).__name__)
+        return ""
+    finally:
+        if detail_page is not None:
+            try:
+                await detail_page.close()
+            except Exception:
+                pass
+    return ""
+
+
 async def _read_profile_section(page, section_name: str) -> str:
     """Read one profile section using resilient, read-only DOM extraction."""
     title = _normalize_section_heading(section_name)
@@ -375,7 +482,15 @@ async def _read_profile_section(page, section_name: str) -> str:
     except Exception:
         pass
 
-    # Fallback 3: explicit IDs/ARIA/data attributes used by older and
+    # Fallback 3: authenticated, section-specific details page (one temp tab).
+    # Some layouts expose only a link/card on the main page; the real content
+    # lives on /details/<section>/.
+    if section_name in _DETAILS_PATHS:
+        value = await _read_profile_details_page(page, section_name)
+        if value:
+            return value
+
+    # Fallback 4: explicit IDs/ARIA/data attributes used by older and
     # accessibility-oriented LinkedIn markup.
     selectors = (
         f"main section#{section_name}",
