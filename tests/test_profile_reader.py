@@ -46,3 +46,34 @@ def test_section_heading_matching_tolerates_counts_and_whitespace():
 def test_section_heading_matching_rejects_unrelated_sections():
     assert not _section_heading_matches("Education", "experience")
     assert not _section_heading_matches("Professional Experience", "experience")
+
+
+def test_extract_section_from_rendered_text():
+    from app.skills.profile import _extract_section_from_text
+
+    raw = """
+    About
+    Power BI and BI professional with measurable reporting improvements.
+    Experience
+    Senior Power BI Developer
+    Bill Gosling Outsourcing
+    Skills
+    Power BI
+    DAX
+    SQL
+    Featured
+    Portfolio dashboard
+    Education
+    B.Com
+    """
+    assert "Bill Gosling Outsourcing" in _extract_section_from_text(raw, "experience")
+    assert "DAX" in _extract_section_from_text(raw, "skills")
+    assert "Portfolio dashboard" in _extract_section_from_text(raw, "featured")
+    assert "B.Com" not in _extract_section_from_text(raw, "featured")
+
+
+def test_extract_section_handles_decorated_heading():
+    from app.skills.profile import _extract_section_from_text
+
+    raw = "Skills (25)\nPower BI\nDAX\nFeatured\nDashboard"
+    assert "Power BI" in _extract_section_from_text(raw, "skills")
