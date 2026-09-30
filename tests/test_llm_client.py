@@ -50,3 +50,12 @@ def test_openrouter_payload_includes_free_fallback(monkeypatch):
         "qwen/qwen3.8-27b:free",
         "openrouter/free",
     ]
+
+
+def test_parse_json_object_accepts_json_encoded_object():
+    assert _parse_json_object('"{\\"ok\\":true}"') == {"ok": True}
+
+
+def test_parse_json_object_skips_reasoning_and_bad_braces():
+    result = _parse_json_object('<think>reasoning {not-json}</think> Final answer: {"ok":true}')
+    assert result == {"ok": True}
