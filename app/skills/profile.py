@@ -371,11 +371,6 @@ def _extract_section_from_text(raw_text: str, section_name: str) -> str:
     if not flat:
         return ""
 
-    heading_re = re.compile(
-        rf"(?<!\w){re.escape(wanted)}"
-        rf"(?:\s*\(\s*\d+\s*\)|\s+\d+)?(?!\w)",
-        re.I,
-    )
     section_positions = {
         section: [
             match.start()
