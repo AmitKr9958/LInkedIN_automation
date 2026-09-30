@@ -36,7 +36,7 @@ def test_openrouter_payload_includes_free_fallback(monkeypatch):
         def __exit__(self, *args):
             return False
         def read(self):
-            return b'{"choices":[{"message":{"content":"{\"ok\":true}"}}]}'
+            return b'{"choices":[{"message":{"content":"{\\\"ok\\\":true}"}}]}'
 
     def fake_urlopen(req, timeout):
         captured["payload"] = json.loads(req.data.decode("utf-8"))
