@@ -288,7 +288,19 @@ async def _read_profile_section(page, section_name: str) -> str:
     except Exception:
         pass
 
-    # Explicit IDs/ARIA/data attributes are useful fallbacks for older and
+    # Fallback 1: scan the rendered main text. This handles LinkedIn layouts
+    # where the section title is a nested button/div/span rather than a semantic
+    # heading. We only accept an exact section-title line and stop at the next
+    # known profile section, so we do not accidentally return the whole page.
+    try:
+        raw = await page.locator("main").first.inner_text()
+        extracted = _extract_section_from_text(raw, section_name)
+        if extracted:
+            return extracted
+    except Exception:
+        pass
+
+    # Fallback 2: explicit IDs/ARIA/data attributes used by older and
     # accessibility-oriented LinkedIn markup.
     selectors = (
         f"main section#{section_name}",
@@ -310,6 +322,37 @@ async def _read_profile_section(page, section_name: str) -> str:
             continue
 
     return ""
+
+
+_PROFILE_SECTION_ORDER = ("about", "experience", "education", "skills", "featured")
+
+
+def _extract_section_from_text(raw_text: str, section_name: str) -> str:
+    """Extract one profile section from rendered text when DOM wrappers vary."""
+    lines = [
+        " ".join(line.replace("\u00a0", " ").split()).strip()
+        for line in str(raw_text or "").splitlines()
+    ]
+    lines = [line for line in lines if line]
+    wanted = _normalize_section_heading(section_name)
+    start = -1
+
+    for index, line in enumerate(lines):
+        if _section_heading_matches(line, wanted):
+            start = index
+            break
+    if start < 0:
+        return ""
+
+    content = []
+    for line in lines[start:]:
+        normalized = _normalize_section_heading(line)
+        if content and normalized in _PROFILE_SECTION_ORDER:
+            break
+        content.append(line)
+
+    value = " ".join(content).strip()
+    return value if len(value) > len(wanted) + 8 else ""
 
 async def _top_card_text(page) -> str:
     for selector in (
