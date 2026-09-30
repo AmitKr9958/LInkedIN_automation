@@ -11,10 +11,23 @@ class Settings(BaseSettings):
     browser_profile_dir: str = ".browser-profile"
     log_level: str = "INFO"
     approval_required: bool = True
-    agent_enabled: bool = Field(default=False, validation_alias="LINKEDIN_AGENT_ENABLED")
-    telegram_notifications_enabled: bool = Field(default=False, validation_alias="TELEGRAM_NOTIFICATIONS_ENABLED")
-    telegram_bot_token: str | None = Field(default=None, validation_alias="TELEGRAM_BOT_TOKEN")
-    telegram_chat_id: str | None = Field(default=None, validation_alias="TELEGRAM_CHAT_ID")
+    # End-to-end agent execution is opt-in. The scheduled runner explicitly enables it.
+    agent_enabled: bool = Field(
+        default=False,
+        validation_alias="LINKEDIN_AGENT_ENABLED",
+    )
+    telegram_notifications_enabled: bool = Field(
+        default=False,
+        validation_alias="TELEGRAM_NOTIFICATIONS_ENABLED",
+    )
+    telegram_bot_token: str | None = Field(
+        default=None,
+        validation_alias="TELEGRAM_BOT_TOKEN",
+    )
+    telegram_chat_id: str | None = Field(
+        default=None,
+        validation_alias="TELEGRAM_CHAT_ID",
+    )
     llm_provider: str = Field(default="none", validation_alias="LLM_PROVIDER")
     llm_base_url: str = Field(default="https://openrouter.ai/api/v1", validation_alias="LLM_BASE_URL")
     llm_model: str = Field(default="openrouter/auto", validation_alias="LLM_MODEL")
@@ -26,7 +39,6 @@ class Settings(BaseSettings):
     llm_app_name: str = Field(default="LinkedIn Agent Control Center", validation_alias="LLM_APP_NAME")
     openai_api_key: str | None = None
     linkedin_base_url: str = "https://www.linkedin.com"
-    profile_url: str = Field(default="https://www.linkedin.com/in/", validation_alias="PROFILE_URL")
 
     @property
     def profile_path(self) -> Path:
