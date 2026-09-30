@@ -289,7 +289,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 
 <section id="overview" class="view active">
   <div class="grid metrics" id="metrics"></div>
-  <div class="hero"><div class="section-kicker" style="color:#9bd6ff">COMMAND CENTER</div><h2>Discover opportunities. Review signals. Stay in control.</h2><p>The agent continuously discovers jobs and hiring signals while keeping account-changing actions behind human approval. Use the workspace below to review results, manage your pipeline and launch individual skills.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="showView('jobs')">Review jobs →</button><button class="btn" onclick="showView('skills')">Open Skill Center →</button></div></div>
+  <div class="hero"><div class="section-kicker" style="color:#9bd6ff">COMMAND CENTER</div><h2>Discover opportunities. Review signals. Stay in control.</h2><p>The agent continuously discovers jobs and hiring signals while keeping account-changing actions behind human approval. Use the workspace below to review results, manage your pipeline and launch individual skills.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="showView('jobs')">Review jobs →</button><button class="btn" onclick="openSkill('profile_optimizer')">Optimize LinkedIn profile →</button><button class="btn" onclick="showView('skills')">Open Skill Center →</button></div></div>
   <div class="grid quick">
     <button onclick="openSkill('jobs')"><b>Find Power BI jobs</b><span>LinkedIn · Delhi / Gurgaon / Noida / Remote India</span></button>
     <button onclick="openSkill('people')"><b>Find recruiters</b><span>People research · read-only</span></button>
@@ -495,7 +495,7 @@ function openSkill(name){
  document.getElementById('drawerSafety').innerHTML=s.mode==='approval'?'⚑ <b>Approval required.</b> This creates a review item; it does not execute the LinkedIn action.':s.mode==='read'?'✓ <b>Read-only.</b> This may open your local LinkedIn browser session and can take up to a few minutes.':'✦ <b>Local workflow.</b> No LinkedIn account action is performed automatically.';
  document.getElementById('skillFields').innerHTML=(s.fields||[]).map(f=>{
    const val=f.default??''; const type=f.type==='textarea'?'textarea':(f.type==='number'?'number':'text');
-   return '<div class="field"><label>'+esc(f.label||f.name)+'</label>'+ (type==='textarea'?'<textarea name="'+esc(f.name)+'">'+esc(val)+'</textarea>':'<input name="'+esc(f.name)+'" type="'+type+'" value="'+esc(val)+'">')+'</div>';
+   return '<div class="field"><label>'+esc(f.label||f.name)+'</label>'+ (type==='textarea'?'<textarea name="'+esc(f.name)+'">'+esc(val)+'</textarea>':type==='select'?'<select name="'+esc(f.name)+'">'+(f.options||[]).map(o=>'<option value="'+esc(o)+'"'+(String(o)===String(val)?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select>':'<input name="'+esc(f.name)+'" type="'+type+'" value="'+esc(val)+'">')+'</div>';
  }).join('') || '<p class="muted">No input required.</p>';
  document.getElementById('skillSubmit').textContent=s.mode==='approval'?'Prepare approval':(s.mode==='local'?'Run locally':'Run read-only skill');
  document.getElementById('skillTask').innerHTML='';document.getElementById('skillOutput').innerHTML='';
