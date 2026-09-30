@@ -129,6 +129,9 @@ def _parse_json_object(content: str) -> dict[str, Any] | None:
     if not text:
         return None
 
+    # Strip common reasoning wrappers emitted by some reasoning/free models.
+    text = text.replace("<think>", "").replace("</think>", "").strip()
+
     # Common provider/model format: fenced JSON.
     if text.startswith("```"):
         lines = text.splitlines()
@@ -138,19 +141,27 @@ def _parse_json_object(content: str) -> dict[str, Any] | None:
             lines = lines[:-1]
         text = "\n".join(lines).strip()
 
+    # Accept plain JSON, including a JSON-encoded string containing an object.
     try:
         parsed = json.loads(text)
-        return parsed if isinstance(parsed, dict) else None
+        if isinstance(parsed, dict):
+            return parsed
+        if isinstance(parsed, str):
+            nested = json.loads(parsed)
+            return nested if isinstance(nested, dict) else None
     except json.JSONDecodeError:
         pass
 
-    # Some models add a short sentence before/after the JSON. Decode the first
-    # complete JSON object rather than requiring the entire response to be JSON.
-    start = text.find("{")
-    if start < 0:
-        return None
-    try:
-        parsed, _ = json.JSONDecoder().raw_decode(text[start:])
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+    # Try every opening brace so prose or brace-like text before the object
+    # does not prevent extraction of the actual JSON payload.
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
