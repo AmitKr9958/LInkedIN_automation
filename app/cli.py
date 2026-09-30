@@ -503,6 +503,8 @@ def agent(
         hiring_posts=len(report.hiring_posts),
         recruiter_targets=len(report.recruiter_targets),
         connection_drafts=len(report.connection_drafts),
+        stale_jobs_removed=int((report.diagnostics or {}).get("stale_jobs_removed", 0) or 0),
+        freshness_hours=float(window if window is not None else DEFAULT_JOB_PREFERENCES.posted_within_hours),
     )
     # Emit timing diagnostics for operator visibility (no secrets).
     timings = (report.diagnostics or {}).get("timings_seconds") or {}
