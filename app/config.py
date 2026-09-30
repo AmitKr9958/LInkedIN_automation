@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     llm_app_name: str = Field(default="LinkedIn Agent Control Center", validation_alias="LLM_APP_NAME")
     openai_api_key: str | None = None
     linkedin_base_url: str = "https://www.linkedin.com"
+    # Use the user's authenticated profile URL for profile reads. This is
+    # intentionally read-only and prevents the optimizer from opening the
+    # generic /in/ landing route.
+    profile_url: str = Field(
+        default="https://www.linkedin.com/in/",
+        validation_alias="PROFILE_URL",
+    )
 
     @property
     def profile_path(self) -> Path:
