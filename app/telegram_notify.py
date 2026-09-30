@@ -54,6 +54,8 @@ def notify_agent_completion(
     hiring_posts: int = 0,
     recruiter_targets: int = 0,
     connection_drafts: int = 0,
+    stale_jobs_removed: int = 0,
+    freshness_hours: float = 4,
     error_message: str = "",
 ) -> bool:
     """Send a compact completion/failure summary for one agent cycle."""
@@ -72,6 +74,8 @@ def notify_agent_completion(
                 f"Hiring posts: {hiring_posts}",
                 f"Recruiter targets: {recruiter_targets}",
                 f"Connection drafts: {connection_drafts}",
+                f"Stale jobs removed: {stale_jobs_removed}",
+                f"Freshness window: {freshness_hours:g} hours",
                 "Mode: read/draft/approval-gated",
             ]
         )
