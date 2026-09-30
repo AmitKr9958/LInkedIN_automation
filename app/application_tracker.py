@@ -61,11 +61,18 @@ class ApplicationTracker:
             row = db.execute("SELECT status FROM applications WHERE job_url=?", (job_url,)).fetchone()
             if not row:
                 raise KeyError(job_url)
-            if new_status not in TRANSITIONS[row[0]]:
-                raise ValueError(f"invalid transition {row[0]} -> {new_status}")
+            current_status = row[0]
+            # Saving an unchanged status from the dashboard is a no-op. This
+            # makes the Save button idempotent and avoids presenting a harmless
+            # "new -> new" selection as an invalid workflow transition.
+            if new_status == current_status:
+                return False
+            if new_status not in TRANSITIONS[current_status]:
+                raise ValueError(f"invalid transition {current_status} -> {new_status}")
             db.execute("UPDATE applications SET status=?,notes=?,updated_at=? WHERE job_url=?",
                        (new_status, notes, datetime.now(timezone.utc).isoformat(), job_url))
             db.commit()
+            return True
 
     def list(self, status=None):
         with self._connect() as db:
