@@ -21,4 +21,4 @@ def test_discovery_report_logs_activity(monkeypatch, tmp_path):
         ]
     )
     assert report.ranked
-    assert logged == [("discovery_run", "linkedin_jobs", "ok", "ranked=1 new=1 removed_stale=0 freshness_hours=4")]
+    assert logged == [("discovery_run", "linkedin_jobs", "ok", "ranked=1 new=1 removed_stale=0 freshness_hours=6")]
