@@ -244,12 +244,27 @@ async def _read_profile_section(page, section_name: str) -> str:
                 // Some LinkedIn layouts use a plain div/span as the section title.
                 // Accept short leaf elements whose complete text is the heading.
                 if (!heading) {
-                    const leaves = Array.from(document.querySelectorAll('main *'))
+                    // LinkedIn often renders section titles as a button/div/span
+                    // containing nested spans. Match complete rendered text.
+                    const candidates = Array.from(document.querySelectorAll('main *'))
                         .filter(el => {
                             const text = norm(el.textContent);
-                            return text === wanted && el.children.length === 0;
+                            if (text !== wanted) return false;
+                            const tag = (el.tagName || '').toLowerCase();
+                            return tag !== 'main' && tag !== 'body' && tag !== 'section';
+                        })
+                        .sort((a, b) => {
+                            const depth = el => {
+                                let n = 0, node = el;
+                                while (node && node !== document.body) {
+                                    n += 1;
+                                    node = node.parentElement;
+                                }
+                                return n;
+                            };
+                            return depth(b) - depth(a);
                         });
-                    heading = leaves[0] || null;
+                    heading = candidates[0] || null;
                 }
                 if (!heading) return '';
 
