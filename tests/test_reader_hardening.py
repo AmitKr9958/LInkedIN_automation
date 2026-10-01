@@ -266,7 +266,7 @@ def test_normalize_posted_supports_all_live_variants():
 
 def test_hours_from_posted_maps_variants_to_numeric_recency():
     assert _hours_from_posted("Just now") == 0.0
-    assert _hours_from_posted("Today") == 0.0
+    assert _hours_from_posted("Today") is None
     assert _hours_from_posted("Yesterday") == 24.0
     assert _hours_from_posted("15 minutes ago") == 0.25
     assert _hours_from_posted("22 hours ago") == 22.0
