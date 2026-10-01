@@ -15,8 +15,8 @@ def test_dashboard_has_control_center_sections():
         "transitionApplication",
         "COMMAND CENTER",
         "READ-ONLY · 2H CADENCE",
-        "4H FRESHNESS",
-        "posted within the last 4 hours",
+        "6H FRESHNESS",
+        "posted within the last 6 hours",
         "Stale removed",
         "result-shell",
         "run-summary",
@@ -168,12 +168,12 @@ def test_dashboard_hides_raw_overview_and_system_json_by_default():
     assert "Technical diagnostics" in _HTML
 
 
-def test_dashboard_manual_agent_uses_four_hour_freshness_window():
+def test_dashboard_manual_agent_uses_six_hour_freshness_window():
     import inspect
     import app.dashboard as dashboard
 
     source = inspect.getsource(dashboard._Handler.do_POST)
-    assert "run_agent_once(max_posted_hours=4)" in source
+    assert "run_agent_once(max_posted_hours=6)" in source
 
 def test_dashboard_track_application_marks_already_tracked_jobs():
     assert "state.summary?.applications" in _HTML
