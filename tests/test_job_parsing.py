@@ -75,3 +75,9 @@ def test_jobs_search_url_uses_six_hour_freshness_window():
 def test_jobs_search_url_omits_freshness_filter_when_disabled():
     url = _build_jobs_search_url("Power BI", "Gurgaon", max_posted_hours=None)
     assert "f_TPR=" not in url
+
+
+def test_today_is_unknown_posting_age():
+    from app.skills.jobs import _hours_from_posted
+    assert _hours_from_posted("Just now") == 0.0
+    assert _hours_from_posted("Today") is None
