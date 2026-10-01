@@ -62,3 +62,17 @@ def test_job_history_prunes_unknown_posting_age(tmp_path):
     )
     assert h.cleanup_older_than_hours(6) == 1
     assert h.get_by_url("https://example.test/job/unknown") is None
+
+
+def test_job_history_time_aware_pruning(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    h = History(str(tmp_path / "jobs.sqlite3"))
+    now = datetime.now(timezone.utc)
+    with h._connect() as db:
+        db.execute(
+            "INSERT INTO job_history(title,company,url,first_seen,posted_hours,posted_at) VALUES(?,?,?,?,?,?)",
+            ("Old", "Example", "https://example.test/old", now.isoformat(), 1.0, (now - timedelta(hours=7)).isoformat()),
+        )
+        db.commit()
+    assert h.cleanup_older_than_hours(6) == 1
+    assert h.get_by_url("https://example.test/old") is None
