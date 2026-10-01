@@ -77,3 +77,63 @@ def test_job_history_time_aware_pruning(tmp_path):
         db.commit()
     assert h.cleanup_older_than_hours(6) == 1
     assert h.get_by_url("https://example.test/old") is None
+
+
+def test_job_history_does_not_refresh_original_posting_timestamp(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    h = History(str(tmp_path / "jobs.sqlite3"))
+    url = "https://example.test/job/reposted"
+    h.upsert_job(
+        {
+            "title": "Business Intelligence Analyst",
+            "company": "Example",
+            "location": "Gurugram",
+            "url": url,
+            "posted_hours": 10,
+            "posted_text": "10 hours ago",
+        },
+        90,
+        ["fresh"],
+    )
+    first = h.get_by_url(url)
+    first_posted_at = first[10]
+    assert first_posted_at is not None
+
+    h.upsert_job(
+        {
+            "title": "Business Intelligence Analyst",
+            "company": "Example",
+            "location": "Gurugram",
+            "url": url,
+            "posted_hours": 0.03,
+            "posted_text": "2 minutes ago",
+        },
+        95,
+        ["fresh"],
+    )
+    second = h.get_by_url(url)
+    assert second[10] == first_posted_at
+    assert second[8] == 0.03
+    assert second[9] == "2 minutes ago"
+
+
+def test_job_history_repairs_impossible_future_posting_timestamp(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    import sqlite3
+
+    h = History(str(tmp_path / "jobs.sqlite3"))
+    first_seen = datetime.now(timezone.utc) - timedelta(hours=2)
+    bad_posted_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    with sqlite3.connect(h.path) as db:
+        db.execute(
+            "INSERT INTO job_history(title,company,url,first_seen,posted_hours,posted_at) VALUES(?,?,?,?,?,?)",
+            ("Corrupt", "Example", "https://example.test/corrupt",
+             first_seen.isoformat(), 0.1, bad_posted_at.isoformat()),
+        )
+        db.commit()
+
+    # Re-opening History performs the compatibility repair.
+    h2 = History(h.path)
+    row = h2.get_by_url("https://example.test/corrupt")
+    repaired = datetime.fromisoformat(row[10].replace("Z", "+00:00"))
+    assert repaired <= first_seen - timedelta(days=6, hours=23)
