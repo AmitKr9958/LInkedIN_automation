@@ -79,3 +79,30 @@ def test_agent_completion_reports_stale_cleanup_and_freshness(monkeypatch):
     )
     assert "Stale jobs removed: 7" in captured["message"]
     assert "Freshness window: 4 hours" in captured["message"]
+
+
+def test_telegram_configuration_status_is_secret_free(monkeypatch):
+    monkeypatch.setattr(telegram_notify.settings, "telegram_notifications_enabled", True)
+    monkeypatch.setattr(telegram_notify.settings, "telegram_bot_token", "secret-token")
+    monkeypatch.setattr(telegram_notify.settings, "telegram_chat_id", None)
+
+    assert telegram_notify.telegram_configuration_status() == "missing-chat-id"
+    assert "secret-token" not in telegram_notify.telegram_configuration_status()
+
+
+def test_telegram_http_error_returns_diagnostic(monkeypatch):
+    monkeypatch.setattr(telegram_notify.settings, "telegram_notifications_enabled", True)
+    monkeypatch.setattr(telegram_notify.settings, "telegram_bot_token", "test-token")
+    monkeypatch.setattr(telegram_notify.settings, "telegram_chat_id", "123")
+
+    class FakeHTTPError(Exception):
+        code = 400
+        def read(self):
+            return b'{"ok":false,"description":"Bad Request: chat not found"}'
+
+    monkeypatch.setattr(telegram_notify.error, "HTTPError", FakeHTTPError)
+    monkeypatch.setattr(telegram_notify.request, "urlopen", lambda *args, **kwargs: (_ for _ in ()).throw(FakeHTTPError()))
+
+    ok, reason = telegram_notify.send_telegram_message_detailed("hello")
+    assert ok is False
+    assert "chat not found" in reason
