@@ -68,7 +68,8 @@ def test_job_history_time_aware_pruning(tmp_path):
     from datetime import datetime, timedelta, timezone
     h = History(str(tmp_path / "jobs.sqlite3"))
     now = datetime.now(timezone.utc)
-    with h._connect() as db:
+    import sqlite3
+    with sqlite3.connect(h.path) as db:
         db.execute(
             "INSERT INTO job_history(title,company,url,first_seen,posted_hours,posted_at) VALUES(?,?,?,?,?,?)",
             ("Old", "Example", "https://example.test/old", now.isoformat(), 1.0, (now - timedelta(hours=7)).isoformat()),
