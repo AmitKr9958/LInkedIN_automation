@@ -18,9 +18,9 @@ def test_agent_completion_builds_success_message(monkeypatch):
 
     def fake_send(message):
         captured["message"] = message
-        return True
+        return True, "sent"
 
-    monkeypatch.setattr(telegram_notify, "send_telegram_message", fake_send)
+    monkeypatch.setattr(telegram_notify, "send_telegram_message_detailed", fake_send)
 
     assert telegram_notify.notify_agent_completion(
         success=True,
@@ -43,9 +43,9 @@ def test_agent_completion_builds_failure_message(monkeypatch):
 
     def fake_send(message):
         captured["message"] = message
-        return True
+        return True, "sent"
 
-    monkeypatch.setattr(telegram_notify, "send_telegram_message", fake_send)
+    monkeypatch.setattr(telegram_notify, "send_telegram_message_detailed", fake_send)
 
     assert telegram_notify.notify_agent_completion(
         success=False,
@@ -65,7 +65,7 @@ def test_agent_completion_reports_stale_cleanup_and_freshness(monkeypatch):
     monkeypatch.setattr(
         telegram_notify,
         "send_telegram_message",
-        lambda message: captured.setdefault("message", message) or True,
+        lambda message: (captured.setdefault("message", message), "sent")[1],
     )
 
     assert telegram_notify.notify_agent_completion(
@@ -86,7 +86,9 @@ def test_telegram_configuration_status_is_secret_free(monkeypatch):
     monkeypatch.setattr(telegram_notify.settings, "telegram_bot_token", "secret-token")
     monkeypatch.setattr(telegram_notify.settings, "telegram_chat_id", None)
 
-    assert telegram_notify.telegram_configuration_status() == "missing-chat-id"
+    status = telegram_notify.telegram_configuration_status()
+    assert status["configured"] is False
+    assert status["reason"] == "chat ID missing (TELEGRAM_CHAT_ID)"
     assert "secret-token" not in telegram_notify.telegram_configuration_status()
 
 
