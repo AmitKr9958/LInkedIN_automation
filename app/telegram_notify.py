@@ -98,6 +98,7 @@ def send_telegram_message_detailed(message: str, *, attempts: int = 3) -> tuple[
 
     return False, last_detail
 
+
 def send_telegram_message(message: str) -> bool:
     """Send one Telegram message; return False and log a safe diagnostic on failure."""
     ok, _ = send_telegram_message_detailed(message)
@@ -115,7 +116,7 @@ def notify_agent_completion(
     recruiter_targets: int = 0,
     connection_drafts: int = 0,
     stale_jobs_removed: int = 0,
-    freshness_hours: float = 6,
+    freshness_hours: float = 48,
     error_message: str = "",
 ) -> bool:
     """Send a compact completion/failure summary for one agent cycle."""
