@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from urllib import error, parse, request
 
@@ -25,12 +26,24 @@ def _configured() -> bool:
     return _configuration_reason() is None
 
 
-def send_telegram_message(message: str) -> bool:
-    """Send one Telegram message; return False and log a safe diagnostic on failure."""
+def telegram_configuration_status() -> dict[str, object]:
+    """Return secret-free Telegram configuration diagnostics."""
+    reason = _configuration_reason()
+    return {
+        "configured": reason is None,
+        "enabled": bool(settings.telegram_notifications_enabled),
+        "has_bot_token": bool(settings.telegram_bot_token),
+        "has_chat_id": bool(settings.telegram_chat_id),
+        "reason": reason,
+    }
+
+
+def send_telegram_message_detailed(message: str) -> tuple[bool, str]:
+    """Send one Telegram message and return (success, safe diagnostic)."""
     reason = _configuration_reason()
     if reason:
         print(f"[telegram] not sent: {reason}", file=sys.stderr)
-        return False
+        return False, reason
 
     payload = parse.urlencode(
         {
@@ -49,26 +62,30 @@ def send_telegram_message(message: str) -> bool:
     try:
         with request.urlopen(req, timeout=15) as response:
             body = json.loads(response.read().decode("utf-8"))
-        ok = bool(body.get("ok"))
-        if not ok:
-            print(
-                f"[telegram] API rejected message: {body.get('description', 'unknown error')}",
-                file=sys.stderr,
-            )
-        else:
+        if bool(body.get("ok")):
             print("[telegram] notification sent", file=sys.stderr)
-        return ok
+            return True, "sent"
+        detail = str(body.get("description", "Telegram API rejected the message"))
+        print(f"[telegram] API rejected message: {detail}", file=sys.stderr)
+        return False, detail
     except error.HTTPError as exc:
         try:
             body = json.loads(exc.read().decode("utf-8"))
-            detail = body.get("description", str(exc))
+            detail = str(body.get("description", str(exc)))
         except (OSError, ValueError):
             detail = str(exc)
         print(f"[telegram] HTTP error: {detail}", file=sys.stderr)
-        return False
+        return False, detail
     except (OSError, ValueError, error.URLError) as exc:
-        print(f"[telegram] transport/response error: {exc}", file=sys.stderr)
-        return False
+        detail = str(exc)
+        print(f"[telegram] transport/response error: {detail}", file=sys.stderr)
+        return False, detail
+
+
+def send_telegram_message(message: str) -> bool:
+    """Send one Telegram message; return False and log a safe diagnostic on failure."""
+    ok, _ = send_telegram_message_detailed(message)
+    return ok
 
 
 def notify_agent_completion(
@@ -109,6 +126,7 @@ def notify_agent_completion(
     elif error_message:
         lines.append(f"Error: {error_message[:700]}")
     lines.append("No LinkedIn account-changing action was executed.")
+
     ok, reason = send_telegram_message_detailed("\n".join(lines))
     if ok:
         logger.info("Telegram notification sent successfully")

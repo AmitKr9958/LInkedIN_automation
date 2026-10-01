@@ -29,10 +29,10 @@ def test_scheduler_installer_is_disabled_by_default():
     assert "if ($Enable)" in text
 
 
-def test_scheduler_uses_4_hour_agent_window():
+def test_scheduler_uses_6_hour_agent_window():
     text = (ROOT / "scripts" / "run-agent.ps1").read_text(encoding="utf-8")
     assert "--max-posted-hours" in text
-    assert '"4"' in text
+    assert '"6"' in text
     assert "--max-posted-hours 0.5" not in text
     assert "--max-posted-hours 1" not in text
 
