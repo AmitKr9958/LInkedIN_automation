@@ -32,7 +32,7 @@ function Write-AgentLog {
     $Message | Tee-Object -FilePath $LogFile -Append | Out-Null
 }
 
-Write-AgentLog "[$Start] agent cycle start (max-posted-hours=48, HEADLESS=true, DRY_RUN=true)"
+Write-AgentLog "[$Start] agent cycle start (max-posted-hours=6, HEADLESS=true, DRY_RUN=true)"
 Write-AgentLog "[runner] root=$(Get-Location)"
 Write-AgentLog "[runner] python=$python"
 
@@ -49,7 +49,7 @@ try {
     # terminating NativeCommandError. This is important under Task Scheduler:
     # the agent's stderr must be captured without converting normal diagnostics
     # into a runner exception.
-    $proc = Start-Process -FilePath $python -ArgumentList @("-m", "app", "agent", "--max-posted-hours", "48") -WorkingDirectory (Get-Location) -WindowStyle Hidden -RedirectStandardOutput $StdoutFile -RedirectStandardError $StderrFile -PassThru
+    $proc = Start-Process -FilePath $python -ArgumentList @("-m", "app", "agent", "--max-posted-hours", "6") -WorkingDirectory (Get-Location) -WindowStyle Hidden -RedirectStandardOutput $StdoutFile -RedirectStandardError $StderrFile -PassThru
 
     $proc.WaitForExit()
     $Code = $proc.ExitCode
