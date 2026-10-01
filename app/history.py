@@ -33,6 +33,17 @@ class History:
                     db.execute(ddl)
             db.execute("CREATE INDEX IF NOT EXISTS idx_job_history_url ON job_history(url)")
             db.execute("CREATE INDEX IF NOT EXISTS idx_job_history_posted_at ON job_history(posted_at)")
+            # A posting timestamp cannot be later than the first discovery of that URL.
+            # Older versions recalculated posted_at on every rediscovery, which could
+            # make an old LinkedIn job look newly posted. Move only demonstrably
+            # corrupted timestamps outside the freshness window. This keeps the URL
+            # suppressed on future rediscoveries because posted_at is immutable.
+            db.execute(
+                """UPDATE job_history
+                   SET posted_at=datetime(first_seen, '-7 days')
+                   WHERE posted_at IS NOT NULL AND first_seen IS NOT NULL
+                     AND datetime(posted_at) > datetime(first_seen)"""
+            )
             db.commit()
 
     def upsert_job(self, job: dict, score: int, reasons: list[str]) -> None:
@@ -54,14 +65,17 @@ class History:
             row = None
             if url:
                 row = db.execute(
-                    "SELECT id FROM job_history WHERE url=? ORDER BY id LIMIT 1",
+                    "SELECT id,posted_at FROM job_history WHERE url=? ORDER BY id LIMIT 1",
                     (url,),
                 ).fetchone()
             if row:
+                # posted_at is immutable once established. A later relative age from
+                # LinkedIn describes the observation time, not a new posting event.
                 db.execute(
                     """UPDATE job_history
                        SET title=?, company=?, location=?, score=?, reasons=?,
-                           posted_hours=?, posted_text=?, posted_at=?
+                           posted_hours=?, posted_text=?,
+                           posted_at=COALESCE(posted_at, ?)
                        WHERE id=?""",
                     (
                         job.get("title", ""),
