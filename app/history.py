@@ -35,12 +35,12 @@ class History:
             db.execute("CREATE INDEX IF NOT EXISTS idx_job_history_posted_at ON job_history(posted_at)")
             # A posting timestamp cannot be later than the first discovery of that URL.
             # Older versions recalculated posted_at on every rediscovery, which could
-            # make an old LinkedIn job look newly posted. Invalidate only those
-            # demonstrably corrupted timestamps; unknown posting age is kept hidden
-            # by the dashboard freshness filter until a reliable age is captured.
+            # make an old LinkedIn job look newly posted. Move only demonstrably
+            # corrupted timestamps outside the freshness window. This keeps the URL
+            # suppressed on future rediscoveries because posted_at is immutable.
             db.execute(
                 """UPDATE job_history
-                   SET posted_at=NULL
+                   SET posted_at=datetime(first_seen, '-7 days')
                    WHERE posted_at IS NOT NULL AND first_seen IS NOT NULL
                      AND datetime(posted_at) > datetime(first_seen)"""
             )
