@@ -281,7 +281,12 @@ def _search_location_value(location: str) -> str:
     return location.strip()
 
 
-def _build_jobs_search_url(keywords: str, location: str = "", start: int = 0) -> str:
+def _build_jobs_search_url(
+    keywords: str,
+    location: str = "",
+    start: int = 0,
+    max_posted_hours: float | None = None,
+) -> str:
     """Build a LinkedIn jobs URL with explicit workplace semantics.
 
     "Remote India" is a workplace filter, not a city. Keep the geographic
@@ -294,6 +299,11 @@ def _build_jobs_search_url(keywords: str, location: str = "", start: int = 0) ->
         params.append("f_WT=2")
     elif location:
         params.append(f"location={quote_plus(_search_location_value(location))}")
+    if max_posted_hours is not None and max_posted_hours > 0:
+        # Ask LinkedIn for the same freshness window used by the runtime filter.
+        # The runtime filter remains authoritative in case LinkedIn ignores or
+        # rounds the server-side time filter.
+        params.append(f"f_TPR=r{int(max_posted_hours * 3600)}")
     if start:
         params.append(f"start={start}")
     query = "&".join(params)
@@ -1033,9 +1043,10 @@ async def search(
     location: str = "",
     start: int = 0,
     diagnostics: dict | None = None,
+    max_posted_hours: float | None = None,
 ) -> list[Job]:
     await page.goto(
-        _build_jobs_search_url(keywords, location, start),
+        _build_jobs_search_url(keywords, location, start, max_posted_hours),
         wait_until="domcontentloaded",
         timeout=60_000,
     )
