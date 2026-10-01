@@ -15,6 +15,7 @@ from .run_status import read_run_status
 from .skill_center import skill_catalog, run_skill
 from .store import list_activity
 from .application_tracker import ApplicationTracker, STATUSES, TRANSITIONS
+from .history import History
 from .job_preferences import DEFAULT_JOB_PREFERENCES
 
 
@@ -149,33 +150,23 @@ def _summary() -> dict:
             return count, out
 
     def load_jobs():
+        # Ensure the job-history schema is migrated before applying the strict
+        # freshness contract. Unknown posting ages are excluded, matching the
+        # agent's runtime policy.
+        History(activity)
         with _db(activity) as db:
             freshness_hours = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
-            cutoff = (datetime.now(timezone.utc) - timedelta(hours=freshness_hours)).isoformat()
-            columns = {row["name"] for row in db.execute("PRAGMA table_info(job_history)").fetchall()}
-            has_posting_metadata = {"posted_hours", "posted_at"}.issubset(columns)
-            if has_posting_metadata:
-                freshness_where = (
-                    "(posted_hours IS NOT NULL AND posted_hours <= ?) "
-                    "OR (posted_hours IS NULL AND posted_at IS NOT NULL AND posted_at >= ?)"
-                )
-                count = db.execute(
-                    f"SELECT COUNT(*) FROM job_history WHERE {freshness_where}",
-                    (freshness_hours, cutoff),
-                ).fetchone()[0]
-                rows = db.execute(
-                    "SELECT title,company,location,url,score,reasons,status,first_seen "
-                    "FROM job_history "
-                    f"WHERE {freshness_where} ORDER BY id DESC LIMIT 50",
-                    (freshness_hours, cutoff),
-                ).fetchall()
-            else:
-                # Backward-compatible path for legacy test/fixture databases.
-                count = db.execute("SELECT COUNT(*) FROM job_history").fetchone()[0]
-                rows = db.execute(
-                    "SELECT title,company,location,url,score,reasons,status,first_seen "
-                    "FROM job_history ORDER BY id DESC LIMIT 50"
-                ).fetchall()
+            rows = db.execute(
+                "SELECT title,company,location,url,score,reasons,status,first_seen,"
+                "posted_hours,posted_text "
+                "FROM job_history "
+                "WHERE posted_hours IS NOT NULL "
+                "AND posted_hours >= 0 "
+                "AND posted_hours <= ? "
+                "ORDER BY id DESC LIMIT 50",
+                (freshness_hours,),
+            ).fetchall()
+            count = len(rows)
             out = []
             for r in rows:
                 location = str(r["location"] or "")
@@ -198,6 +189,8 @@ def _summary() -> dict:
                         "reasons": r["reasons"],
                         "status": r["status"],
                         "workplace_type": workplace_type,
+                        "posted": r["posted_text"] or "",
+                        "posted_hours": r["posted_hours"],
                         "updated_at": r["first_seen"],
                     }
                 )
