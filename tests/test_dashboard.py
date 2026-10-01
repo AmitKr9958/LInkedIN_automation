@@ -216,3 +216,30 @@ def test_dashboard_summary_filters_stale_jobs_with_posting_metadata(monkeypatch,
     summary = dashboard._summary()
     assert summary["jobs_tracked"] == 1
     assert [job["title"] for job in summary["jobs"]] == ["Fresh BI Analyst"]
+
+
+def test_dashboard_excludes_unknown_posting_age(monkeypatch, tmp_path):
+    import sqlite3
+    import app.dashboard as dashboard
+
+    db_path = tmp_path / "data" / "activity.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            """CREATE TABLE job_history(
+                id INTEGER PRIMARY KEY,
+                title TEXT, company TEXT, location TEXT, url TEXT,
+                score REAL, reasons TEXT, status TEXT, first_seen TEXT,
+                posted_hours REAL, posted_text TEXT, posted_at TEXT
+            )"""
+        )
+        db.execute(
+            "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (1, "Unknown BI Analyst", "Unknown Co", "Delhi, India", "unknown", 90, "unknown", "new", "2026-10-01T08:00:00+00:00", None, "", None),
+        )
+        db.commit()
+
+    monkeypatch.setattr(dashboard, "ROOT", tmp_path)
+    summary = dashboard._summary()
+    assert summary["jobs_tracked"] == 0
+    assert summary["jobs"] == []
