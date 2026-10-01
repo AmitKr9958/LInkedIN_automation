@@ -156,19 +156,43 @@ def _summary() -> dict:
         History(activity)
         with _db(activity) as db:
             freshness_hours = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
-            rows = db.execute(
-                "SELECT title,company,location,url,score,reasons,status,first_seen,"
-                "posted_hours,posted_text "
-                "FROM job_history "
-                "WHERE posted_hours IS NOT NULL "
-                "AND posted_hours >= 0 "
-                "AND posted_hours <= ? "
-                "ORDER BY id DESC LIMIT 50",
-                (freshness_hours,),
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=freshness_hours)
+            raw_rows = db.execute(
+                "SELECT id,title,company,location,url,score,reasons,status,first_seen,"
+                "posted_hours,posted_text,posted_at "
+                "FROM job_history ORDER BY id DESC LIMIT 1000"
             ).fetchall()
+
+            def _parse_dt(value):
+                try:
+                    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    return parsed.astimezone(timezone.utc)
+                except (TypeError, ValueError):
+                    return None
+
+            rows = []
+            for row in raw_rows:
+                posted_at = _parse_dt(row["posted_at"])
+                if posted_at is None:
+                    # Legacy rows may have only a captured numeric age. Reconstruct
+                    # the approximate posting timestamp from first_seen rather than
+                    # treating the stored age as if it were still current.
+                    first_seen = _parse_dt(row["first_seen"])
+                    try:
+                        age = float(row["posted_hours"]) if row["posted_hours"] is not None else None
+                    except (TypeError, ValueError):
+                        age = None
+                    if first_seen is not None and age is not None and age >= 0:
+                        posted_at = first_seen - timedelta(hours=age)
+                if posted_at is None or posted_at < cutoff:
+                    continue
+                rows.append(row)
+
             count = len(rows)
             out = []
-            for r in rows:
+            for r in rows[:50]:
                 location = str(r["location"] or "")
                 context = f"{location} {r['reasons'] or ''}".lower()
                 if "remote" in context:
