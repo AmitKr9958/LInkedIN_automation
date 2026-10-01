@@ -208,13 +208,24 @@ def status():
 @app.command("telegram-test")
 def telegram_test():
     """Send a test Telegram notification without running LinkedIn."""
-    from .telegram_notify import send_telegram_message
+    from .telegram_notify import send_telegram_message, telegram_configuration_status
 
-    if not settings.telegram_notifications_enabled:
-        typer.echo("Telegram notifications are disabled. Set TELEGRAM_NOTIFICATIONS_ENABLED=true.")
+    status = telegram_configuration_status()
+    typer.echo("telegram-config: " + json.dumps(status))
+    if not status["configured"]:
+        typer.echo(
+            "telegram: failed - configuration is incomplete. "
+            "Set TELEGRAM_NOTIFICATIONS_ENABLED=true, TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.",
+            err=True,
+        )
         raise typer.Exit(code=2)
     ok = send_telegram_message("🔔 LinkedIn Automation\nTelegram notification test: connection is working.")
     typer.echo("telegram: sent" if ok else "telegram: failed")
+    if not ok:
+        typer.echo(
+            "Check the preceding Telegram diagnostic log for the Telegram API response.",
+            err=True,
+        )
     raise typer.Exit(code=0 if ok else 1)
 
 
