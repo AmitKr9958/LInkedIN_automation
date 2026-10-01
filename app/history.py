@@ -106,16 +106,42 @@ class History:
         hours = float(hours)
         if hours < 0:
             return 0
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        cutoff_dt = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff = cutoff_dt.isoformat()
         with sqlite3.connect(self.path) as db:
-            cur = db.execute(
-                """DELETE FROM job_history
-                   WHERE (posted_at IS NOT NULL AND posted_at < ?)
-                      OR (posted_at IS NULL AND first_seen < ?)""",
-                (cutoff, cutoff),
-            )
+            rows = db.execute(
+                "SELECT id,first_seen,posted_hours,posted_at FROM job_history"
+            ).fetchall()
+            stale_ids = []
+            for row in rows:
+                posted_at = None
+                if row[3]:
+                    try:
+                        posted_at = datetime.fromisoformat(str(row[3]).replace("Z", "+00:00"))
+                        if posted_at.tzinfo is None:
+                            posted_at = posted_at.replace(tzinfo=timezone.utc)
+                        posted_at = posted_at.astimezone(timezone.utc)
+                    except (TypeError, ValueError):
+                        posted_at = None
+                if posted_at is None:
+                    try:
+                        age = float(row[2]) if row[2] is not None else None
+                    except (TypeError, ValueError):
+                        age = None
+                    if age is not None and age >= 0 and row[1]:
+                        try:
+                            first_seen = datetime.fromisoformat(str(row[1]).replace("Z", "+00:00"))
+                            if first_seen.tzinfo is None:
+                                first_seen = first_seen.replace(tzinfo=timezone.utc)
+                            posted_at = first_seen.astimezone(timezone.utc) - timedelta(hours=age)
+                        except (TypeError, ValueError):
+                            posted_at = None
+                if posted_at is None or posted_at < cutoff_dt:
+                    stale_ids.append((row[0],))
+            if stale_ids:
+                db.executemany("DELETE FROM job_history WHERE id=?", stale_ids)
             db.commit()
-            return int(cur.rowcount or 0)
+            return len(stale_ids)
 
     def get_by_url(self, url: str):
         """Return the most recent stored job with this exact URL."""

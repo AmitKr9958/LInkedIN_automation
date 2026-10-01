@@ -46,3 +46,34 @@ def test_job_history_persists_posting_age_and_prunes_stale_rows(tmp_path):
     assert removed == 1
     assert h.get_by_url("https://example.test/job/fresh") is not None
     assert h.get_by_url("https://example.test/job/stale") is None
+
+
+def test_job_history_prunes_unknown_posting_age(tmp_path):
+    h = History(str(tmp_path / "jobs.sqlite3"))
+    h.upsert_job(
+        {
+            "title": "Unknown age",
+            "company": "Example",
+            "location": "Delhi, India",
+            "url": "https://example.test/job/unknown",
+        },
+        80,
+        ["unknown"],
+    )
+    assert h.cleanup_older_than_hours(6) == 1
+    assert h.get_by_url("https://example.test/job/unknown") is None
+
+
+def test_job_history_time_aware_pruning(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    h = History(str(tmp_path / "jobs.sqlite3"))
+    now = datetime.now(timezone.utc)
+    import sqlite3
+    with sqlite3.connect(h.path) as db:
+        db.execute(
+            "INSERT INTO job_history(title,company,url,first_seen,posted_hours,posted_at) VALUES(?,?,?,?,?,?)",
+            ("Old", "Example", "https://example.test/old", now.isoformat(), 1.0, (now - timedelta(hours=7)).isoformat()),
+        )
+        db.commit()
+    assert h.cleanup_older_than_hours(6) == 1
+    assert h.get_by_url("https://example.test/old") is None

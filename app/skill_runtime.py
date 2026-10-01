@@ -235,22 +235,24 @@ async def run_read_on_page(page, skill: str, **kwargs) -> RuntimeResult:
         data = await profile.read_profile(page)
     elif skill == "jobs":
         diagnostics: dict = {"skill": "jobs"}
+        window = (
+            kwargs["max_posted_hours"]
+            if "max_posted_hours" in kwargs
+            else float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+        )
         data = await jobs.search(
             page,
             kwargs.get("keywords", DEFAULT_JOB_PREFERENCES.keywords[0]),
             kwargs.get("location", "Gurgaon"),
             start=kwargs.get("start", 0),
             diagnostics=diagnostics,
+            max_posted_hours=window,
         )
         data = _filter_jobs_by_title(
             data,
             DEFAULT_JOB_PREFERENCES.keywords,
             diagnostics=diagnostics,
         )
-        if "max_posted_hours" in kwargs:
-            window = kwargs["max_posted_hours"]
-        else:
-            window = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
         data = _filter_jobs_by_freshness(
             data,
             window,
