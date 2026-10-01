@@ -184,3 +184,35 @@ def test_dashboard_application_actions_use_responsive_action_group():
     assert "application-actions" in _HTML
     assert "table-layout:fixed" in _HTML
     assert "application-table th:nth-child(8)" in _HTML
+
+
+def test_dashboard_summary_filters_stale_jobs_with_posting_metadata(monkeypatch, tmp_path):
+    import sqlite3
+    import app.dashboard as dashboard
+
+    db_path = tmp_path / "data" / "activity.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as db:
+        db.row_factory = sqlite3.Row
+        db.execute(
+            """CREATE TABLE job_history(
+                id INTEGER PRIMARY KEY,
+                title TEXT, company TEXT, location TEXT, url TEXT,
+                score REAL, reasons TEXT, status TEXT, first_seen TEXT,
+                posted_hours REAL, posted_text TEXT, posted_at TEXT
+            )"""
+        )
+        db.execute(
+            "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (1, "Fresh BI Analyst", "Fresh Co", "Gurugram, Haryana, India", "fresh", 90, "fresh", "new", "2026-10-01T07:00:00+00:00", 2, "2 hours ago", "2026-10-01T06:00:00+00:00"),
+        )
+        db.execute(
+            "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (2, "Old BI Analyst", "Old Co", "Gurugram, Haryana, India", "old", 90, "old", "new", "2026-10-01T07:00:00+00:00", 20, "20 hours ago", "2026-09-30T13:00:00+00:00"),
+        )
+        db.commit()
+
+    monkeypatch.setattr(dashboard, "ROOT", tmp_path)
+    summary = dashboard._summary()
+    assert summary["jobs_tracked"] == 1
+    assert [job["title"] for job in summary["jobs"]] == ["Fresh BI Analyst"]
