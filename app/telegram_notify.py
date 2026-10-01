@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from urllib import error, parse, request
 
 from .config import settings
@@ -9,17 +10,25 @@ from .config import settings
 TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 
+def _configuration_reason() -> str | None:
+    if not settings.telegram_notifications_enabled:
+        return "notifications disabled (TELEGRAM_NOTIFICATIONS_ENABLED is not true)"
+    if not settings.telegram_bot_token:
+        return "bot token missing (TELEGRAM_BOT_TOKEN)"
+    if not settings.telegram_chat_id:
+        return "chat ID missing (TELEGRAM_CHAT_ID)"
+    return None
+
+
 def _configured() -> bool:
-    return bool(
-        settings.telegram_notifications_enabled
-        and settings.telegram_bot_token
-        and settings.telegram_chat_id
-    )
+    return _configuration_reason() is None
 
 
 def send_telegram_message(message: str) -> bool:
-    """Send one Telegram message; return False instead of breaking the agent."""
-    if not _configured():
+    """Send one Telegram message; return False and log a safe diagnostic on failure."""
+    reason = _configuration_reason()
+    if reason:
+        print(f"[telegram] not sent: {reason}", file=sys.stderr)
         return False
 
     payload = parse.urlencode(
@@ -39,8 +48,25 @@ def send_telegram_message(message: str) -> bool:
     try:
         with request.urlopen(req, timeout=15) as response:
             body = json.loads(response.read().decode("utf-8"))
-        return bool(body.get("ok"))
-    except (OSError, ValueError, error.URLError):
+        ok = bool(body.get("ok"))
+        if not ok:
+            print(
+                f"[telegram] API rejected message: {body.get('description', 'unknown error')}",
+                file=sys.stderr,
+            )
+        else:
+            print("[telegram] notification sent", file=sys.stderr)
+        return ok
+    except error.HTTPError as exc:
+        try:
+            body = json.loads(exc.read().decode("utf-8"))
+            detail = body.get("description", str(exc))
+        except (OSError, ValueError):
+            detail = str(exc)
+        print(f"[telegram] HTTP error: {detail}", file=sys.stderr)
+        return False
+    except (OSError, ValueError, error.URLError) as exc:
+        print(f"[telegram] transport/response error: {exc}", file=sys.stderr)
         return False
 
 
