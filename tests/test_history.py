@@ -136,4 +136,6 @@ def test_job_history_repairs_impossible_future_posting_timestamp(tmp_path):
     h2 = History(h.path)
     row = h2.get_by_url("https://example.test/corrupt")
     repaired = datetime.fromisoformat(row[10].replace("Z", "+00:00"))
+    if repaired.tzinfo is None:
+        repaired = repaired.replace(tzinfo=timezone.utc)
     assert repaired <= first_seen - timedelta(days=6, hours=23)
