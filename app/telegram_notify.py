@@ -82,7 +82,7 @@ def notify_agent_completion(
     recruiter_targets: int = 0,
     connection_drafts: int = 0,
     stale_jobs_removed: int = 0,
-    freshness_hours: float = 4,
+    freshness_hours: float = 6,
     error_message: str = "",
 ) -> bool:
     """Send a compact completion/failure summary for one agent cycle."""
