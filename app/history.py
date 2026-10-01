@@ -110,9 +110,10 @@ class History:
         with sqlite3.connect(self.path) as db:
             cur = db.execute(
                 """DELETE FROM job_history
-                   WHERE (posted_at IS NOT NULL AND posted_at < ?)
-                      OR (posted_at IS NULL AND first_seen < ?)""",
-                (cutoff, cutoff),
+                   WHERE posted_hours IS NULL
+                      OR posted_hours < 0
+                      OR posted_hours > ?""",
+                (hours,),
             )
             db.commit()
             return int(cur.rowcount or 0)
