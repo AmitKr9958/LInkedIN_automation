@@ -513,8 +513,10 @@ def _hours_from_posted(posted: str) -> float | None:
     value = posted.strip().lower()
     if not value:
         return None
-    if value in ("just now", "today"):
+    if value == "just now":
         return 0.0
+    if value == "today":
+        return None
     if value == "yesterday":
         return 24.0
     # Compact forms: 15m, 3h, 2d, 1w
