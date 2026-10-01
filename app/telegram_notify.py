@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import time
 from urllib import error, parse, request
 
 from .config import settings
@@ -38,8 +39,8 @@ def telegram_configuration_status() -> dict[str, object]:
     }
 
 
-def send_telegram_message_detailed(message: str) -> tuple[bool, str]:
-    """Send one Telegram message and return (success, safe diagnostic)."""
+def send_telegram_message_detailed(message: str, *, attempts: int = 3) -> tuple[bool, str]:
+    """Send one Telegram message with bounded retry and safe diagnostics."""
     reason = _configuration_reason()
     if reason:
         print(f"[telegram] not sent: {reason}", file=sys.stderr)
@@ -59,28 +60,43 @@ def send_telegram_message_detailed(message: str) -> tuple[bool, str]:
         method="POST",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
-    try:
-        with request.urlopen(req, timeout=15) as response:
-            body = json.loads(response.read().decode("utf-8"))
-        if bool(body.get("ok")):
-            print("[telegram] notification sent", file=sys.stderr)
-            return True, "sent"
-        detail = str(body.get("description", "Telegram API rejected the message"))
-        print(f"[telegram] API rejected message: {detail}", file=sys.stderr)
-        return False, detail
-    except error.HTTPError as exc:
-        try:
-            body = json.loads(exc.read().decode("utf-8"))
-            detail = str(body.get("description", str(exc)))
-        except (OSError, ValueError):
-            detail = str(exc)
-        print(f"[telegram] HTTP error: {detail}", file=sys.stderr)
-        return False, detail
-    except (OSError, ValueError, error.URLError) as exc:
-        detail = str(exc)
-        print(f"[telegram] transport/response error: {detail}", file=sys.stderr)
-        return False, detail
 
+    last_detail = "Telegram notification failed"
+    for attempt in range(1, max(1, attempts) + 1):
+        try:
+            with request.urlopen(req, timeout=15) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            if bool(body.get("ok")):
+                print("[telegram] notification sent", file=sys.stderr)
+                return True, "sent"
+            detail = str(body.get("description", "Telegram API rejected the message"))
+            last_detail = detail
+            print(f"[telegram] API rejected message (attempt {attempt}): {detail}", file=sys.stderr)
+            if attempt < max(1, attempts) and not detail.lower().startswith("bad request"):
+                time.sleep(attempt)
+                continue
+            return False, detail
+        except error.HTTPError as exc:
+            try:
+                body = json.loads(exc.read().decode("utf-8"))
+                detail = str(body.get("description", str(exc)))
+            except (OSError, ValueError):
+                detail = str(exc)
+            last_detail = detail
+            print(f"[telegram] HTTP error (attempt {attempt}): {detail}", file=sys.stderr)
+            if attempt < max(1, attempts) and exc.code >= 500:
+                time.sleep(attempt)
+                continue
+            return False, detail
+        except (OSError, ValueError, error.URLError) as exc:
+            last_detail = str(exc)
+            print(f"[telegram] transport/response error (attempt {attempt}): {last_detail}", file=sys.stderr)
+            if attempt < max(1, attempts):
+                time.sleep(attempt)
+                continue
+            return False, last_detail
+
+    return False, last_detail
 
 def send_telegram_message(message: str) -> bool:
     """Send one Telegram message; return False and log a safe diagnostic on failure."""
