@@ -62,11 +62,11 @@ def test_agent_completion_reports_stale_cleanup_and_freshness(monkeypatch):
     monkeypatch.setattr(telegram_notify.settings, "telegram_chat_id", "123")
 
     captured = {}
-    monkeypatch.setattr(
-        telegram_notify,
-        "send_telegram_message",
-        lambda message: (captured.setdefault("message", message), "sent")[1],
-    )
+    def fake_send(message):
+        captured["message"] = message
+        return True, "sent"
+
+    monkeypatch.setattr(telegram_notify, "send_telegram_message_detailed", fake_send)
 
     assert telegram_notify.notify_agent_completion(
         success=True,
