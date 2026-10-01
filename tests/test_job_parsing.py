@@ -2,6 +2,7 @@ from app.skills.jobs import (
     _clean_title,
     _location,
     _location_matches_requested,
+    _build_jobs_search_url,
     _normalize_posted,
 )
 
@@ -64,3 +65,13 @@ def test_detail_hydration_prioritizes_jobs_missing_posting_age():
     )
     assert MAX_DETAIL_HYDRATION == 12
     assert sorted([dated, unknown_age], key=_hydration_sort_key)[0] is unknown_age
+
+
+def test_jobs_search_url_uses_six_hour_freshness_window():
+    url = _build_jobs_search_url("Power BI", "Gurgaon", max_posted_hours=6)
+    assert "f_TPR=r21600" in url
+
+
+def test_jobs_search_url_omits_freshness_filter_when_disabled():
+    url = _build_jobs_search_url("Power BI", "Gurgaon", max_posted_hours=None)
+    assert "f_TPR=" not in url
