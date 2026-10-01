@@ -8,6 +8,7 @@ from .config import settings
 
 
 TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
+logger = logging.getLogger(__name__)
 
 
 def _configuration_reason() -> str | None:
@@ -108,4 +109,9 @@ def notify_agent_completion(
     elif error_message:
         lines.append(f"Error: {error_message[:700]}")
     lines.append("No LinkedIn account-changing action was executed.")
-    return send_telegram_message("\n".join(lines))
+    ok, reason = send_telegram_message_detailed("\n".join(lines))
+    if ok:
+        logger.info("Telegram notification sent successfully")
+    else:
+        logger.warning("Telegram notification not sent: %s", reason)
+    return ok
