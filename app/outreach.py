@@ -66,11 +66,16 @@ def _tokens(value: str) -> set[str]:
     return {token for token in re.findall(r"[a-z0-9+#.-]{3,}", _norm(value))}
 
 
+def _has_role_signal(evidence: str, signal: str) -> bool:
+    pattern = rf"(?<![a-z0-9]){re.escape(signal)}(?![a-z0-9])"
+    return re.search(pattern, evidence, re.I) is not None
+
+
 def classify_target(title: str, text: str = "") -> str:
     """Classify a contact from evidence, without requiring a recruiter title."""
     evidence = _norm(" ".join((title or "", text or "")))
     for target_type in ("recruiter", "hr", "hiring_manager", "business_leader"):
-        if any(signal in evidence for signal in _ROLE_SIGNALS[target_type]):
+        if any(_has_role_signal(evidence, signal) for signal in _ROLE_SIGNALS[target_type]):
             return target_type
     if any(term in evidence for term in _DOMAIN_TERMS):
         return "domain_leader"
@@ -130,7 +135,7 @@ def score_target(person, job_title: str = "", company: str = "", job_location: s
     role_signal_hits = [
         label
         for label, values in _ROLE_SIGNALS.items()
-        if any(value in text for value in values)
+        if any(_has_role_signal(text, value) for value in values)
     ]
     if role_signal_hits:
         score += 3
@@ -153,9 +158,20 @@ def score_target(person, job_title: str = "", company: str = "", job_location: s
         score += 2
         signals.append("explicit hiring language")
 
-    if target_type == "other" and not role_match and not domain_hits and not company_norm:
-        # Generic HR/recruiting words alone are not enough, but an unclassified
-        # profile can still qualify when the job/company evidence is concrete.
+    evidence_gate = bool(
+        role_match
+        or domain_hits
+        or (company_norm and company_norm in text)
+        or "hiring" in text
+        or "open role" in text
+        or "job opening" in text
+    )
+    if not evidence_gate:
+        # Generic role/location signals alone cannot make a contact eligible.
+        score = min(score, 3)
+
+    if target_type == "other" and not evidence_gate:
+        # Generic HR/recruiting words alone are not enough.
         score = max(0, score - 2)
 
     reason = "; ".join(signals) if signals else "No strong hiring evidence found"
