@@ -422,9 +422,9 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 </div>
 </section>
 <section id="approvals" class="view">
-<div class="card approval-hero"><div class="approval-hero-icon">✓</div><div><div class="section-kicker">GOVERNANCE GATE</div><h2>Review before LinkedIn actions</h2><p>Anything that could contact, publish, engage, or change your LinkedIn account must stay under your control. Review an item, then approve or reject it.</p></div></div>
+<div class="card approval-hero"><div class="approval-hero-icon">✓</div><div><div class="section-kicker">GOVERNANCE GATE</div><h2>Review before LinkedIn actions</h2><p>Anything that could contact, publish, engage, or change your LinkedIn account must stay under your control. You can review recruiter outreach in one batch of up to 30 queued actions.</p></div></div>
 <div class="approval-flow"><div><span>1</span><b>Prepare</b><small>Automation creates a review item</small></div><div class="approval-arrow">→</div><div><span>2</span><b>Review</b><small>You inspect the target and proposed action</small></div><div class="approval-arrow">→</div><div><span>3</span><b>Decide</b><small>Approve or reject explicitly</small></div></div>
-<div class="card" style="margin-top:14px"><div class="cardhead"><div><h2>Pending approvals</h2><p id="approvalSummary">No pending actions.</p></div><span id="approvalCount" class="badge amber">0 pending</span></div><div id="approvalCards"></div></div>
+<div class="card" style="margin-top:14px"><div class="cardhead"><div><h2>Pending approvals</h2><p id="approvalSummary">No pending actions.</p></div><div style="display:flex;gap:8px;align-items:center"><button class="btn primary" onclick="batchApproveRecruiter()">✓ Approve selected recruiter outreach (max 30)</button><span id="approvalCount" class="badge amber">0 pending</span></div></div><div id="approvalCards"></div></div>
 </section>
 <section id="agent" class="view">
 <div class="grid two">
@@ -561,7 +561,8 @@ function renderTables(d){
    const action=String(x.action||'').replace(/^skill:/,'').replaceAll('_',' ');
    const payload=x.payload||'No proposed action details were provided.';
    const target=x.target||'Manual review';
-   return '<article class="approval-card"><div class="approval-card-head"><div><span class="badge amber">PENDING REVIEW</span><h3>'+esc(action)+'</h3><div class="approval-target">'+esc(target)+'</div></div><div class="approval-date">'+esc(x.created_at||'')+'</div></div><div class="approval-proposal"><div class="approval-label">Proposed action</div><div>'+esc(payload)+'</div></div><div class="approval-safety">🔒 <b>Your approval is required.</b> This queue records the decision; it does not silently send or publish anything.</div><div class="approval-actions"><button class="btn primary" onclick="decide(\''+esc(x.id)+'\',true)">✓ Approve</button><button class="btn" onclick="decide(\''+esc(x.id)+'\',false)">✕ Reject</button></div></article>';
+   const batchable=action==='connection request'||action==='message';
+   return '<article class="approval-card"><div class="approval-card-head"><div>'+(batchable?'<label style="display:flex;gap:7px;align-items:center;font-size:10px"><input type="checkbox" class="recruiter-approval-check" value="'+esc(x.id)+'"> Include in recruiter batch</label>':'')+'<span class="badge amber">PENDING REVIEW</span><h3>'+esc(action)+'</h3><div class="approval-target">'+esc(target)+'</div></div><div class="approval-date">'+esc(x.created_at||'')+'</div></div><div class="approval-proposal"><div class="approval-label">Proposed action</div><div>'+esc(payload)+'</div></div><div class="approval-safety">🔒 <b>Your approval is required.</b> Batch approval records your explicit approval for the selected actions.</div><div class="approval-actions"><button class="btn primary" onclick="decide(\''+esc(x.id)+'\',true)">✓ Approve</button><button class="btn" onclick="decide(\''+esc(x.id)+'\',false)">✕ Reject</button></div></article>';
  }).join('')+'</div>':'<div class="approval-empty"><div class="approval-empty-icon">✓</div><h3>All clear</h3><p>There are no actions waiting for your approval.</p><small>Read-only discovery can continue automatically. Account-changing workflows remain gated here.</small></div>';
 }
 function renderRun(d){
@@ -847,6 +848,18 @@ async function watchAgent(id){
    }else{box.innerHTML='<div class="error">Failed: '+esc(d.error||'Unknown error')+'</div>'}
    if(d.status==='queued'||d.status==='running')setTimeout(poll,1000);else refreshAll();
  };poll();
+}
+async function batchApproveRecruiter(){
+ const checks=[...document.querySelectorAll('.recruiter-approval-check:checked')];
+ const ids=checks.map(x=>x.value).slice(0,30);
+ if(!ids.length){alert('Select at least one recruiter outreach action.');return}
+ if(checks.length>30){alert('The recruiter batch is capped at 30 actions. Only the first 30 will be approved.');}
+ if(!confirm('Approve '+ids.length+' selected recruiter outreach actions?')) return;
+ try{
+   const result=await api('/api/approvals/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved:true,item_ids:ids})});
+   document.getElementById('approvalSummary').textContent='Batch approved: '+(result.changed_count||0)+' action(s).';
+   refreshAll();
+ }catch(e){alert(e.message)}
 }
 async function decide(id,approved){
  try{
