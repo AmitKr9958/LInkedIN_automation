@@ -22,6 +22,8 @@ class AutomationPolicy:
         "like",
         "publish_post",
         "job_application",
+        # Review/approval record only; there is intentionally no executor for this action.
+        "profile_optimization_review",
     })
     allow_unsolicited_bulk_messaging: bool = False
     allow_scraping: bool = False
