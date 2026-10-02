@@ -111,6 +111,8 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             if not locations:
                 locations = ["Gurgaon/Gurugram"]
             results = []
+            auto_jobs = []
+            auto_diagnostics = {}
             diagnostics = {
                 "requested_locations": locations,
                 "location_runs": {},
@@ -139,6 +141,19 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                     result = await run_read_on_page(page, name, **kwargs)
                     diagnostics["location_runs"][location] = result.diagnostics or {}
                     results.extend(result.data or [])
+
+                    if name == "people" and not str(inputs.get("job_title", "")).strip() and not str(inputs.get("company", "")).strip():
+                        for job_query in ("Power BI", "Data Analyst", "Business Intelligence"):
+                            job_result = await run_read_on_page(
+                                page,
+                                "jobs",
+                                query=job_query,
+                                keywords=job_query,
+                                location=location,
+                                max_posted_hours=float(DEFAULT_JOB_PREFERENCES.posted_within_hours),
+                            )
+                            auto_diagnostics[f"{location}:{job_query}"] = job_result.diagnostics or {}
+                            auto_jobs.extend(job_result.data or [])
 
             # De-duplicate by the stable URL when available.
             seen = set()
@@ -189,24 +204,8 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                     }
                     return {"skill":name,"mode":"read","data":enriched,"diagnostics":diagnostics}
 
-                # Automatic association: read fresh target-role jobs in the same
-                # authenticated browser session, then connect each person to the
-                # strongest evidence-backed job. This is read-only and never sends.
-                auto_jobs = []
-                auto_diagnostics = {}
-                for location in locations:
-                    for job_query in ("Power BI", "Data Analyst", "Business Intelligence"):
-                        job_result = await run_read_on_page(
-                            page,
-                            "jobs",
-                            query=job_query,
-                            keywords=job_query,
-                            location=location,
-                            max_posted_hours=float(DEFAULT_JOB_PREFERENCES.posted_within_hours),
-                        )
-                        auto_diagnostics[f"{location}:{job_query}"] = job_result.diagnostics or {}
-                        auto_jobs.extend(job_result.data or [])
-
+                # Automatic association uses jobs collected while the persistent browser
+                # session was open above. No closed Playwright page is reused here.
                 job_seen = set()
                 unique_jobs = []
                 for job in auto_jobs:
@@ -223,7 +222,7 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                     selected = item["associated_jobs"][0] if item["associated_jobs"] else None
                     if selected:
                         job = selected["job"]
-                        job_data = job.to_dict() if hasattr(job, "to_dict") else dict(job)
+                        job_data = job.to_dict() if hasattr(job, "to_dict") else vars(job)
                         associated_title = str(job_data.get("title", "") or "")
                         associated_company = str(job_data.get("company", "") or "")
                         associated_url = str(job_data.get("url") or job_data.get("href") or "")
