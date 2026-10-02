@@ -546,6 +546,28 @@ async def _read_about_from_edit_dialog(page) -> str:
             for index in range(count - 1, -1, -1):
                 dialog = dialogs.nth(index)
                 try:
+                    if not hasattr(dialog, "is_visible"):
+                        value = await page.evaluate(
+                            r"""() => {
+                                const dialogs = Array.from(document.querySelectorAll(
+                                    '[role="dialog"], div[aria-modal="true"], [data-test-modal]'
+                                ));
+                                for (const dialog of dialogs.reverse()) {
+                                    const field = dialog.querySelector(
+                                        'textarea, [contenteditable="true"], input[type="text"]'
+                                    );
+                                    if (!field) continue;
+                                    return typeof field.value === 'string'
+                                        ? field.value
+                                        : (field.innerText || field.textContent || '');
+                                }
+                                return '';
+                            }"""
+                        )
+                        value = _clean_profile_section_text(str(value or ""), "about")
+                        if value:
+                            return value
+                        continue
                     if not await dialog.is_visible():
                         continue
                     fields = dialog.locator('textarea, [contenteditable="true"], input[type="text"]')
