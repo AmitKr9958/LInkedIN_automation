@@ -408,22 +408,22 @@ def test_about_edit_dialog_uses_icon_only_fallback_without_save():
 def test_about_edit_dialog_playwright_locator_is_preferred():
     from app.skills.profile import _read_about_from_edit_dialog
 
-    class Candidate:
-        async def get_attribute(self, name):
-            return "Edit About" if name == "aria-label" else None
+    class Locator:
+        def __init__(self, value=""):
+            self.value = value
+            self.first = self
 
-        async def inner_text(self):
-            return ""
+        async def count(self):
+            return 1
+
+        async def scroll_into_view_if_needed(self, timeout=None):
+            return None
 
         async def click(self, timeout=None):
             return None
 
-    class Candidates:
-        async def count(self):
-            return 1
-
-        def nth(self, index):
-            return Candidate()
+        async def evaluate_all(self, script):
+            return None
 
     class Keyboard:
         async def press(self, key):
@@ -433,15 +433,15 @@ def test_about_edit_dialog_playwright_locator_is_preferred():
         keyboard = Keyboard()
 
         def locator(self, selector):
-            assert 'aria-label*="edit"' in selector
-            return Candidates()
-
-        async def wait_for_timeout(self, ms):
-            return None
+            assert 'aria-label*="edit"' in selector or 'data-li-about-editor' in selector
+            return Locator()
 
         async def evaluate(self, script, *args):
             assert "textarea" in script
             return "Complete About text read from the editor."
+
+        async def wait_for_timeout(self, ms):
+            return None
 
     result = asyncio.run(_read_about_from_edit_dialog(Page()))
     assert result == "Complete About text read from the editor."
