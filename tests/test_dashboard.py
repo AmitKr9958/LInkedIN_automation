@@ -282,3 +282,55 @@ def test_dashboard_summary_does_not_run_history_migration(monkeypatch, tmp_path)
 
     monkeypatch.setattr(dashboard, "ROOT", tmp_path)
     dashboard._summary()
+
+def test_dashboard_application_workspace_hides_stale_jobs_without_deleting_records(monkeypatch, tmp_path):
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+    import app.dashboard as dashboard
+
+    now = datetime.now(timezone.utc)
+    fresh = (now - timedelta(hours=2)).isoformat()
+    stale = (now - timedelta(hours=20)).isoformat()
+
+    db_path = tmp_path / "data" / "activity.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            """CREATE TABLE applications(
+                job_url TEXT PRIMARY KEY, title TEXT, company TEXT, status TEXT NOT NULL,
+                updated_at TEXT NOT NULL, notes TEXT DEFAULT '', discovered_at TEXT,
+                applied_at TEXT, source TEXT DEFAULT '', location TEXT DEFAULT '',
+                recruiter TEXT DEFAULT '', resume_version TEXT DEFAULT '',
+                next_follow_up TEXT DEFAULT '', interview_date TEXT DEFAULT '',
+                salary_notes TEXT DEFAULT ''
+            )"""
+        )
+        db.execute(
+            """CREATE TABLE job_history(
+                id INTEGER PRIMARY KEY, title TEXT, company TEXT, location TEXT, url TEXT,
+                score REAL, reasons TEXT, status TEXT, first_seen TEXT,
+                posted_hours REAL, posted_text TEXT, posted_at TEXT
+            )"""
+        )
+        db.execute(
+            "INSERT INTO applications(job_url,title,company,status,updated_at,discovered_at) VALUES(?,?,?,?,?,?)",
+            ("fresh-url", "Fresh Application", "Fresh Co", "new", fresh, fresh),
+        )
+        db.execute(
+            "INSERT INTO applications(job_url,title,company,status,updated_at,discovered_at) VALUES(?,?,?,?,?,?)",
+            ("stale-url", "Stale Application", "Stale Co", "new", stale, stale),
+        )
+        db.execute(
+            "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (1, "Fresh Application", "Fresh Co", "Delhi, India", "fresh-url", 90, "fresh", "new", fresh, 2, "2 hours ago", fresh),
+        )
+        db.commit()
+
+    monkeypatch.setattr(dashboard, "ROOT", tmp_path)
+    summary = dashboard._summary()
+
+    assert summary["application_count"] == 1
+    assert [item["title"] for item in summary["applications"]] == ["Fresh Application"]
+
+    with sqlite3.connect(db_path) as db:
+        assert db.execute("SELECT COUNT(*) FROM applications").fetchone()[0] == 2

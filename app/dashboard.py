@@ -121,31 +121,71 @@ def _summary() -> dict:
             return [dict(r) for r in rows]
 
     def load_applications():
+        # Application Workspace follows the same six-hour discovery freshness
+        # contract as the Jobs panel. This is a display filter only: application
+        # records are never deleted, so historical data remains in SQLite.
         with _db(activity) as db:
-            count = db.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
+            freshness_hours = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=freshness_hours)
             columns = {row[1] for row in db.execute("PRAGMA table_info(applications)").fetchall()}
             wanted = [
                 "job_url", "title", "company", "status", "updated_at", "notes",
                 "discovered_at", "applied_at", "source", "location", "recruiter",
                 "resume_version", "next_follow_up", "interview_date", "salary_notes",
             ]
-            if all(column in columns for column in wanted):
-                rows = db.execute(
-                    "SELECT " + ",".join(wanted) +
-                    " FROM applications ORDER BY updated_at DESC LIMIT 50"
-                ).fetchall()
-            else:
-                # Backward-compatible read path for test fixtures or an older
-                # activity database that has not yet been migrated.
-                rows = db.execute(
-                    "SELECT job_url,title,company,status,updated_at,notes "
-                    "FROM applications ORDER BY updated_at DESC LIMIT 50"
-                ).fetchall()
+            if not all(column in columns for column in wanted):
+                wanted = ["job_url", "title", "company", "status", "updated_at", "notes"]
+            select = ",".join("a." + column for column in wanted)
+            job_columns = {row[1] for row in db.execute("PRAGMA table_info(job_history)").fetchall()}
+            job_posted_at = "j.posted_at" if "posted_at" in job_columns else "NULL"
+            job_posted_hours = "j.posted_hours" if "posted_hours" in job_columns else "NULL"
+            app_discovered = "a.discovered_at" if "discovered_at" in columns else "a.updated_at"
+            # Prefer the authoritative LinkedIn posting timestamp from job_history.
+            # If the job is not present there, fall back to the application's
+            # discovered_at timestamp. This is a display filter only.
+            query = (
+                "SELECT " + select + ", " + job_posted_at + " AS job_posted_at, "
+                + job_posted_hours + " AS job_posted_hours, " + app_discovered + " AS app_discovered_at "
+                "FROM applications a LEFT JOIN job_history j ON j.url=a.job_url "
+                "ORDER BY a.updated_at DESC LIMIT 1000"
+            )
+            raw_rows = db.execute(query).fetchall()
+
+            def _parse_dt(value):
+                try:
+                    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    return parsed.astimezone(timezone.utc)
+                except (TypeError, ValueError):
+                    return None
+
+            rows = []
+            for r in raw_rows:
+                posted_at = _parse_dt(r["job_posted_at"])
+                if posted_at is None:
+                    first_seen = _parse_dt(r["app_discovered_at"])
+                    try:
+                        age = float(r["job_posted_hours"]) if r["job_posted_hours"] is not None else None
+                    except (TypeError, ValueError):
+                        age = None
+                    if first_seen is not None and age is not None and age >= 0:
+                        posted_at = first_seen - timedelta(hours=age)
+                    elif first_seen is not None:
+                        posted_at = first_seen
+                if posted_at is None or posted_at < cutoff:
+                    continue
+                rows.append(r)
+
+            count = len(rows)
             out = []
-            for r in rows:
+            for r in rows[:50]:
                 item = dict(r)
+                item.pop("job_posted_at", None)
+                item.pop("job_posted_hours", None)
+                item.pop("app_discovered_at", None)
                 for key in wanted:
-                    item.setdefault(key, "")
+                    item.setdefault(key.split(".", 1)[-1], "")
                 item["allowed_transitions"] = sorted(
                     TRANSITIONS.get(item["status"], set())
                 )
