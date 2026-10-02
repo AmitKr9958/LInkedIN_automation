@@ -8,6 +8,7 @@ from .config import settings
 from .linkedin_reader import current_session_state
 from .skills.profile import read_profile
 from .profile_optimizer import profile_fingerprint
+from .profile_grounding import validate_profile_drafts
 
 
 class ProfileWriteError(RuntimeError):
@@ -153,6 +154,17 @@ async def apply_approved_profile_proposal(proposal: dict[str, Any]) -> dict[str,
     profile = proposal.get("profile")
     if not isinstance(drafts, dict) or not isinstance(profile, dict):
         raise ProfileWriteError("Approval proposal is missing its profile snapshot or drafts.")
+
+    grounding = validate_profile_drafts(profile, drafts)
+    if not grounding["publishable"]:
+        issues = []
+        for item in grounding["blocking_issues"]:
+            values = ", ".join(str(value) for value in item.get("values", []))
+            issues.append(f'{item["field"]}: {item["type"]}' + (f" ({values})" if values else ""))
+        raise ProfileWriteError(
+            "Approved proposal failed source-grounding validation; no LinkedIn changes were made. "
+            + "; ".join(issues)
+        )
 
     async with linkedin_browser(headless=settings.headless) as context:
         page = context.pages[0] if context.pages else await context.new_page()
