@@ -121,9 +121,14 @@ def _summary() -> dict:
             return [dict(r) for r in rows]
 
     def load_applications():
+        # The Applications tab is an active discovery pipeline, so it follows
+        # the same 6-hour freshness contract as Jobs. We filter the dashboard
+        # view only; application records are never deleted from SQLite.
         with _db(activity) as db:
-            count = db.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
+            freshness_hours = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=freshness_hours)
             columns = {row[1] for row in db.execute("PRAGMA table_info(applications)").fetchall()}
+            history_columns = {row[1] for row in db.execute("PRAGMA table_info(job_history)").fetchall()}
             wanted = [
                 "job_url", "title", "company", "status", "updated_at", "notes",
                 "discovered_at", "applied_at", "source", "location", "recruiter",
@@ -132,25 +137,70 @@ def _summary() -> dict:
             if all(column in columns for column in wanted):
                 rows = db.execute(
                     "SELECT " + ",".join(wanted) +
-                    " FROM applications ORDER BY updated_at DESC LIMIT 50"
+                    " FROM applications ORDER BY updated_at DESC LIMIT 1000"
                 ).fetchall()
             else:
                 # Backward-compatible read path for test fixtures or an older
                 # activity database that has not yet been migrated.
                 rows = db.execute(
                     "SELECT job_url,title,company,status,updated_at,notes "
-                    "FROM applications ORDER BY updated_at DESC LIMIT 50"
+                    "FROM applications ORDER BY updated_at DESC LIMIT 1000"
                 ).fetchall()
+
+            def _parse_dt(value):
+                try:
+                    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    return parsed.astimezone(timezone.utc)
+                except (TypeError, ValueError):
+                    return None
+
+            history_by_url = {}
+            if "url" in history_columns:
+                if {"posted_at", "posted_hours", "first_seen"}.issubset(history_columns):
+                    history_rows = db.execute(
+                        "SELECT url,first_seen,posted_hours,posted_at FROM job_history "
+                        "WHERE url IS NOT NULL AND url != ''"
+                    ).fetchall()
+                    for h in history_rows:
+                        history_by_url[str(h["url"]).strip()] = h
+
             out = []
             for r in rows:
                 item = dict(r)
                 for key in wanted:
                     item.setdefault(key, "")
+
+                # Prefer the authoritative LinkedIn posting timestamp stored in
+                # job_history. If unavailable, fall back to discovered_at. This
+                # prevents an old application from appearing merely because its
+                # updated_at changed later.
+                posted_at = None
+                h = history_by_url.get(str(item.get("job_url") or "").strip())
+                if h is not None:
+                    posted_at = _parse_dt(h["posted_at"])
+                    if posted_at is None:
+                        first_seen = _parse_dt(h["first_seen"])
+                        try:
+                            age = float(h["posted_hours"]) if h["posted_hours"] is not None else None
+                        except (TypeError, ValueError):
+                            age = None
+                        if first_seen is not None and age is not None and age >= 0:
+                            posted_at = first_seen - timedelta(hours=age)
+                if posted_at is None:
+                    posted_at = _parse_dt(item.get("discovered_at"))
+
+                # Unknown age is excluded from this time-bounded dashboard view.
+                if posted_at is None or posted_at < cutoff:
+                    continue
+
                 item["allowed_transitions"] = sorted(
                     TRANSITIONS.get(item["status"], set())
                 )
                 out.append(item)
-            return count, out
+
+            return len(out), out[:50]
 
     def load_jobs():
         # This endpoint is read-only. Do not run History() migrations here because
