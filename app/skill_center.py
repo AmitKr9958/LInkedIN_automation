@@ -14,6 +14,7 @@ from .browser import linkedin_browser
 from .skill_runtime import ensure_authenticated, run_read, run_read_on_page
 from .workflows import login_check
 from .llm_client import LLMError, chat_json, provider_status
+from .profile_grounding import validate_profile_drafts
 
 READ_SKILLS = {"auth", "profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
 APPROVAL_SKILLS = {"connections", "messaging", "engagement", "followups", "outreach"}
@@ -242,6 +243,21 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             }
             llm_error = str(exc)
         ai = _sanitize_certification_claims(ai, set(verified_certifications))
+        grounding = validate_profile_drafts(
+            profile_data,
+            {
+                "headline": (
+                    ai.get("headline_options", [""])[0]
+                    if isinstance(ai.get("headline_options"), list) and ai.get("headline_options")
+                    else ""
+                ),
+                "about": ai.get("about_draft", ""),
+                "experience": "\n".join(
+                    str(item) for item in ai.get("experience_improvements", [])
+                    if str(item).strip()
+                ) if isinstance(ai.get("experience_improvements"), list) else "",
+            },
+        )
         sections = baseline.get("sections", {})
         readable = {
             "title": "Profile Optimizer",
@@ -269,6 +285,7 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             "missing_information": ai.get("missing_information", []),
             "next_actions": ai.get("next_actions", []),
             "ai_error": llm_error or "",
+            "source_grounding": grounding,
         }
         return {
             "skill": name,
@@ -280,6 +297,7 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             "ai_optimization": ai,
             "readable_result": readable,
             "ai_error": llm_error or "",
+            "source_grounding": grounding,
             "message": (
                 "AI generated recommendations only. No LinkedIn profile changes were made."
                 if not llm_error
