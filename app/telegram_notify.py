@@ -128,6 +128,34 @@ def notify_profile_optimization(
     return ok
 
 
+def notify_profile_optimization_apply(
+    *,
+    success: bool,
+    review_id: str,
+    applied: list[str] | None = None,
+    verified: list[str] | None = None,
+    skipped: list[str] | None = None,
+    error_message: str = "",
+) -> bool:
+    """Notify the user after an explicitly approved profile write attempt."""
+    lines = [
+        "LinkedIn Profile Optimizer",
+        "Approved profile update " + ("completed" if success else "failed"),
+        f"Review: {review_id}",
+    ]
+    if success:
+        lines.append("Applied: " + (", ".join(applied or []) or "none"))
+        lines.append("Verified: " + (", ".join(verified or []) or "none"))
+        if skipped:
+            lines.append("Skipped: " + ", ".join(skipped))
+    elif error_message:
+        lines.append(f"Error: {error_message[:700]}")
+    ok, reason = send_telegram_message_detailed("\n".join(lines))
+    if not ok:
+        logger.warning("Profile apply Telegram notification not sent: %s", reason)
+    return ok
+
+
 def send_telegram_message(message: str) -> bool:
     """Send one Telegram message; return False and log a safe diagnostic on failure."""
     ok, _ = send_telegram_message_detailed(message)

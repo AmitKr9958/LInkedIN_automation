@@ -410,15 +410,18 @@ def profile_optimize(
     """Audit the authenticated profile and generate bounded optimization drafts.
 
     This command is read-only against LinkedIn. It never edits the profile.
-    --queue-review creates a human-review record; approval does not execute a
-    LinkedIn edit because no autonomous profile-edit executor exists.
+    --queue-review creates a human-review record. Approved profile proposals are
+    executable only through the separate, explicit profile-write safety gate.
     """
-    from .profile_optimizer import generate_profile_optimization
+    from .profile_optimizer import generate_profile_optimization, profile_fingerprint
 
     async def _run():
         result = await run_read("profile")
         payload = result.data.to_dict() if hasattr(result.data, "to_dict") else dict(result.data)
-        return generate_profile_optimization(payload, use_llm=not no_llm)
+        report = generate_profile_optimization(payload, use_llm=not no_llm)
+        output = report.to_dict()
+        output["profile_fingerprint"] = profile_fingerprint(payload)
+        return output
 
     report = asyncio.run(_run()).to_dict()
     review_id = None
@@ -452,6 +455,37 @@ def profile_optimize(
         )
 
     typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
+
+@app.command("profile-apply")
+def profile_apply(item_id: str):
+    """Apply one already-approved profile optimization proposal."""
+    item = ApprovalQueue().get(item_id)
+    if item is None:
+        raise typer.BadParameter(f"approval item not found: {item_id}")
+    if item.action != "profile_optimization_review":
+        raise typer.BadParameter("approval item is not a profile optimization review")
+    if item.status != "approved":
+        raise typer.BadParameter(f"approval must be approved first; current status: {item.status}")
+    try:
+        proposal = json.loads(item.payload)
+        from .profile_writer import apply_approved_profile_proposal
+        result = asyncio.run(apply_approved_profile_proposal(proposal))
+        ApprovalQueue().mark_applied(item_id)
+        from .telegram_notify import notify_profile_optimization_apply
+        notify_profile_optimization_apply(
+            success=True,
+            review_id=item_id,
+            applied=result.get("applied", []),
+            verified=result.get("verified", []),
+            skipped=result.get("skipped", []),
+        )
+        typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
+    except Exception as exc:
+        ApprovalQueue().mark_apply_failed(item_id, str(exc))
+        from .telegram_notify import notify_profile_optimization_apply
+        notify_profile_optimization_apply(success=False, review_id=item_id, error_message=f"{type(exc).__name__}: {exc}")
+        raise typer.Exit(code=1)
+
 
 @app.command("dashboard")
 def dashboard(host: str = "127.0.0.1", port: int = 8765):
