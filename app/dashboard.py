@@ -324,7 +324,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 <main class="main">
 <header class="topbar">
   <div class="title"><h1 id="pageTitle">Overview</h1><p>Read, research, draft and approve — from one place.</p></div>
-  <div class="actions"><span id="health" class="health"><i class="dot"></i> Checking</span><span class="live-pill"><i></i> READ-ONLY · 2H CADENCE · 6H FRESHNESS</span><button class="btn" onclick="refreshAll()">↻ Refresh</button><button class="btn primary" onclick="startAgent()">Run Agent</button></div>
+  <div class="actions"><span id="health" class="health"><i class="dot"></i> Checking</span><span class="live-pill"><i></i> READ-ONLY · 30M CADENCE · 6H FRESHNESS</span><button class="btn" onclick="refreshAll()">↻ Refresh</button><button class="btn primary" onclick="startAgent()">Run Agent</button></div>
 </header>
 
 <section id="overview" class="view active">
@@ -459,6 +459,10 @@ function filterJobs(){
  });
  document.getElementById('jobsTable').innerHTML=jobRows(rows);
 }
+function displayApplicationValue(value){
+ const text=String(value??'').trim();
+ return text ? esc(text) : '<span class="muted">Not set</span>';
+}
 function renderTables(d){
  document.getElementById('jobsTable').innerHTML=jobRows(d.jobs);
  filterJobs();
@@ -476,7 +480,7 @@ function renderTables(d){
  const renderAppRow=x=>{
    const editId='app-'+Math.random().toString(36).slice(2);
    const options=[x.status,...(x.allowed_transitions||[])].filter((v,i,a)=>a.indexOf(v)===i).map(s=>'<option value="'+esc(s)+'" '+(s===x.status?'selected':'')+'>'+esc(s)+'</option>').join('');
-   return '<tr><td><b>'+esc(x.title)+'</b><div class="muted">'+esc(x.location||'')+'</div></td><td>'+esc(x.company)+'</td><td>'+esc(x.source||'—')+'</td><td><select class="statusSelect" data-url="'+esc(x.job_url)+'" data-current="'+esc(x.status)+'">'+options+'</select></td><td>'+esc(x.applied_at||'—')+'</td><td>'+esc(x.next_follow_up||'—')+'</td><td>'+esc(x.recruiter||'—')+'</td><td><div class="application-actions"><a class="btn" href="'+esc(x.job_url)+'" target="_blank" rel="noopener noreferrer">Open ↗</a><button class="btn" onclick="transitionApplication(this)">Save stage</button><button class="btn" onclick="toggleAppDetails(this)">Edit details</button></div></td></tr>'+
+   return '<tr><td><b>'+esc(x.title)+'</b><div class="muted">'+esc(x.location||'')+'</div></td><td>'+esc(x.company)+'</td><td>'+esc(x.source||'—')+'</td><td><select class="statusSelect" data-url="'+esc(x.job_url)+'" data-current="'+esc(x.status)+'">'+options+'</select></td><td>'+displayApplicationValue(x.applied_at)+'</td><td>'+displayApplicationValue(x.next_follow_up)+'</td><td>'+displayApplicationValue(x.recruiter)+'</td><td><div class="application-actions"><a class="btn" href="'+esc(x.job_url)+'" target="_blank" rel="noopener noreferrer">Open ↗</a><button class="btn" onclick="transitionApplication(this)">Save stage</button><button class="btn" onclick="toggleAppDetails(this)">Edit details</button></div></td></tr>'+
    '<tr class="app-details"><td colspan="8"><div class="app-detail-grid">'+
    '<label>Source<input data-field="source" value="'+esc(x.source||'')+'" placeholder="LinkedIn / Naukri / Company"></label>'+
    '<label>Location<input data-field="location" value="'+esc(x.location||'')+'" placeholder="Gurgaon / Remote India"></label>'+
