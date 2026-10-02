@@ -67,7 +67,8 @@ class ApprovalQueue:
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as db:
             db.execute(
-                "INSERT INTO approval_queue VALUES(?,?,?,?,?,?,NULL)",
+                "INSERT INTO approval_queue(id,action,target,payload,status,created_at,decided_at,applied_at,apply_error) "
+                "VALUES(?,?,?,?,?,?,NULL,NULL,NULL)",
                 (item_id, action, target, payload, "pending", now),
             )
             db.commit()
