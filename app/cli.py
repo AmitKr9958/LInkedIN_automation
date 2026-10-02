@@ -285,7 +285,7 @@ def login():
     typer.echo(f"{result.status}: {result.details}")
     if result.status == "authenticated":
         typer.echo(
-            "Session saved to the persistent browser profile.\n"
+            "Session saved and verified after reopening the persistent browser profile.\n"
             "Verify headless restore with:\n"
             "  $env:HEADLESS='true'; python -m app debug-auth\n"
             "If that still reports unauthenticated, re-run login and leave the "
@@ -293,8 +293,11 @@ def login():
         )
     else:
         typer.echo(
-            "Authentication was not confirmed. Keep the browser open until the "
-            "LinkedIn home feed is fully loaded, then re-run: python -m app login",
+            "LinkedIn authentication was detected, but the persistent profile "
+            "did not pass the post-close restore check.\n"
+            f"Details: {result.details}\n"
+            "Do not delete the profile yet; use this diagnostic output to identify "
+            "the persistence failure before retrying.",
             err=True,
         )
         raise typer.Exit(code=1)

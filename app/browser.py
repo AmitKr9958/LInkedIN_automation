@@ -129,17 +129,10 @@ async def linkedin_browser(*, headless: bool | None = None):
         try:
             yield context
         finally:
-            # Close pages first so pending navigations finish, then close the
-            # context so the persistent profile is flushed to disk.
-            try:
-                for page in list(context.pages):
-                    try:
-                        if not page.is_closed():
-                            await page.close()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            # Let Playwright close the persistent context directly. Closing pages
+            # individually can trigger page-level teardown before Chromium has
+            # committed browser-managed session state to the profile. The context
+            # close is the lifecycle boundary that flushes the persistent profile.
             try:
                 await context.close()
             except Exception:
