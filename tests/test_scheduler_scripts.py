@@ -19,7 +19,7 @@ def test_scheduler_is_hidden_and_single_instance():
     text = (ROOT / "scripts" / "install-readonly-scheduler.ps1").read_text(encoding="utf-8")
     assert " -Hidden" in text
     assert "-MultipleInstances IgnoreNew" in text
-    assert "-RepetitionInterval (New-TimeSpan -Hours 2)" in text
+    assert "-RepetitionInterval (New-TimeSpan -Minutes 30)" in text
 
 
 def test_scheduler_installer_is_disabled_by_default():
