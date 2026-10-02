@@ -84,3 +84,34 @@ def test_profile_normalization_repairs_concatenated_terms_after_regex_fix():
         "queryperformance refreshTechnical speedby metrics,enabling 2 mosHandled"
     )
     assert cleaned == "query performance refresh Technical speed by metrics, enabling 2 mos Handled"
+
+
+def test_profile_normalization_repairs_known_flattened_linkedin_terms():
+    raw = (
+        "queryperformance refreshTechnical speedby metrics,enabling 2 mosHandled "
+        "PowerBI PowerQuery PowerAutomate PowerApps MicrosoftFabric "
+        "DataAnalytics BusinessIntelligence AnalystR1 RCM"
+    )
+    cleaned = profile._normalize_linkedin_extracted_text(raw)
+    assert "query performance" in cleaned
+    assert "refresh Technical" in cleaned
+    assert "speed by" in cleaned
+    assert "metrics, enabling" in cleaned
+    assert "2 mos Handled" in cleaned
+    assert "Power BI" in cleaned
+    assert "Power Query" in cleaned
+    assert "Power Automate" in cleaned
+    assert "Power Apps" in cleaned
+    assert "Microsoft Fabric" in cleaned
+    assert "Data Analytics" in cleaned
+    assert "Business Intelligence" in cleaned
+    assert "Analyst R1 RCM" in cleaned
+
+
+def test_details_noise_removes_profile_language_footer():
+    cleaned = profile._clean_details_text(
+        "Experience Senior Power BI Developer Mar 2024 - Present Power BI DAX "
+        "Profile language English"
+    )
+    assert "Profile language" not in cleaned
+    assert "Senior Power BI Developer" in cleaned
