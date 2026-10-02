@@ -71,3 +71,5 @@ def test_profile_writer_rejects_ungrounded_approved_proposal_before_browser(monk
     }
     with pytest.raises(ProfileWriteError, match="source-grounding validation"):
         asyncio.run(apply_approved_profile_proposal(proposal))
+
+# Source-grounding regression coverage remains intentionally deterministic.
