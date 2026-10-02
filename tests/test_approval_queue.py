@@ -63,3 +63,16 @@ def test_queue_records_activity_history(tmp_path):
     assert ("approval_requested", "person-1", "pending") in rows
     assert ("approval_decided", "person-1", "approved") in rows
     assert len(rows) == 2
+
+
+def test_queue_batch_decision_only_changes_pending_items(tmp_path):
+    q = ApprovalQueue(str(tmp_path / "db.sqlite3"))
+    first = q.add("connection_request", "recruiter-1", "hello")
+    second = q.add("message", "recruiter-1", "hello")
+    third = q.add("message", "recruiter-2", "hello")
+    assert q.decide(third, False) is True
+    changed = q.decide_many([first, second, third], True)
+    assert changed == [first, second]
+    assert q.get(first).status == "approved"
+    assert q.get(second).status == "approved"
+    assert q.get(third).status == "rejected"
