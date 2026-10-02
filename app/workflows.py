@@ -116,7 +116,52 @@ async def login_check(
                     state = await _safe_session_state(page)
 
             status = "authenticated" if state.get("authenticated") else "unauthenticated"
-            return type("Result", (), {"action": action, "status": status, "details": state})()
+
+        # The first context only proves that LinkedIn accepted the login while
+        # the browser was open. For interactive login, verify the actual
+        # persistence boundary by closing that context and reopening the same
+        # profile. This prevents the CLI from claiming a session was saved when
+        # Chromium did not commit it to disk.
+        if status == "authenticated" and keep_open:
+            try:
+                async with linkedin_browser() as verify_browser:
+                    verify_page = (
+                        verify_browser.pages[0]
+                        if verify_browser.pages
+                        else await verify_browser.new_page()
+                    )
+                    verify_state = await current_session_state(verify_page)
+                if not verify_state.get("authenticated"):
+                    state = {
+                        **state,
+                        "authenticated": False,
+                        "confidence": verify_state.get("confidence", "high"),
+                        "persistence_verified": False,
+                        "persistence_check": verify_state,
+                        "note": (
+                            "LinkedIn was authenticated in the interactive browser, "
+                            "but the same persistent profile was unauthenticated "
+                            "after Chromium closed and reopened it."
+                        ),
+                    }
+                    status = "persistence_failed"
+                else:
+                    state = {
+                        **state,
+                        "authenticated": True,
+                        "persistence_verified": True,
+                        "persistence_check": verify_state,
+                    }
+            except Exception as exc:
+                state = {
+                    **state,
+                    "persistence_verified": False,
+                    "persistence_check_error": f"{type(exc).__name__}: {exc}",
+                    "note": "The interactive session was authenticated, but persistence could not be verified after reopening the profile.",
+                }
+                status = "persistence_check_failed"
+
+        return type("Result", (), {"action": action, "status": status, "details": state})()
     finally:
         settings.headless = previous_headless
 
