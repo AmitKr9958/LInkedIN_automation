@@ -48,3 +48,27 @@ def test_profile_optimizer_is_ai_ready_and_live_by_default():
     assert source["type"] == "select"
     assert source["default"] == "live"
     assert source["options"] == ["live", "manual"]
+
+
+def test_profile_optimizer_keeps_read_only_audit_when_llm_returns_non_json(monkeypatch):
+    import app.skill_center as skill_center
+
+    def fail_llm(**kwargs):
+        from app.llm_client import LLMError
+        raise LLMError("LLM returned non-JSON content for a JSON-only request after recovery retry")
+
+    monkeypatch.setattr(skill_center, "chat_json", fail_llm)
+    result = asyncio.run(
+        skill_center.run_skill(
+            "profile_optimizer",
+            {
+                "source": "manual",
+                "profile": '{"name":"Amit","headline":"Power BI Developer","about":"Power BI SQL DAX","experience":"Built dashboards","skills":"Power BI SQL","featured":"Project"}',
+            },
+        )
+    )
+    assert result["source"] == "manual"
+    assert result["readable_result"]["section_audit"]["Headline"] == "Found"
+    assert result["readable_result"]["section_audit"]["About"] == "Found"
+    assert result["readable_result"]["ai_error"]
+    assert "No LinkedIn profile changes were made" in result["message"]
