@@ -400,6 +400,59 @@ def read(
     typer.echo(json.dumps(payload, indent=2, default=str))
 
 
+@app.command("profile-optimize")
+def profile_optimize(
+    no_llm: bool = typer.Option(False, "--no-llm", help="Run deterministic audit only; skip the configured LLM."),
+    queue_review: bool = typer.Option(False, "--queue-review", help="Queue the generated report for human review."),
+    output: str = typer.Option("", "--output", help="Optional JSON output path."),
+    notify_telegram: bool = typer.Option(False, "--notify-telegram", help="Send the optimization summary to the configured Telegram chat."),
+):
+    """Audit the authenticated profile and generate bounded optimization drafts.
+
+    This command is read-only against LinkedIn. It never edits the profile.
+    --queue-review creates a human-review record; approval does not execute a
+    LinkedIn edit because no autonomous profile-edit executor exists.
+    """
+    from .profile_optimizer import generate_profile_optimization
+
+    async def _run():
+        result = await run_read("profile")
+        payload = result.data.to_dict() if hasattr(result.data, "to_dict") else dict(result.data)
+        return generate_profile_optimization(payload, use_llm=not no_llm)
+
+    report = asyncio.run(_run()).to_dict()
+    review_id = None
+    if queue_review:
+        payload = json.dumps(report, ensure_ascii=False, separators=(",", ":"))
+        if len(payload.encode("utf-8")) > 64 * 1024:
+            raise typer.BadParameter("optimization report exceeds the approval payload limit")
+        review_id = ApprovalQueue().add(
+            "profile_optimization_review",
+            str(report.get("profile", {}).get("url") or settings.profile_url),
+            payload,
+        )
+        report["review_id"] = review_id
+
+    if output:
+        from pathlib import Path
+        destination = Path(output)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        typer.echo(f"report: {destination}")
+
+    if notify_telegram:
+        from .telegram_notify import notify_profile_optimization
+        notify_profile_optimization(
+            score=int(report.get("score", 0)),
+            llm_used=bool(report.get("llm_used", False)),
+            findings=len(report.get("findings", [])),
+            drafts=len(report.get("drafts", {})),
+            review_id=review_id,
+            llm_error=str(report.get("llm_error") or ""),
+        )
+
+    typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
+
 @app.command("dashboard")
 def dashboard(host: str = "127.0.0.1", port: int = 8765):
     """Start the local control-center dashboard; binds to localhost by default."""
