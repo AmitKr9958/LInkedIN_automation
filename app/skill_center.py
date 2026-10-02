@@ -25,7 +25,13 @@ def skill_catalog() -> list[dict[str, Any]]:
     fields = {
         "auth": [], "profile": [],
         "jobs": [{"name":"query","label":"Job query","default":"Power BI"},{"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, Remote India"},{"name":"max_posted_hours","label":"Posted within hours","type":"number","default":48}],
-        "people": [\n            {"name":"query","label":"Search terms","default":"Power BI recruiter"},\n            {"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, India"},\n            {"name":"job_title","label":"Associated job title (optional)"},\n            {"name":"company","label":"Associated company (optional)"},\n            {"name":"job_url","label":"Associated job URL (optional)"},\n        ],
+        "people": [
+            {"name":"query","label":"Search terms","default":"Power BI recruiter"},
+            {"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, India"},
+            {"name":"job_title","label":"Associated job title (optional)"},
+            {"name":"company","label":"Associated company (optional)"},
+            {"name":"job_url","label":"Associated job URL (optional)"},
+        ],
         "companies": [{"name":"query","label":"Company search","default":"data analytics"}],
         "posts": [{"name":"query","label":"Post search","default":"Power BI"}],
         "saved": [], "notifications": [],
