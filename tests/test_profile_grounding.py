@@ -42,7 +42,7 @@ def test_grounding_blocks_new_numeric_claims():
     assert any(issue["type"] == "unsupported_numbers" for issue in issues)
     values = {value for issue in issues for value in issue.get("values", [])}
     assert "2" in values
-    assert "15%" in values
+    assert "15" in values
 
 
 def test_grounding_blocks_new_certification_and_technology_claims():
