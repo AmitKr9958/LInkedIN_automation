@@ -35,7 +35,9 @@ class ApprovalQueue:
                     payload TEXT NOT NULL,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
-                    decided_at TEXT
+                    decided_at TEXT,
+                    applied_at TEXT,
+                    apply_error TEXT
                 )"""
             )
             columns = {
@@ -44,6 +46,10 @@ class ApprovalQueue:
             }
             if "decided_at" not in columns:
                 db.execute("ALTER TABLE approval_queue ADD COLUMN decided_at TEXT")
+            if "applied_at" not in columns:
+                db.execute("ALTER TABLE approval_queue ADD COLUMN applied_at TEXT")
+            if "apply_error" not in columns:
+                db.execute("ALTER TABLE approval_queue ADD COLUMN apply_error TEXT")
             db.commit()
 
     @contextmanager
@@ -102,3 +108,33 @@ class ApprovalQueue:
         action, target = row if row else (item_id, item_id)
         log_activity("approval_decided", target, status, f"action={action}", path=self.path)
         return True
+
+
+    def get(self, item_id: str) -> ApprovalItem | None:
+        if not item_id.strip():
+            raise ValueError("item_id is required")
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT id,action,target,payload,status,created_at FROM approval_queue WHERE id=?",
+                (item_id,),
+            ).fetchone()
+        return ApprovalItem(*row) if row else None
+
+    def mark_applied(self, item_id: str) -> bool:
+        with self._connect() as db:
+            cursor = db.execute(
+                "UPDATE approval_queue SET status='applied', applied_at=?, apply_error=NULL WHERE id=? AND status='approved'",
+                (datetime.now(timezone.utc).isoformat(), item_id),
+            )
+            db.commit()
+            return cursor.rowcount == 1
+
+    def mark_apply_failed(self, item_id: str, error: str) -> bool:
+        message = str(error or "")[:2000]
+        with self._connect() as db:
+            cursor = db.execute(
+                "UPDATE approval_queue SET apply_error=? WHERE id=? AND status='approved'",
+                (message, item_id),
+            )
+            db.commit()
+            return cursor.rowcount == 1
