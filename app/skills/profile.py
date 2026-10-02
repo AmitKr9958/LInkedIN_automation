@@ -386,103 +386,123 @@ async def _read_about_from_edit_dialog(page) -> str:
     """Read the full About value from LinkedIn's edit dialog without saving."""
     clicked = False
     try:
-        clicked = bool(
-            await page.evaluate(
-                r"""() => {
-                    const norm = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                    const visible = node => {
-                        if (!node) return false;
-                        const style = window.getComputedStyle(node);
-                        return style.display !== 'none' && style.visibility !== 'hidden';
-                    };
-                    const labelOf = node => norm(
-                        node.getAttribute('aria-label') ||
-                        node.getAttribute('title') ||
-                        node.getAttribute('data-test-text') ||
-                        node.textContent
-                    );
-                    const isEditLabel = label => /\bedit\b/.test(label);
-                    const isAboutScope = node => {
-                        const text = norm(node?.innerText || node?.textContent);
-                        return /\babout\b/.test(text) &&
-                            text.length < 12000;
-                    };
-
-                    // Prefer an explicitly labelled About edit control.
-                    const explicit = Array.from(document.querySelectorAll(
-                        'main button, main a, main [role="button"]'
-                    )).find(node => {
-                        if (!visible(node)) return false;
-                        const label = labelOf(node);
-                        return isEditLabel(label) && /\babout\b/.test(label);
-                    });
-                    if (explicit) {
-                        try { explicit.click(); return true; } catch (_) {}
-                    }
-
-                    // Find the About card, then its nearest edit control. This
-                    // also handles icon-only pencil buttons whose accessible
-                    // label does not contain the word "About".
-                    const aboutNodes = Array.from(document.querySelectorAll(
-                        'main h1, main h2, main h3, main [role="heading"], main [aria-level], main section'
-                    )).filter(node => norm(node.textContent) === 'about');
-
-                    for (const aboutNode of aboutNodes) {
-                        let scope = aboutNode;
-                        for (let depth = 0; depth < 10 && scope; depth += 1, scope = scope.parentElement) {
-                            if (!isAboutScope(scope)) continue;
-                            const controls = Array.from(scope.querySelectorAll(
-                                'button, a, [role="button"]'
-                            )).filter(visible);
-                            const edit = controls.find(node => isEditLabel(labelOf(node)));
-                            if (edit) {
-                                try { edit.click(); return true; } catch (_) {}
-                            }
-                        }
-                    }
-
-                    // Last resort: identify an edit-labelled control whose
-                    // nearest card contains an About heading.
-                    const edits = Array.from(document.querySelectorAll(
-                        'main button, main a, main [role="button"]'
-                    )).filter(node => visible(node) && isEditLabel(labelOf(node)));
-                    for (const edit of edits) {
-                        let scope = edit.parentElement;
-                        for (let depth = 0; depth < 8 && scope; depth += 1, scope = scope.parentElement) {
-                            if (isAboutScope(scope)) {
-                                try { edit.click(); return true; } catch (_) {}
-                                break;
-                            }
-                        }
-                    }
-                    return false;
-                }"""
+        # First use Playwright locators. This is more reliable than dispatching
+        # a DOM click from evaluate because LinkedIn's React handlers may depend
+        # on trusted browser events.
+        try:
+            edit_candidates = page.locator(
+                'main button[aria-label*="edit" i], '
+                'main button[title*="edit" i], '
+                'main [role="button"][aria-label*="edit" i], '
+                'main [role="button"][title*="edit" i]'
             )
-        )
+            count = await edit_candidates.count()
+            for index in range(min(count, 30)):
+                candidate = edit_candidates.nth(index)
+                try:
+                    label = " ".join(
+                        (
+                            await candidate.get_attribute("aria-label") or "",
+                            await candidate.get_attribute("title") or "",
+                            await candidate.inner_text(),
+                        )
+                    ).strip().lower()
+                    # Explicitly labelled About edit control.
+                    if "about" in label:
+                        await candidate.click(timeout=5_000)
+                        clicked = True
+                        break
+    
+                    # Icon-only edit: walk its ancestors and verify the control is
+                    # inside the About card before clicking it.
+                    in_about = await candidate.evaluate(
+                        """el => {
+                            const norm = value => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                            let node = el;
+                            for (let i = 0; i < 10 && node; i += 1, node = node.parentElement) {
+                                const text = norm(node.innerText || node.textContent);
+                                if (/\\babout\\b/.test(text) && text.length < 12000) return true;
+                            }
+                            return false;
+                        }"""
+                    )
+                    if in_about:
+                        await candidate.click(timeout=5_000)
+                        clicked = True
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            # Test doubles and unusual layouts may not expose locator().
+            # Continue to the browser-DOM fallback below.
+            pass
+
+        # JS fallback for a LinkedIn layout where the edit control is not a
+        # standard button or where Playwright cannot resolve the generated node.
+        if not clicked:
+            clicked = bool(
+                await page.evaluate(
+                    r"""() => {
+                        const norm = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                        const visible = node => {
+                            if (!node) return false;
+                            const style = window.getComputedStyle(node);
+                            return style.display !== 'none' && style.visibility !== 'hidden';
+                        };
+                        const labelOf = node => norm(
+                            node.getAttribute('aria-label') ||
+                            node.getAttribute('title') ||
+                            node.textContent
+                        );
+                        const edits = Array.from(document.querySelectorAll(
+                            'main button, main a, main [role="button"]'
+                        )).filter(node => visible(node) && /\bedit\b/.test(labelOf(node)));
+
+                        for (const edit of edits) {
+                            let scope = edit.parentElement;
+                            for (let depth = 0; depth < 10 && scope; depth += 1, scope = scope.parentElement) {
+                                const text = norm(scope.innerText || scope.textContent);
+                                if (/\babout\b/.test(text) && text.length < 12000) {
+                                    try { edit.click(); return true; } catch (_) {}
+                                    break;
+                                }
+                            }
+                        }
+                        return false;
+                    }"""
+                )
+            )
+
         if not clicked:
             return ""
 
-        await page.wait_for_timeout(900)
+        # Give LinkedIn time to mount the dialog, then retry briefly because
+        # the dialog is often rendered asynchronously.
+        for _ in range(5):
+            await page.wait_for_timeout(400)
+            value = await page.evaluate(
+                r"""() => {
+                    const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+                    const dialog = dialogs[dialogs.length - 1];
+                    if (!dialog) return '';
 
-        value = await page.evaluate(
-            r"""() => {
-                const dialog = document.querySelector('[role="dialog"]');
-                if (!dialog) return '';
+                    const editable = dialog.querySelector(
+                        'textarea, [contenteditable="true"], input[type="text"]'
+                    );
+                    if (!editable) return '';
 
-                const editable = dialog.querySelector(
-                    'textarea, [contenteditable="true"], input[type="text"]'
-                );
-                if (!editable) return '';
-
-                return (
-                    editable.value ||
-                    editable.innerText ||
-                    editable.textContent ||
-                    ''
-                ).replace(/\s+/g, ' ').trim();
-            }"""
-        )
-        return _clean_profile_section_text(str(value or ""), "about")
+                    return (
+                        editable.value ||
+                        editable.innerText ||
+                        editable.textContent ||
+                        ''
+                    ).replace(/\s+/g, ' ').trim();
+                }"""
+            )
+            value = _clean_profile_section_text(str(value or ""), "about")
+            if value:
+                return value
+        return ""
     except Exception as exc:
         logger.warning("About edit-dialog read failed: %s", type(exc).__name__)
         return ""
@@ -495,7 +515,8 @@ async def _read_about_from_edit_dialog(page) -> str:
                 try:
                     await page.evaluate(
                         r"""() => {
-                            const dialog = document.querySelector('[role="dialog"]');
+                            const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+                            const dialog = dialogs[dialogs.length - 1];
                             if (!dialog) return;
                             const close = Array.from(dialog.querySelectorAll(
                                 'button, [role="button"]'
