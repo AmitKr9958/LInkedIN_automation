@@ -225,17 +225,17 @@ def _section_heading_matches(value: str, section_name: str) -> bool:
 
 
 async def _expand_profile_sections(page) -> None:
-    """Open read-only profile section expanders when LinkedIn hides content."""
+    """Open in-page read-only profile expanders without following navigation links."""
     try:
         await page.evaluate(
-            """() => {
+            r"""() => {
                 const wanted = /(?:show all|show more|see all)/i;
                 const nodes = Array.from(document.querySelectorAll(
-                    'main button, main a, main [role="button"]'
+                    'main button, main [role="button"]'
                 ));
                 for (const node of nodes) {
-                    const text = (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim();
-                    const aria = (node.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim();
+                    const text = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+                    const aria = (node.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
                     if (!wanted.test(text) && !wanted.test(aria)) continue;
                     try { node.click(); } catch (_) {}
                 }
@@ -383,156 +383,133 @@ async def _read_profile_details_page(page, section_name: str) -> str:
 
 
 async def _read_about_from_edit_dialog(page) -> str:
-    """Read the full About value from LinkedIn's edit dialog without saving."""
-    clicked = False
+    """Read the full About value from the trusted LinkedIn edit dialog without saving."""
+    marked = False
     try:
-        # First use Playwright locators. This is more reliable than dispatching
-        # a DOM click from evaluate because LinkedIn's React handlers may depend
-        # on trusted browser events.
-        try:
-            edit_candidates = page.locator(
-                'main button[aria-label*="edit" i], '
-                'main button[title*="edit" i], '
-                'main [role="button"][aria-label*="edit" i], '
-                'main [role="button"][title*="edit" i]'
-            )
-            count = await edit_candidates.count()
-            for index in range(min(count, 30)):
-                candidate = edit_candidates.nth(index)
-                try:
-                    label = " ".join(
-                        (
-                            await candidate.get_attribute("aria-label") or "",
-                            await candidate.get_attribute("title") or "",
-                            await candidate.inner_text(),
-                        )
-                    ).strip().lower()
-                    # Explicitly labelled About edit control.
-                    if "about" in label:
-                        await candidate.click(timeout=5_000)
-                        clicked = True
-                        break
-    
-                    # Icon-only edit: walk its ancestors and verify the control is
-                    # inside the About card before clicking it.
-                    in_about = await candidate.evaluate(
-                        """el => {
-                            const norm = value => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-                            let node = el;
-                            for (let i = 0; i < 10 && node; i += 1, node = node.parentElement) {
-                                const text = norm(node.innerText || node.textContent);
-                                if (/\\babout\\b/.test(text) && text.length < 12000) return true;
-                            }
-                            return false;
-                        }"""
-                    )
-                    if in_about:
-                        await candidate.click(timeout=5_000)
-                        clicked = True
-                        break
-                except Exception:
-                    continue
-        except Exception:
-            # Test doubles and unusual layouts may not expose locator().
-            # Continue to the browser-DOM fallback below.
-            pass
+        # Prefer an explicitly labelled About editor. Otherwise locate the
+        # pencil inside the same DOM owner as the About heading. The owner must
+        # be a local card/section; page-wide ancestors are never accepted.
+        marked = bool(await page.evaluate(
+            r"""() => {
+                const norm = value => (value || '').replace(/\s+/g, ' ').trim();
+                const visible = el => {
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return style.display !== 'none' && style.visibility !== 'hidden' &&
+                        rect.width > 0 && rect.height > 0;
+                };
+                const controls = Array.from(document.querySelectorAll(
+                    'main button, main [role="button"], main a'
+                )).filter(visible);
 
-        # JS fallback for a LinkedIn layout where the edit control is not a
-        # standard button or where Playwright cannot resolve the generated node.
-        if not clicked:
-            clicked = bool(
-                await page.evaluate(
-                    r"""() => {
-                        const norm = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                        const visible = node => {
-                            if (!node) return false;
-                            const style = window.getComputedStyle(node);
-                            return style.display !== 'none' && style.visibility !== 'hidden';
-                        };
-                        const labelOf = node => norm(
-                            node.getAttribute('aria-label') ||
-                            node.getAttribute('title') ||
-                            node.textContent
-                        );
-                        const edits = Array.from(document.querySelectorAll(
-                            'main button, main a, main [role="button"]'
-                        )).filter(node => visible(node) && /\bedit\b/.test(labelOf(node)));
+                const mark = control => {
+                    control.setAttribute('data-li-about-editor', '1');
+                    return true;
+                };
 
-                        for (const edit of edits) {
-                            let scope = edit.parentElement;
-                            for (let depth = 0; depth < 10 && scope; depth += 1, scope = scope.parentElement) {
-                                const text = norm(scope.innerText || scope.textContent);
-                                if (/\babout\b/.test(text) && text.length < 12000) {
-                                    try { edit.click(); return true; } catch (_) {}
-                                    break;
-                                }
+                // LinkedIn sometimes exposes the semantic intent directly.
+                for (const control of controls) {
+                    const label = norm(
+                        control.getAttribute('aria-label') || control.getAttribute('title') ||
+                        control.innerText || control.textContent
+                    );
+                    if (/\bedit\b/i.test(label) && /\babout\b/i.test(label)) return mark(control);
+                }
+
+                const headings = Array.from(document.querySelectorAll(
+                    'main h2, main h3, main h4, main [role="heading"], main [aria-level]'
+                )).filter(el => /^about$/i.test(norm(el.innerText || el.textContent)));
+
+                for (const heading of headings) {
+                    let owner = heading;
+                    for (let depth = 0; depth < 8 && owner; depth += 1, owner = owner.parentElement) {
+                        const scopeText = norm(owner.innerText || owner.textContent);
+                        if (!scopeText || scopeText.length >= 12000) continue;
+                        const localControls = Array.from(owner.querySelectorAll(
+                            'button, [role="button"], a'
+                        )).filter(visible);
+                        const editor = localControls.find(control => {
+                            const label = norm(
+                                control.getAttribute('aria-label') || control.getAttribute('title') ||
+                                control.innerText || control.textContent
+                            );
+                            return /\bedit\b/i.test(label);
+                        });
+                        if (editor) return mark(editor);
+                        if (/^about$/i.test(scopeText) && owner.parentElement) {
+                            const parent = owner.parentElement;
+                            const parentText = norm(parent.innerText || parent.textContent);
+                            if (parentText.length < 12000) {
+                                const fallback = Array.from(parent.querySelectorAll(
+                                    'button, [role="button"], a'
+                                )).find(control => {
+                                    const label = norm(
+                                        control.getAttribute('aria-label') || control.getAttribute('title') ||
+                                        control.innerText || control.textContent
+                                    );
+                                    return /\bedit\b/i.test(label) && visible(control);
+                                });
+                                if (fallback) return mark(fallback);
                             }
                         }
-                        return false;
-                    }"""
-                )
-            )
+                    }
+                }
+                return false;
+            }"""
+        ));
 
-        if not clicked:
+        if not marked:
             return ""
 
-        # Give LinkedIn time to mount the dialog, then retry briefly because
-        # the dialog is often rendered asynchronously.
-        for _ in range(5):
-            await page.wait_for_timeout(400)
-            value = await page.evaluate(
-                r"""() => {
-                    const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
-                    const dialog = dialogs[dialogs.length - 1];
-                    if (!dialog) return '';
+        # Use a trusted Playwright click after the DOM has identified the exact
+        # About control. This avoids React handlers ignoring synthetic clicks.
+        locator = page.locator('[data-li-about-editor="1"]').first
+        if await locator.count() == 0:
+            return ""
+        await locator.scroll_into_view_if_needed(timeout=5_000)
+        await locator.click(timeout=5_000)
 
-                    const editable = dialog.querySelector(
-                        'textarea, [contenteditable="true"], input[type="text"]'
-                    );
-                    if (!editable) return '';
-
-                    return (
-                        editable.value ||
-                        editable.innerText ||
-                        editable.textContent ||
-                        ''
-                    ).replace(/\s+/g, ' ').trim();
-                }"""
-            )
-            value = _clean_profile_section_text(str(value or ""), "about")
-            if value:
-                return value
+        for _ in range(8):
+            await page.wait_for_timeout(350)
+            dialogs = page.locator('[role="dialog"], div[aria-modal="true"], [data-test-modal]')
+            count = await dialogs.count()
+            for index in range(count - 1, -1, -1):
+                dialog = dialogs.nth(index)
+                try:
+                    if not await dialog.is_visible():
+                        continue
+                    fields = dialog.locator('textarea, [contenteditable="true"], input[type="text"]')
+                    if await fields.count() == 0:
+                        continue
+                    for field_index in range(await fields.count()):
+                        field = fields.nth(field_index)
+                        value = await field.input_value() if await field.evaluate(
+                            "el => typeof el.value === 'string'"
+                        ) else await field.inner_text()
+                        value = _clean_profile_section_text(str(value or ""), "about")
+                        if value:
+                            return value
+                except Exception:
+                    continue
         return ""
     except Exception as exc:
         logger.warning("About edit-dialog read failed: %s", type(exc).__name__)
         return ""
     finally:
-        if clicked:
+        if marked:
+            try:
+                await page.locator('[data-li-about-editor="1"]').evaluate_all(
+                    "els => els.forEach(el => el.removeAttribute('data-li-about-editor'))"
+                )
+            except Exception:
+                pass
+        if marked:
             try:
                 await page.keyboard.press("Escape")
                 await page.wait_for_timeout(250)
             except Exception:
-                try:
-                    await page.evaluate(
-                        r"""() => {
-                            const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
-                            const dialog = dialogs[dialogs.length - 1];
-                            if (!dialog) return;
-                            const close = Array.from(dialog.querySelectorAll(
-                                'button, [role="button"]'
-                            )).find(candidate => {
-                                const label = (
-                                    candidate.getAttribute('aria-label') ||
-                                    candidate.getAttribute('title') ||
-                                    ''
-                                ).replace(/\s+/g, ' ').trim().toLowerCase();
-                                return /^(close|dismiss|cancel)\b/.test(label);
-                            });
-                            if (close) close.click();
-                        }"""
-                    )
-                except Exception:
-                    pass
+                pass
 
 
 async def _read_profile_section(page, section_name: str) -> str:
