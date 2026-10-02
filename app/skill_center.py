@@ -144,17 +144,21 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                     results.extend(result.data or [])
 
                     if name == "people" and not str(inputs.get("job_title", "")).strip() and not str(inputs.get("company", "")).strip():
-                        for job_query in ("Power BI", "Data Analyst", "Business Intelligence"):
-                            job_result = await run_read_on_page(
-                                page,
-                                "jobs",
-                                query=job_query,
-                                keywords=job_query,
-                                location=location,
-                                max_posted_hours=float(DEFAULT_JOB_PREFERENCES.posted_within_hours),
-                            )
-                            auto_diagnostics[f"{location}:{job_query}"] = job_result.diagnostics or {}
-                            auto_jobs.extend(job_result.data or [])
+                        # Keep the automatic association lightweight: one LinkedIn job
+                        # search per location instead of three sequential navigations. The
+                        # combined OR query still gives the matcher evidence across the
+                        # target roles while avoiding dashboard request timeouts.
+                        job_query = '"Power BI" OR "Data Analyst" OR "Business Intelligence"'
+                        job_result = await run_read_on_page(
+                            page,
+                            "jobs",
+                            query=job_query,
+                            keywords=job_query,
+                            location=location,
+                            max_posted_hours=float(DEFAULT_JOB_PREFERENCES.posted_within_hours),
+                        )
+                        auto_diagnostics[f"{location}:target_roles"] = job_result.diagnostics or {}
+                        auto_jobs.extend(job_result.data or [])
 
             # De-duplicate by the stable URL when available.
             seen = set()
