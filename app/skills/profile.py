@@ -449,7 +449,7 @@ def _clean_details_text(raw: str) -> str:
         idx = lowered.find(marker)
         if idx != -1:
             cut = min(cut, idx)
-    return _clean_profile_section_text(text, "")[:_DETAILS_MAX_CHARS]
+    return _clean_profile_section_text(text[:cut], "")[:_DETAILS_MAX_CHARS]
 
 
 async def _read_profile_details_page(page, section_name: str) -> str:
