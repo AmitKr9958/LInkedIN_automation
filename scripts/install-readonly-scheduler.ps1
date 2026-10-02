@@ -21,12 +21,12 @@ $Action = New-ScheduledTaskAction `
     -Execute "$env:SystemRoot\System32\wscript.exe" `
     -Argument "//B //NoLogo `"$HiddenRunner`""
 
+# Run read-only discovery every 30 minutes.
 $Trigger = New-ScheduledTaskTrigger `
     -Once -At (Get-Date).AddMinutes(1) `
-    -RepetitionInterval (New-TimeSpan -Hours 2) `
+    -RepetitionInterval (New-TimeSpan -Minutes 30) `
     -RepetitionDuration (New-TimeSpan -Days 3650)
 
-# Run discovery every 2 hours.
 # ExecutionTimeLimit must exceed measured worst-case production cycle.
 # 45 minutes provides safe headroom so the scheduler never silently kills
 # a healthy run.
