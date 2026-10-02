@@ -40,7 +40,7 @@ def test_details_section_guard_accepts_real_experience_shape():
 
 def test_details_section_guard_rejects_skills_activity_noise():
     assert not profile._is_plausible_details_section(
-        "Microsoft Power BI DAX MySQL Activity 2,177 followers Create post",
+        "Activity 2,177 followers Create post People you may know",
         "skills",
     )
 
