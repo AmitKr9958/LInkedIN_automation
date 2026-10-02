@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     browser_profile_dir: str = ".browser-profile"
     log_level: str = "INFO"
     approval_required: bool = True
+    # Final profile writes require a separate explicit opt-in in addition to
+    # the dashboard approval. Scheduled optimizer runs remain read-only.
+    linkedin_profile_write_enabled: bool = Field(
+        default=False,
+        validation_alias="LINKEDIN_PROFILE_WRITE_ENABLED",
+    )
     # End-to-end agent execution is opt-in. The scheduled runner explicitly enables it.
     agent_enabled: bool = Field(
         default=False,
