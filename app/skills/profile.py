@@ -353,9 +353,36 @@ _SECTION_NOISE_MARKERS = (
 )
 
 
+def _normalize_linkedin_extracted_text(raw: str) -> str:
+    """Repair common whitespace loss from LinkedIn's flattened rendered DOM."""
+    text = " ".join(str(raw or "").split()).strip()
+    if not text:
+        return ""
+
+    # LinkedIn occasionally concatenates adjacent inline text nodes. These
+    # replacements are deliberately narrow so we do not rewrite user content.
+    replacements = (
+        (r"queryperformance", "query performance"),
+        (r"refreshTechnical", "refresh Technical"),
+        (r"speedby", "speed by"),
+        (r"metrics,enabling", "metrics, enabling"),
+        (r"(\d+)\s*mosHandled\b", r"\1 mos Handled"),
+        (r"(\d+)\.(?=[A-Za-z])", r"\1. "),
+        (r"(?<=[a-z])(?=[A-Z])", " "),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text)
+
+    # The About editor may include LinkedIn's non-profile footer after the
+    # actual content. It is UI, not part of the user's About text.
+    text = re.sub(r"\s+…\s*more\s+Top skills\b.*$", "", text, flags=re.I)
+    text = re.sub(r"\s+\.\.\.\s*more\s+Top skills\b.*$", "", text, flags=re.I)
+    return " ".join(text.split()).strip()
+
+
 def _clean_profile_section_text(raw: str, section_name: str = "") -> str:
     """Remove unrelated recommendation/footer UI from extracted profile sections."""
-    text = " ".join(str(raw or "").split())
+    text = _normalize_linkedin_extracted_text(raw)
     if not text:
         return ""
     lowered = text.lower()
@@ -365,6 +392,13 @@ def _clean_profile_section_text(raw: str, section_name: str = "") -> str:
         if idx != -1:
             cut = min(cut, idx)
     cleaned = text[:cut].strip()
+    # LinkedIn displays an instructional placeholder when Featured is empty.
+    # Treat that as empty so the audit does not report a false positive.
+    if section_name == "featured" and (
+        cleaned.lower().startswith("show what you're proud of")
+        or cleaned.lower().startswith("show what you’re proud of")
+    ):
+        return ""
     # A section heading can be returned as part of its own content by some
     # LinkedIn layouts. Keep the content but remove only the heading prefix.
     heading = _normalize_section_heading(section_name)
@@ -609,7 +643,7 @@ async def _read_profile_section(page, section_name: str) -> str:
     if section_name == "about":
         value = await _read_about_from_edit_dialog(page)
         if value:
-            return value
+            return _clean_profile_section_text(value, section_name)
 
     # Experience, Skills, and Featured have authenticated section-specific
     # details routes. These sections are highly vulnerable to false positives
