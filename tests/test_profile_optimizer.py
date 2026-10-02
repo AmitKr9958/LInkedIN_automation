@@ -144,3 +144,30 @@ def test_profile_fingerprint_changes_when_profile_changes():
     first = profile_fingerprint(profile)
     assert first != profile_fingerprint(dict(profile, headline="Senior Power BI Developer"))
     assert first == profile_fingerprint(dict(profile))
+
+
+def test_profile_audit_does_not_apply_per_entry_experience_limit_to_aggregate():
+    report = audit_profile({
+        "headline": "Senior Power BI Developer | SQL | DAX",
+        "about": "Power BI professional with 30% workload reduction.",
+        "experience": "Built Power BI dashboards using SQL and DAX; " + ("Automated reporting. " * 160),
+        "skills": "Power BI, SQL, DAX, Power Query",
+        "featured": "Dashboard portfolio",
+    })
+    assert not any(item["issue"] == "experience content is unusually long" for item in report["findings"])
+    assert report["optimization_signals"]["experience_is_aggregate_snapshot"] is True
+
+
+def test_profile_audit_exposes_linkedin_profile_signals():
+    report = audit_profile({
+        "headline": "Senior Power BI Developer | SQL | DAX",
+        "about": "Power BI professional with 30% workload reduction.",
+        "experience": "Automated reporting and improved refresh time by 20%.",
+        "skills": "Power BI, SQL, DAX",
+        "featured": "",
+    })
+    signals = report["optimization_signals"]
+    assert signals["headline_characters"] == len("Senior Power BI Developer | SQL | DAX")
+    assert signals["headline_limit"] == 220
+    assert signals["about_limit"] == 2600
+    assert signals["featured_is_optional_evidence_section"] is True
