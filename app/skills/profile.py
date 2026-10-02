@@ -464,11 +464,11 @@ async def _read_about_from_edit_dialog(page) -> str:
 
         # Use a trusted Playwright click after the DOM has identified the exact
         # About control. This avoids React handlers ignoring synthetic clicks.
-        const=page.locator('[data-li-about-editor="1"]').first
-        if await const.count() == 0:
+        locator = page.locator('[data-li-about-editor="1"]').first
+        if await locator.count() == 0:
             return ""
-        await const.scroll_into_view_if_needed(timeout=5_000)
-        await const.click(timeout=5_000)
+        await locator.scroll_into_view_if_needed(timeout=5_000)
+        await locator.click(timeout=5_000)
 
         for _ in range(8):
             await page.wait_for_timeout(350)
