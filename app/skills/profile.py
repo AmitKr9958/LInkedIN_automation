@@ -254,6 +254,49 @@ _DETAILS_PATHS = {
 _DETAILS_MAX_CHARS = 12_000
 _DETAILS_MIN_CHARS = 40
 # Text LinkedIn appends below section content; never part of the section.
+_DETAILS_FALSE_POSITIVE_MARKERS = (
+    "people you may know",
+    "who your viewers also viewed",
+    "people also viewed",
+    "recommended for you",
+    "activity",
+    "create post",
+    "followers",
+    "profile language",
+    "public profile & url",
+)
+
+def _is_plausible_details_section(text: str, section_name: str) -> bool:
+    """Reject navigation/recommendation/activity text masquerading as section data."""
+    normalized = " ".join(str(text or "").split())
+    lowered = normalized.lower()
+    if len(normalized) < _DETAILS_MIN_CHARS:
+        return False
+    if any(marker in lowered for marker in _DETAILS_FALSE_POSITIVE_MARKERS):
+        return False
+    if section_name == "experience":
+        # Real experience pages contain employment/date signals. This prevents
+        # a details page that rendered only generic profile chrome from being
+        # accepted as employment history.
+        date_signal = re.search(
+            r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)"
+            r"\.?\s+\d{4}\b|\b\d{4}\s*[–-]\s*(?:\d{4}|present)\b|"
+            r"\b(?:present|current)\b",
+            normalized,
+            re.I,
+        )
+        if not date_signal:
+            return False
+        if re.search(r"(?i)\bconnect\s+[A-Z][^·•]{0,80}[·•]", normalized):
+            return False
+    if section_name in {"skills", "featured"}:
+        # The details route itself provides the section scope. We only reject
+        # known activity/navigation surfaces here; do not require a fixed
+        # technology vocabulary because users can have arbitrary skills or
+        # featured items.
+        return True
+    return True
+
 _DETAILS_NOISE_MARKERS = (
     "more profiles for you",
     "people you may know",
@@ -363,11 +406,13 @@ async def _read_profile_details_page(page, section_name: str) -> str:
             return ""
 
         extracted = _extract_section_from_text(text, section_name)
-        if extracted:
+        if extracted and _is_plausible_details_section(extracted, section_name):
             return extracted
 
-        # Section-scoped page without an explicit heading: the page itself is the scope.
-        if len(text) >= _DETAILS_MIN_CHARS:
+        # Section-scoped page without an explicit heading: the page itself is the
+        # scope, but only accept it after the section-specific false-positive
+        # guard. Never return generic profile chrome as section content.
+        if _is_plausible_details_section(text, section_name):
             return text
     except Exception as exc:
         logger.warning("Details fallback failed for %s: %s", section_name, type(exc).__name__)
@@ -464,34 +509,64 @@ async def _read_about_from_edit_dialog(page) -> str:
 
         # Use a trusted Playwright click after the DOM has identified the exact
         # About control. This avoids React handlers ignoring synthetic clicks.
-        locator = page.locator('[data-li-about-editor="1"]').first
+        # Keep the small evaluate-based fallback for lightweight unit-test fakes
+        # and older browser wrappers; production Playwright uses the locator path.
+        if not hasattr(page, "locator"):
+            try:
+                value = await page.evaluate(
+                    r"""() => {
+                        const dialogs = Array.from(document.querySelectorAll(
+                            '[role="dialog"], div[aria-modal="true"], [data-test-modal]'
+                        ));
+                        for (const dialog of dialogs.reverse()) {
+                            const field = dialog.querySelector(
+                                'textarea, [contenteditable="true"], input[type="text"]'
+                            );
+                            if (!field) continue;
+                            return typeof field.value === 'string'
+                                ? field.value
+                                : (field.innerText || field.textContent || '');
+                        }
+                        return '';
+                    }"""
+                )
+                return _clean_profile_section_text(str(value or ""), "about")
+            except Exception:
+                return ""
+        locator = page.locator('[data-li-about-editor="1"], main button[aria-label*="edit" i], main [role="button"][aria-label*="edit" i]')
+        if hasattr(locator, "first"):
+            locator = locator.first
         if await locator.count() == 0:
             return ""
-        await locator.scroll_into_view_if_needed(timeout=5_000)
+        if hasattr(locator, "scroll_into_view_if_needed"):
+            await locator.scroll_into_view_if_needed(timeout=5_000)
         await locator.click(timeout=5_000)
 
         for _ in range(8):
             await page.wait_for_timeout(350)
-            dialogs = page.locator('[role="dialog"], div[aria-modal="true"], [data-test-modal]')
-            count = await dialogs.count()
-            for index in range(count - 1, -1, -1):
-                dialog = dialogs.nth(index)
-                try:
-                    if not await dialog.is_visible():
-                        continue
-                    fields = dialog.locator('textarea, [contenteditable="true"], input[type="text"]')
-                    if await fields.count() == 0:
-                        continue
-                    for field_index in range(await fields.count()):
-                        field = fields.nth(field_index)
-                        value = await field.input_value() if await field.evaluate(
-                            "el => typeof el.value === 'string'"
-                        ) else await field.inner_text()
-                        value = _clean_profile_section_text(str(value or ""), "about")
-                        if value:
-                            return value
-                except Exception:
-                    continue
+            try:
+                value = await page.evaluate(
+                    r"""() => {
+                        const dialogs = Array.from(document.querySelectorAll(
+                            '[role="dialog"], div[aria-modal="true"], [data-test-modal]'
+                        ));
+                        for (const dialog of dialogs.reverse()) {
+                            const field = dialog.querySelector(
+                                'textarea, [contenteditable="true"], input[type="text"]'
+                            );
+                            if (!field) continue;
+                            return typeof field.value === 'string'
+                                ? field.value
+                                : (field.innerText || field.textContent || '');
+                        }
+                        return '';
+                    }"""
+                )
+                value = _clean_profile_section_text(str(value or ""), "about")
+                if value:
+                    return value
+            except Exception:
+                continue
         return ""
     except Exception as exc:
         logger.warning("About edit-dialog read failed: %s", type(exc).__name__)
@@ -523,6 +598,17 @@ async def _read_profile_section(page, section_name: str) -> str:
         value = await _read_about_from_edit_dialog(page)
         if value:
             return value
+
+    # Experience, Skills, and Featured have authenticated section-specific
+    # details routes. These sections are highly vulnerable to false positives
+    # from the main profile DOM (e.g. "Connect" recommendations and Activity).
+    # Prefer the section-specific route and, if it cannot be validated, fail
+    # closed instead of returning unrelated page content.
+    if section_name in _DETAILS_PATHS:
+        value = await _read_profile_details_page(page, section_name)
+        if value:
+            return _clean_profile_section_text(value, section_name)
+        return ""
 
     # LinkedIn's profile DOM is client-rendered and its wrapper elements change
     # over time. Find the semantic heading first, then walk to the smallest
@@ -653,15 +739,11 @@ async def _read_profile_section(page, section_name: str) -> str:
     except Exception:
         pass
 
-    # Fallback 3: authenticated, section-specific details page (one temp tab).
-    # Some layouts expose only a link/card on the main page; the real content
-    # lives on /details/<section>/.
-    if section_name in _DETAILS_PATHS:
-        value = await _read_profile_details_page(page, section_name)
-        if value:
-            return _clean_profile_section_text(value, section_name)
-
-    # Fallback 4: explicit IDs/ARIA/data attributes used by older and
+    # Details routes are handled before generic DOM fallbacks above.
+    # Never fall back to the main profile DOM for Experience/Skills/Featured,
+    # because unrelated recommendation/activity cards can be mistaken for
+    # section content.
+    # Fallback 3: explicit IDs/ARIA/data attributes used by older and
     # accessibility-oriented LinkedIn markup.
     selectors = (
         f"main section#{section_name}",
