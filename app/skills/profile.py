@@ -315,6 +315,9 @@ _DETAILS_NOISE_MARKERS = (
     "explore premium profiles",
     "you might like",
     "about accessibility",
+    "profile language",
+    "public profile & url",
+    "public profile and url",
 )
 _AUTH_WALL_MARKERS = ("/authwall", "/login", "/checkpoint", "/uas/")
 
@@ -354,19 +357,25 @@ _SECTION_NOISE_MARKERS = (
 
 
 def _normalize_linkedin_extracted_text(raw: str) -> str:
-    """Repair common whitespace loss from LinkedIn's flattened rendered DOM."""
+    """Normalize flattened LinkedIn DOM text without rewriting user facts.
+
+    LinkedIn's client-rendered profile sometimes removes whitespace between
+    adjacent inline nodes. The normalizer repairs only known LinkedIn/product
+    terminology and common extraction artefacts; it must never invent or
+    alter a metric, employer, title, date, or achievement.
+    """
     text = " ".join(str(raw or "").split()).strip()
     if not text:
         return ""
 
-    # LinkedIn occasionally concatenates adjacent inline text nodes. These
-    # replacements are deliberately narrow so we do not rewrite user content.
     replacements = (
-        (r"query\s*performance", "query performance"),
-        (r"refresh\s*technical", "refresh Technical"),
-        (r"speed\s*by", "speed by"),
-        (r"metrics\s*,\s*enabling", "metrics, enabling"),
-        (r"(\d+)\s*mosHandled\b", r"\1 mos Handled"),
+        # Common flattened phrases/words observed in LinkedIn profile DOM.
+        (r"(?i)query\s*performance", "query performance"),
+        (r"(?i)refresh\s*technical", "refresh Technical"),
+        (r"(?i)speed\s*by", "speed by"),
+        (r"(?i)metrics\s*,\s*enabling", "metrics, enabling"),
+        (r"(?i)(\b\d+\s*mos)\s*handled\b", r"\1 Handled"),
+        (r"(?i)(\b\d+\s*yrs?)\s*moshandled\b", r"\1 mos Handled"),
         (r"(?i)\bverti\s*paq\b", "VertiPaq"),
         (r"(?i)\bmy\s*sql\b", "MySQL"),
         (r"(?i)\bchat\s*gpt\b", "ChatGPT"),
@@ -374,12 +383,25 @@ def _normalize_linkedin_extracted_text(raw: str) -> str:
         (r"(?i)\bpower\s*automate\b", "Power Automate"),
         (r"(?i)\bpower\s*query\b", "Power Query"),
         (r"(?i)\bpower\s*bi\b", "Power BI"),
+        (r"(?i)\bpower\s*apps\b", "Power Apps"),
+        (r"(?i)\bpower\s*automate\b", "Power Automate"),
+        (r"(?i)\bmicrosoft\s*fabric\b", "Microsoft Fabric"),
+        (r"(?i)\bdata\s*analytics\b", "Data Analytics"),
+        (r"(?i)\bbusiness\s*intelligence\b", "Business Intelligence"),
+        (r"(?i)\brow\s*[- ]\s*level\s*security\b", "Row-Level Security"),
+        (r"(?i)\banalyst\s*r1\s*rcm\b", "Analyst R1 RCM"),
+        (r"(?i)\breports\s*,\s*managing\b", "reports, managing"),
     )
     for pattern, replacement in replacements:
         text = re.sub(pattern, replacement, text)
 
-    # The About editor may include LinkedIn's non-profile footer after the
-    # actual content. It is UI, not part of the user's About text.
+    # Repair a generic class of "mosHandled"/"timeby"/"stackTechnical" joins
+    # only where a lowercase/uppercase word boundary makes the join unambiguous.
+    text = re.sub(r"(?i)(\b\d+\s+mos)(?=[A-Z])", r"\1 ", text)
+    text = re.sub(r"(?i)(\b(?:time|speed|refresh|stack|query|data|reports|metrics))(?=[A-Z][a-z]{2,})",
+                  r"\1 ", text)
+
+    # LinkedIn's empty Featured state is instructional UI, not profile content.
     text = re.sub(r"\s+…\s*more\s+Top skills\b.*$", "", text, flags=re.I)
     text = re.sub(r"\s+\.\.\.\s*more\s+Top skills\b.*$", "", text, flags=re.I)
     return " ".join(text.split()).strip()
