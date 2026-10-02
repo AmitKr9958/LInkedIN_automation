@@ -89,6 +89,30 @@ class ApprovalQueue:
             ).fetchall()
         return [ApprovalItem(*row) for row in rows]
 
+    def decide_many(self, item_ids: list[str], approved: bool) -> list[str]:
+        """Resolve multiple pending approvals; returns IDs that changed."""
+        ids = [str(item_id).strip() for item_id in item_ids if str(item_id).strip()]
+        if not ids:
+            return []
+        status = "approved" if approved else "rejected"
+        changed: list[str] = []
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as db:
+            for item_id in ids:
+                cursor = db.execute(
+                    "UPDATE approval_queue SET status=?, decided_at=? "
+                    "WHERE id=? AND status='pending'",
+                    (status, now, item_id),
+                )
+                if cursor.rowcount == 1:
+                    changed.append(item_id)
+            db.commit()
+        for item_id in changed:
+            row = self.get(item_id)
+            action, target = (row.action, row.target) if row else ("unknown", item_id)
+            log_activity("approval_decided", target, status, f"action={action}; batch=true", path=self.path)
+        return changed
+
     def decide(self, item_id: str, approved: bool) -> bool:
         """Resolve one pending item and report whether a state transition occurred."""
         if not item_id.strip():
