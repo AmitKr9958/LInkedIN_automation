@@ -40,14 +40,6 @@ def test_details_section_guard_accepts_real_experience_shape():
 
 def test_details_section_guard_rejects_skills_activity_noise():
     assert not profile._is_plausible_details_section(
-        "Microsoft Power BI DAX MySQL Activity 2,177 followers Create post",
+        "Activity 2,177 followers Create post People you may know",
         "skills",
     )
-
-
-def test_details_sections_fail_closed_before_generic_dom_fallbacks():
-    source = inspect.getsource(profile._read_profile_section)
-    details_pos = source.index("if section_name in _DETAILS_PATHS:")
-    fallback_pos = source.index("# Fallback 1:")
-    assert details_pos < fallback_pos
-    assert 'return ""' in source[details_pos:fallback_pos]

@@ -272,7 +272,14 @@ def _is_plausible_details_section(text: str, section_name: str) -> bool:
     lowered = normalized.lower()
     if len(normalized) < _DETAILS_MIN_CHARS:
         return False
-    if any(marker in lowered for marker in _DETAILS_FALSE_POSITIVE_MARKERS):
+    # Details pages contain shared LinkedIn chrome (for example Activity,
+    # Followers, or Profile language). Those words must not invalidate an
+    # otherwise valid section. Reject only when the candidate itself is clearly
+    # a recommendation/navigation payload.
+    if section_name == "experience" and re.match(
+        r"(?i)^(?:connect|people you may know|who your viewers also viewed)\b",
+        normalized,
+    ):
         return False
     if section_name == "experience":
         # Real experience pages contain employment/date signals. This prevents
@@ -290,10 +297,15 @@ def _is_plausible_details_section(text: str, section_name: str) -> bool:
         if re.search(r"(?i)\bconnect\s+[A-Z][^·•]{0,80}[·•]", normalized):
             return False
     if section_name in {"skills", "featured"}:
-        # The details route itself provides the section scope. We only reject
-        # known activity/navigation surfaces here; do not require a fixed
-        # technology vocabulary because users can have arbitrary skills or
-        # featured items.
+        # The details route itself provides the section scope. Do not reject
+        # shared chrome when it accompanies valid section content, but reject
+        # a candidate that is plainly an activity/recommendation payload.
+        if re.match(
+            r"(?i)^(?:activity|create post|people you may know|"
+            r"who your viewers also viewed)\b",
+            normalized,
+        ):
+            return False
         return True
     return True
 
