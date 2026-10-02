@@ -16,6 +16,7 @@ from .workflows import login_check
 from .llm_client import LLMError, chat_json, provider_status
 from .profile_grounding import validate_profile_drafts
 from .outreach import associate_people_with_jobs, build_outreach_plan
+from .job_preferences import DEFAULT_JOB_PREFERENCES
 from .drafting import hiring_contact_message
 
 READ_SKILLS = {"auth", "profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
