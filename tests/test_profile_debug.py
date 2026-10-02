@@ -29,3 +29,5 @@ def test_profile_expanders_do_not_follow_links():
     source = inspect.getsource(profile._expand_profile_sections)
     assert 'main button, main [role="button"]' in source
     assert "main button, main a, main [role=\"button\"]" not in source
+
+# CI verification: merged About diagnostic fix.
