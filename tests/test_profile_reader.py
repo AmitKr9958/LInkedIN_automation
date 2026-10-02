@@ -377,3 +377,29 @@ def test_about_edit_dialog_reads_value_and_closes_without_save():
     assert "8 seconds" in result
     assert "I make them load in 2" in result
     assert page.keyboard.pressed == ["Escape"]
+
+
+def test_about_edit_dialog_uses_icon_only_fallback_without_save():
+    from app.skills.profile import _read_about_from_edit_dialog
+
+    class Keyboard:
+        async def press(self, key):
+            assert key == "Escape"
+
+    class Page:
+        keyboard = Keyboard()
+        calls = 0
+
+        async def evaluate(self, script, *args):
+            self.calls += 1
+            if self.calls == 1:
+                assert "nearest edit control" in script
+                return True
+            assert "textarea" in script
+            return "Full About content from the LinkedIn editor."
+
+        async def wait_for_timeout(self, ms):
+            return None
+
+    result = asyncio.run(_read_about_from_edit_dialog(Page()))
+    assert result == "Full About content from the LinkedIn editor."
