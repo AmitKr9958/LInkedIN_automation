@@ -700,7 +700,28 @@ async function watchAgent(id){
  };poll();
 }
 async function decide(id,approved){
- try{await api('/api/approvals/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});refreshAll()}catch(e){alert(e.message)}
+ try{
+   const result=await api('/api/approvals/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});
+   if(result.task_id){
+     showView('approvals');
+     document.getElementById('approvalSummary').textContent='Approved. LinkedIn profile update is running through the safety-gated browser worker…';
+     const poll=async()=>{
+       try{
+         const task=await api('/api/tasks/'+encodeURIComponent(result.task_id));
+         if(task.status==='queued'||task.status==='running'){setTimeout(poll,900);return}
+         if(task.status==='completed'){
+           document.getElementById('approvalSummary').textContent='Profile update completed and verified. Refreshing approval history…';
+         }else{
+           document.getElementById('approvalSummary').textContent='Profile update failed safely. The approval remains recorded for audit.';
+         }
+         refreshAll();
+       }catch(e){document.getElementById('approvalSummary').textContent='Profile update status could not be loaded.'}
+     };
+     poll();
+   }else{
+     refreshAll();
+   }
+ }catch(e){alert(e.message)}
 }
 async function transitionApplication(button){
  const select=button.closest('tr').querySelector('.statusSelect');
