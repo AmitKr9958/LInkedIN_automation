@@ -410,15 +410,18 @@ def profile_optimize(
     """Audit the authenticated profile and generate bounded optimization drafts.
 
     This command is read-only against LinkedIn. It never edits the profile.
-    --queue-review creates a human-review record; approval does not execute a
-    LinkedIn edit because no autonomous profile-edit executor exists.
+    --queue-review creates a human-review record. Approved profile proposals are
+    executable only through the separate, explicit profile-write safety gate.
     """
-    from .profile_optimizer import generate_profile_optimization
+    from .profile_optimizer import generate_profile_optimization, profile_fingerprint
 
     async def _run():
         result = await run_read("profile")
         payload = result.data.to_dict() if hasattr(result.data, "to_dict") else dict(result.data)
-        return generate_profile_optimization(payload, use_llm=not no_llm)
+        report = generate_profile_optimization(payload, use_llm=not no_llm)
+        output = report.to_dict()
+        output["profile_fingerprint"] = profile_fingerprint(payload)
+        return output
 
     report = asyncio.run(_run()).to_dict()
     review_id = None
