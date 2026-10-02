@@ -1039,6 +1039,33 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
+        if path == "/api/approvals/batch":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length) or b"{}")
+                from .approval_queue import ApprovalQueue
+                approved = _parse_approval_decision(body.get("approved", False))
+                item_ids = body.get("item_ids", [])
+                if not isinstance(item_ids, list) or not item_ids:
+                    raise ValueError("item_ids must be a non-empty list")
+                item_ids = [str(item_id).strip() for item_id in item_ids if str(item_id).strip()]
+                if len(item_ids) > 30:
+                    raise ValueError("batch approval is limited to 30 actions")
+                queue = ApprovalQueue()
+                allowed = []
+                for item_id in item_ids:
+                    item = queue.get(item_id)
+                    if item is not None and item.status == "pending" and item.action in {"connection_request", "message"}:
+                        allowed.append(item_id)
+                if len(allowed) != len(item_ids):
+                    raise ValueError("batch contains missing, decided, or non-recruiter approval actions")
+                changed = queue.decide_many(allowed, approved)
+                self._send(200, {"changed": changed, "changed_count": len(changed), "approved": approved, "limit": 30})
+            except ValueError as exc:
+                self._send(400, {"error": str(exc)})
+            except Exception as exc:
+                self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
+            return
         if path.startswith("/api/approvals/"):
             item_id = path.rsplit("/", 1)[-1]
             try:
