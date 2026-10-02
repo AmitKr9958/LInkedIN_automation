@@ -13,7 +13,7 @@ from .skill_registry import list_skills
 from .browser import linkedin_browser
 from .skill_runtime import ensure_authenticated, run_read, run_read_on_page
 from .workflows import login_check
-from .llm_client import chat_json, provider_status
+from .llm_client import LLMError, chat_json, provider_status
 
 READ_SKILLS = {"auth", "profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
 APPROVAL_SKILLS = {"connections", "messaging", "engagement", "followups", "outreach"}
@@ -207,23 +207,40 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             ],
             "target_market": "Delhi NCR / Gurgaon / Noida / Remote India",
         }
-        ai = chat_json(
-            system=(
-                "You are a senior LinkedIn profile strategist and ATS-aware recruiter. "
-                "Improve a professional LinkedIn profile for the stated target roles. "
-                "Use only evidence present in the supplied profile; never invent employers, "
-                "job titles, certifications, metrics, technologies, or achievements. "
-                "Return JSON with keys: overall_assessment, strengths, missing_information, "
-                "headline_options, about_draft, experience_improvements, skills_to_highlight, "
-                "featured_recommendations, keyword_strategy, next_actions. "
-                "headline_options must be an array of 3 strings. experience_improvements "
-                "and next_actions must be arrays. Clearly mark recommendations that require "
-                "the user to supply missing facts."
-            ),
-            user=json.dumps(prompt, ensure_ascii=False),
-            temperature=0.2,
-            max_tokens=2600,
-        )
+        llm_error = None
+        try:
+            ai = chat_json(
+                system=(
+                    "You are a senior LinkedIn profile strategist and ATS-aware recruiter. "
+                    "Improve a professional LinkedIn profile for the stated target roles. "
+                    "Use only evidence present in the supplied profile; never invent employers, "
+                    "job titles, certifications, metrics, technologies, or achievements. "
+                    "Return JSON with keys: overall_assessment, strengths, missing_information, "
+                    "headline_options, about_draft, experience_improvements, skills_to_highlight, "
+                    "featured_recommendations, keyword_strategy, next_actions. "
+                    "headline_options must be an array of 3 strings. experience_improvements "
+                    "and next_actions must be arrays. Clearly mark recommendations that require "
+                    "the user to supply missing facts."
+                ),
+                user=json.dumps(prompt, ensure_ascii=False),
+                temperature=0.2,
+                max_tokens=2600,
+            )
+            
+        except LLMError as exc:
+            ai = {
+                "overall_assessment": "Deterministic profile audit completed; AI recommendations were unavailable.",
+                "strengths": [],
+                "missing_information": [],
+                "headline_options": [],
+                "about_draft": "",
+                "experience_improvements": [],
+                "skills_to_highlight": [],
+                "featured_recommendations": [],
+                "keyword_strategy": [],
+                "next_actions": [],
+            }
+            llm_error = str(exc)
         ai = _sanitize_certification_claims(ai, set(verified_certifications))
         sections = baseline.get("sections", {})
         readable = {
@@ -251,6 +268,7 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             "strengths": ai.get("strengths", []),
             "missing_information": ai.get("missing_information", []),
             "next_actions": ai.get("next_actions", []),
+            "ai_error": llm_error or "",
         }
         return {
             "skill": name,
@@ -261,7 +279,12 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             "baseline_audit": baseline,
             "ai_optimization": ai,
             "readable_result": readable,
-            "message": "AI generated recommendations only. No LinkedIn profile changes were made.",
+            "ai_error": llm_error or "",
+            "message": (
+                "AI generated recommendations only. No LinkedIn profile changes were made."
+                if not llm_error
+                else "Read-only profile audit completed. AI recommendations were unavailable; no LinkedIn profile changes were made."
+            ),
         }
     if name=="interviewer": return {"questions":interviewer_questions(str(inputs.get("topic","")))}
     if name=="story_bank":
