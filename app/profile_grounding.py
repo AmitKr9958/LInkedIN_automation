@@ -4,12 +4,12 @@ import re
 from typing import Any
 
 
-_NUMBER_RE = re.compile(r"(?<![A-Za-z])\d+(?:\.\d+)?(?:\s*\+)?(?=\s*(?:%|percent|x|years?|yrs?|months?|days?|seconds?|secs?|minutes?|mins?|hours?|dashboards?|analysts?|projects?|clients?|reports?|teams?)\b|\b)")
+_NUMBER_RE = re.compile(
+    r"(?<![A-Za-z])\d+(?:\.\d+)?(?:\s*\+)?"
+    r"(?=\s*(?:%|percent|x|years?|yrs?|months?|days?|seconds?|secs?|minutes?|mins?|hours?|dashboards?|analysts?|projects?|clients?|reports?|teams?)\b|\b)"
+)
 _CERT_RE = re.compile(r"\b(?:DP|PL|AZ|AI)-\d{3}\b", re.I)
 
-# These are factual anchors commonly introduced by profile-writing models.
-# They are checked only when they appear in a draft; ordinary prose is not
-# rejected merely because it contains common words.
 _TECH_TERMS = (
     "Power BI", "Power Query", "DAX", "SQL", "T-SQL", "MySQL", "Microsoft Fabric",
     "Power Automate", "Alteryx", "Tableau", "Snowflake", "VertiPaq", "RLS",
@@ -41,7 +41,10 @@ def _numbers(text: str) -> set[str]:
 
 
 def _canonical_number(value: str) -> str:
-    normalized = value.replace(" ", "").lower().rstrip("+")\n    if normalized.endswith(".0"):\n        normalized = normalized[:-2]\n    return normalized
+    normalized = value.replace(" ", "").lower().rstrip("+")
+    if normalized.endswith(".0"):
+        normalized = normalized[:-2]
+    return normalized
 
 
 def _unsupported_numbers(source: str, draft: str) -> list[str]:
@@ -58,13 +61,17 @@ def _explicit_certifications(source: str) -> set[str]:
 
 def _unsupported_certifications(source: str, draft: str) -> list[str]:
     allowed = _explicit_certifications(source)
-    return sorted({m.group(0).upper() for m in _CERT_RE.finditer(draft) if m.group(0).upper() not in allowed})
+    return sorted(
+        {m.group(0).upper() for m in _CERT_RE.finditer(draft) if m.group(0).upper() not in allowed}
+    )
 
 
 def _unsupported_terms(source: str, draft: str, terms: tuple[str, ...]) -> list[str]:
     source_lower = source.lower()
     draft_lower = draft.lower()
-    return sorted({term for term in terms if term.lower() in draft_lower and term.lower() not in source_lower})
+    return sorted(
+        {term for term in terms if term.lower() in draft_lower and term.lower() not in source_lower}
+    )
 
 
 def validate_profile_drafts(
@@ -73,9 +80,8 @@ def validate_profile_drafts(
 ) -> dict[str, Any]:
     """Validate AI profile drafts against the supplied source evidence.
 
-    This is deliberately conservative. Unsupported factual anchors block live
-    publication; stylistic wording remains a human-review concern rather than
-    being falsely labelled as a factual violation.
+    Unsupported factual anchors block live publication; stylistic wording
+    remains a human-review concern rather than being falsely labelled factual.
     """
     source = _source_text(profile)
     fields: dict[str, Any] = {}
@@ -88,6 +94,7 @@ def validate_profile_drafts(
             continue
 
         issues: list[dict[str, Any]] = []
+
         numbers = _unsupported_numbers(source, value)
         if numbers:
             issues.append({
