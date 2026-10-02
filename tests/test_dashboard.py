@@ -264,8 +264,9 @@ def test_dashboard_db_reader_uses_short_busy_timeout():
     import app.dashboard as dashboard
 
     source = inspect.getsource(dashboard._db)
-    assert "timeout=0.5" in source
-    assert "busy_timeout=500" in source
+    assert "timeout=0.2" in source
+    assert "busy_timeout=200" in source
+    assert "list_activity(limit=30, timeout=0.2)" in inspect.getsource(dashboard._summary)
 
 
 def test_dashboard_summary_does_not_run_history_migration(monkeypatch, tmp_path):
@@ -282,3 +283,13 @@ def test_dashboard_summary_does_not_run_history_migration(monkeypatch, tmp_path)
 
     monkeypatch.setattr(dashboard, "ROOT", tmp_path)
     dashboard._summary()
+
+
+def test_activity_reader_has_bounded_lock_timeout():
+    import inspect
+    import app.store as store
+
+    source = inspect.getsource(store.list_activity)
+    assert "timeout: float = 0.25" in source
+    assert "busy_timeout" in source
+    assert "sqlite3.OperationalError" in source

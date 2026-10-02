@@ -59,8 +59,7 @@ def list_activity(
         params.append(action)
     query += " ORDER BY id DESC LIMIT ?"
     params.append(limit)
-    with sqlite3.connect(db_path) as con:
-        try:
+    # Bound dashboard reads so a background agent write cannot block an HTTP GET.\n    with sqlite3.connect(db_path, timeout=max(0.0, float(timeout))) as con:\n        con.execute(f"PRAGMA busy_timeout={max(0, int(float(timeout) * 1000))}")\n        try:
             rows = con.execute(query, params).fetchall()
         except sqlite3.OperationalError:
             return []

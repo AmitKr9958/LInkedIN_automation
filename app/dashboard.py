@@ -94,8 +94,8 @@ def _db(path: str):
     # Dashboard reads must never wait behind an agent write for seconds. SQLite
     # returns a controlled OperationalError on contention; _safe_section then
     # renders the affected panel with a warning instead of hanging the API.
-    con = sqlite3.connect(path, timeout=0.5)
-    con.execute("PRAGMA busy_timeout=500")
+    con = sqlite3.connect(path, timeout=0.2)
+    con.execute("PRAGMA busy_timeout=200")
     con.row_factory = sqlite3.Row
     return con
 
@@ -248,7 +248,7 @@ def _summary() -> dict:
                     "status": row[3],
                     "details": row[4],
                 }
-                for row in list_activity(limit=30)
+                for row in list_activity(limit=30, timeout=0.2)
             ],
             [],
             warnings,
