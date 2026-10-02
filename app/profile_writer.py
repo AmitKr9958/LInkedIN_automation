@@ -5,7 +5,8 @@ from typing import Any
 
 from .browser import linkedin_browser
 from .config import settings
-from .linkedin_reader import current_session_state, read_profile
+from .linkedin_reader import current_session_state
+from .skills.profile import read_profile
 from .profile_optimizer import profile_fingerprint
 
 
