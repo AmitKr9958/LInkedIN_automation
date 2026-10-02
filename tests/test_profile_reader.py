@@ -306,3 +306,39 @@ def test_read_profile_section_invokes_details_fallback(monkeypatch):
     monkeypatch.setattr(profile_mod, "_read_profile_details_page", fake_details)
     result = asyncio.run(profile_mod._read_profile_section(Page(), "experience"))
     assert result == "Senior Power BI Developer at Acme"
+
+
+from app.skills.profile import _clean_profile_section_text, _extract_section_from_text
+
+
+def test_profile_section_cleaner_removes_linkedin_recommendation_noise():
+    raw = (
+        "Experience Business Intelligence Team Lead · Power BI · SQL "
+        "Built dashboards and improved refresh time by 75%. "
+        "Who your viewers also viewed Hitarth Patel · 2nd Power BI | Connect "
+        "Subir Bairagi · 2nd Data Analyst"
+    )
+    cleaned = _clean_profile_section_text(raw, "experience")
+    assert "Business Intelligence Team Lead" in cleaned
+    assert "75%" in cleaned
+    assert "Who your viewers also viewed" not in cleaned
+    assert "Hitarth Patel" not in cleaned
+    assert "Subir Bairagi" not in cleaned
+
+
+def test_section_extractor_stops_at_recommendation_noise():
+    raw = """Experience
+Business Intelligence Team Lead
+Built Power BI dashboards and improved refresh time by 75%.
+Who your viewers also viewed
+Hitarth Patel · 2nd
+Skills
+Power BI
+SQL
+"""
+    extracted = _extract_section_from_text(raw, "experience")
+    assert "Business Intelligence Team Lead" in extracted
+    assert "75%" in extracted
+    assert "Who your viewers also viewed" not in extracted
+    assert "Hitarth Patel" not in extracted
+    assert "Skills" not in extracted
