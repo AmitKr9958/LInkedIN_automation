@@ -875,8 +875,41 @@ class _Handler(BaseHTTPRequestHandler):
                 length = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(length) or b"{}")
                 from .approval_queue import ApprovalQueue
-                changed = ApprovalQueue().decide(item_id, _parse_approval_decision(body.get("approved", False)))
-                self._send(200 if changed else 404, {"changed": changed})
+                from .telegram_notify import notify_profile_optimization_apply
+                queue = ApprovalQueue()
+                approved = _parse_approval_decision(body.get("approved", False))
+                item = queue.get(item_id)
+                if item is None or item.status != "pending":
+                    self._send(404, {"error": "approval item is missing or already decided"})
+                    return
+                changed = queue.decide(item_id, approved)
+                response = {"changed": changed, "approved": approved}
+                if changed and approved and item.action == "profile_optimization_review":
+                    proposal = json.loads(item.payload)
+                    def apply_profile():
+                        try:
+                            from .profile_writer import apply_approved_profile_proposal
+                            result = asyncio.run(apply_approved_profile_proposal(proposal))
+                            queue.mark_applied(item_id)
+                            notify_profile_optimization_apply(
+                                success=True,
+                                review_id=item_id,
+                                applied=result.get("applied", []),
+                                verified=result.get("verified", []),
+                                skipped=result.get("skipped", []),
+                            )
+                            return result
+                        except Exception as exc:
+                            queue.mark_apply_failed(item_id, str(exc))
+                            notify_profile_optimization_apply(
+                                success=False,
+                                review_id=item_id,
+                                error_message=f"{type(exc).__name__}: {exc}",
+                            )
+                            raise
+                    response["task_id"] = _task_submit("profile-apply", apply_profile)
+                    response["status"] = "queued"
+                self._send(200, response)
             except Exception as exc:
                 self._send(400, {"error": str(exc)})
             return
