@@ -56,6 +56,7 @@ async def test_login_check_keep_open_settles_after_auth():
         {"url": "https://www.linkedin.com/login", "title": "Sign Up", "authenticated": False, "confidence": "high"},
         {"url": "https://www.linkedin.com/feed/", "title": "Feed | LinkedIn", "authenticated": True, "confidence": "high"},
         {"url": "https://www.linkedin.com/feed/", "title": "Feed | LinkedIn", "authenticated": True, "confidence": "high"},
+        {"url": "https://www.linkedin.com/feed/", "title": "Feed | LinkedIn", "authenticated": True, "confidence": "high"},
     ]
     session_mock = AsyncMock(side_effect=states)
 
