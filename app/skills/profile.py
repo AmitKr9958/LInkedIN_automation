@@ -289,16 +289,12 @@ def _is_plausible_details_section(text: str, section_name: str) -> bool:
             return False
         if re.search(r"(?i)\bconnect\s+[A-Z][^·•]{0,80}[·•]", normalized):
             return False
-    if section_name == "skills":
-        # Skills pages should expose skill names; they should not look like the
-        # profile activity feed or recommendation surface.
-        skill_signal = re.search(
-            r"(?i)\b(?:power\s*bi|dax|sql|power\s*query|microsoft\s*fabric|"
-            r"tableau|python|excel|snowflake|data\s+analytics|business\s+intelligence)\b",
-            normalized,
-        )
-        if not skill_signal:
-            return False
+    if section_name in {"skills", "featured"}:
+        # The details route itself provides the section scope. We only reject
+        # known activity/navigation surfaces here; do not require a fixed
+        # technology vocabulary because users can have arbitrary skills or
+        # featured items.
+        return True
     return True
 
 _DETAILS_NOISE_MARKERS = (
@@ -513,6 +509,30 @@ async def _read_about_from_edit_dialog(page) -> str:
 
         # Use a trusted Playwright click after the DOM has identified the exact
         # About control. This avoids React handlers ignoring synthetic clicks.
+        # Keep the small evaluate-based fallback for lightweight unit-test fakes
+        # and older browser wrappers; production Playwright uses the locator path.
+        if not hasattr(page, "locator"):
+            try:
+                value = await page.evaluate(
+                    r"""() => {
+                        const dialogs = Array.from(document.querySelectorAll(
+                            '[role="dialog"], div[aria-modal="true"], [data-test-modal]'
+                        ));
+                        for (const dialog of dialogs.reverse()) {
+                            const field = dialog.querySelector(
+                                'textarea, [contenteditable="true"], input[type="text"]'
+                            );
+                            if (!field) continue;
+                            return typeof field.value === 'string'
+                                ? field.value
+                                : (field.innerText || field.textContent || '');
+                        }
+                        return '';
+                    }"""
+                )
+                return _clean_profile_section_text(str(value or ""), "about")
+            except Exception:
+                return ""
         locator = page.locator('[data-li-about-editor="1"]').first
         if await locator.count() == 0:
             return ""
