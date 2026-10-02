@@ -389,48 +389,53 @@ async def _read_about_from_edit_dialog(page) -> str:
         # First use Playwright locators. This is more reliable than dispatching
         # a DOM click from evaluate because LinkedIn's React handlers may depend
         # on trusted browser events.
-        edit_candidates = page.locator(
-            'main button[aria-label*="edit" i], '
-            'main button[title*="edit" i], '
-            'main [role="button"][aria-label*="edit" i], '
-            'main [role="button"][title*="edit" i]'
-        )
-        count = await edit_candidates.count()
-        for index in range(min(count, 30)):
-            candidate = edit_candidates.nth(index)
-            try:
-                label = " ".join(
-                    (
-                        await candidate.get_attribute("aria-label") or "",
-                        await candidate.get_attribute("title") or "",
-                        await candidate.inner_text(),
+        try:
+            edit_candidates = page.locator(
+                'main button[aria-label*="edit" i], '
+                'main button[title*="edit" i], '
+                'main [role="button"][aria-label*="edit" i], '
+                'main [role="button"][title*="edit" i]'
+            )
+            count = await edit_candidates.count()
+            for index in range(min(count, 30)):
+                candidate = edit_candidates.nth(index)
+                try:
+                    label = " ".join(
+                        (
+                            await candidate.get_attribute("aria-label") or "",
+                            await candidate.get_attribute("title") or "",
+                            await candidate.inner_text(),
+                        )
+                    ).strip().lower()
+                    # Explicitly labelled About edit control.
+                    if "about" in label:
+                        await candidate.click(timeout=5_000)
+                        clicked = True
+                        break
+    
+                    # Icon-only edit: walk its ancestors and verify the control is
+                    # inside the About card before clicking it.
+                    in_about = await candidate.evaluate(
+                        """el => {
+                            const norm = value => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                            let node = el;
+                            for (let i = 0; i < 10 && node; i += 1, node = node.parentElement) {
+                                const text = norm(node.innerText || node.textContent);
+                                if (/\\babout\\b/.test(text) && text.length < 12000) return true;
+                            }
+                            return false;
+                        }"""
                     )
-                ).strip().lower()
-                # Explicitly labelled About edit control.
-                if "about" in label:
-                    await candidate.click(timeout=5_000)
-                    clicked = True
-                    break
-
-                # Icon-only edit: walk its ancestors and verify the control is
-                # inside the About card before clicking it.
-                in_about = await candidate.evaluate(
-                    """el => {
-                        const norm = value => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-                        let node = el;
-                        for (let i = 0; i < 10 && node; i += 1, node = node.parentElement) {
-                            const text = norm(node.innerText || node.textContent);
-                            if (/\\babout\\b/.test(text) && text.length < 12000) return true;
-                        }
-                        return false;
-                    }"""
-                )
-                if in_about:
-                    await candidate.click(timeout=5_000)
-                    clicked = True
-                    break
-            except Exception:
-                continue
+                    if in_about:
+                        await candidate.click(timeout=5_000)
+                        clicked = True
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            # Test doubles and unusual layouts may not expose locator().
+            # Continue to the browser-DOM fallback below.
+            pass
 
         # JS fallback for a LinkedIn layout where the edit control is not a
         # standard button or where Playwright cannot resolve the generated node.
