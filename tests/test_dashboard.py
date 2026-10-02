@@ -433,9 +433,3 @@ def test_dashboard_has_recruiter_batch_approval_controls():
         "batch approval is limited to 30 actions",
     ]:
         assert marker in _HTML
-
-
-def test_dashboard_batch_approval_rejects_non_recruiter_actions(monkeypatch):
-    import sqlite3
-    import app.dashboard as dashboard
-    db_path = monkeypatch.tmpdir if hasattr(monkeypatch, "tmpdir") else None
