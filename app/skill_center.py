@@ -243,14 +243,21 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             }
             llm_error = str(exc)
         ai = _sanitize_certification_claims(ai, set(verified_certifications))
+        headline_options = (
+            [str(item) for item in ai.get("headline_options", []) if str(item).strip()]
+            if isinstance(ai.get("headline_options"), list)
+            else []
+        )
+        # Validate every headline option independently. A single safe option must
+        # not hide unsupported claims in another option shown to the user.
+        headline_grounding = [
+            validate_profile_drafts(profile_data, {"headline": option})["fields"]["headline"]
+            for option in headline_options
+        ]
         grounding = validate_profile_drafts(
             profile_data,
             {
-                "headline": (
-                    ai.get("headline_options", [""])[0]
-                    if isinstance(ai.get("headline_options"), list) and ai.get("headline_options")
-                    else ""
-                ),
+                "headline": headline_options[0] if headline_options else "",
                 "about": ai.get("about_draft", ""),
                 "experience": "\n".join(
                     str(item) for item in ai.get("experience_improvements", [])
@@ -258,6 +265,26 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                 ) if isinstance(ai.get("experience_improvements"), list) else "",
             },
         )
+        grounding["headline_options"] = [
+            {
+                "index": index + 1,
+                "text": option,
+                "status": option_result.get("status", "not_provided"),
+                "issues": option_result.get("issues", []),
+            }
+            for index, (option, option_result) in enumerate(zip(headline_options, headline_grounding))
+        ]
+        headline_blockers = [
+            {
+                "field": f"headline_option_{item['index']}",
+                **issue,
+            }
+            for item in grounding["headline_options"]
+            for issue in item.get("issues", [])
+        ]
+        if headline_blockers:
+            grounding["publishable"] = False
+            grounding["blocking_issues"] = list(grounding.get("blocking_issues", [])) + headline_blockers
         sections = baseline.get("sections", {})
         readable = {
             "title": "Profile Optimizer",

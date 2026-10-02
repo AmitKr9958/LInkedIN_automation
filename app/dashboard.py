@@ -592,6 +592,29 @@ function renderObjectResult(result,data){
    h+='<div class="result-fields result-summary"><div class="result-field"><span>Name</span><b>'+esc(profile.name||'Not detected')+'</b></div><div class="result-field"><span>Headline</span><b>'+esc(profile.headline||'Not detected')+'</b></div><div class="result-field"><span>Location</span><b>'+esc(profile.location||'Not detected')+'</b></div></div>';
    h+='<div class="result-subhead">Profile Audit</div><div class="result-fields result-summary">'+Object.entries(audit).map(([k,v])=>'<div class="result-field"><span>'+esc(k)+'</span><b>'+esc(String(v))+'</b></div>').join('')+'</div>';
    if(p.assessment) h+='<div class="result-subhead">Assessment</div><div class="result-message">'+esc(p.assessment)+'</div>';
+   const grounding=p.source_grounding||null;
+   if(grounding){
+     const publishable=grounding.publishable===true;
+     const issues=Array.isArray(grounding.blocking_issues)?grounding.blocking_issues:[];
+     const fields=grounding.fields&&typeof grounding.fields==='object'?grounding.fields:{};
+     const badge=publishable?'<span class="badge green">✓ SOURCE-GROUNDED</span>':'<span class="badge red">⚠ BLOCKED — REVIEW REQUIRED</span>';
+     h+='<div class="result-subhead">Source Grounding</div>';
+     h+='<div class="result-message"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">'+badge+'<span class="muted">'+esc(publishable?'No unsupported factual anchors detected.':'Unsupported factual anchors were detected. Do not publish these drafts until corrected.')+'</span></div></div>';
+     const fieldRows=Object.entries(fields).map(([field,info])=>{
+       const status=info?.status||'not_provided';
+       const cls=status==='safe'?'green':status==='blocked'?'red':'amber';
+       const label=status==='safe'?'Safe':status==='blocked'?'Blocked':'Not provided';
+       return '<div class="result-field"><span>'+esc(prettyKey(field))+'</span><b><span class="badge '+cls+'">'+label+'</span></b></div>';
+     }).join('');
+     if(fieldRows) h+='<div class="result-fields result-summary">'+fieldRows+'</div>';
+     if(issues.length){
+       h+='<div class="result-message" style="margin-top:8px"><b>Blocking issues</b><ul class="result-list">'+issues.map(issue=>{
+         const values=Array.isArray(issue.values)?' — '+issue.values.join(', '):'';
+         return '<li>'+esc(prettyKey(issue.field||'field')+': '+String(issue.message||issue.type||'Unsupported claim')+values)+'</li>';
+       }).join('')+'</ul></div>';
+     }
+   }
+   if(p.ai_error) h+='<div class="error"><b>AI warning:</b> '+esc(p.ai_error)+'</div>';
    const sections=[['Headline Recommendations',p.headline_recommendations],['About Recommendation',p.about_recommendation],['Experience Recommendations',p.experience_recommendations],['Skills to Highlight',p.skills_to_highlight],['Featured Recommendations',p.featured_recommendations],['Strengths',p.strengths],['Missing Information',p.missing_information],['Next Actions',p.next_actions]];
    sections.forEach(([title,value])=>{ if(!value || (Array.isArray(value)&&!value.length)) return; h+='<div class="result-subhead">'+esc(title)+'</div>'; if(Array.isArray(value)) h+='<ul class="result-list">'+list(value)+'</ul>'; else h+='<div class="result-message">'+esc(String(value))+'</div>'; });
    return h+'</div>';
