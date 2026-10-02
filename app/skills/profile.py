@@ -136,6 +136,13 @@ async def read_profile(page) -> ProfileSnapshot:
         "skills": await _read_profile_section(page, "skills"),
         "featured": await _read_profile_section(page, "featured"),
     }
+    # Final normalization pass is intentional: LinkedIn can render a section
+    # through a different route/control path, and every path must produce the
+    # same canonical terminology before scoring or approval fingerprinting.
+    sections = {
+        name: _clean_profile_section_text(value, name)
+        for name, value in sections.items()
+    }
 
     return ProfileSnapshot(
         state["authenticated"],
