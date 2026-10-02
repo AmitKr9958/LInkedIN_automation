@@ -200,9 +200,9 @@ def _safe_drafts(raw: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]
             if value and len(value) <= limit:
                 result[field] = value
 
-    source_numbers = set(re.findall(r"\\d+(?:\\.\\d+)?", json.dumps(profile, ensure_ascii=False)))
+    source_numbers = set(re.findall(r"\d+(?:\.\d+)?", json.dumps(profile, ensure_ascii=False)))
     for field, value in list(result.items()):
-        generated_numbers = set(re.findall(r"\\d+(?:\\.\\d+)?", value))
+        generated_numbers = set(re.findall(r"\d+(?:\.\d+)?", value))
         if not generated_numbers.issubset(source_numbers):
             result.pop(field, None)
     return result
