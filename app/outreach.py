@@ -217,11 +217,12 @@ def associate_people_with_jobs(
     limit_per_person: int = 1,
     minimum_score: int = 6,
 ) -> list[dict]:
-    """Attach the strongest already-read job evidence to each person.
+    """Attach only evidence-backed job context to each person.
 
-    Association is read-only and evidence based. A company match is the strongest
-    signal; role/domain and location overlap can support a weaker potential match.
-    No LinkedIn action is performed.
+    A specific job is treated as a strong association only when the person's
+    current company matches the job company. Generic role/domain overlap can
+    identify a useful potential lead, but it must not make a cross-company job
+    look like the person's vacancy.
     """
     output: list[dict] = []
     for person in people:
@@ -234,7 +235,7 @@ def associate_people_with_jobs(
             person_location,
             _person_value(person, "text"),
         ]))
-        best: list[tuple[int, dict, list[str]]] = []
+        best: list[tuple[int, dict, list[str], str]] = []
 
         for job in jobs:
             title = _job_value(job, "title")
@@ -243,46 +244,80 @@ def associate_people_with_jobs(
             if not title or not company:
                 continue
 
-            score = 0
             signals: list[str] = []
             person_company_norm = _norm(person_company)
             company_norm = _norm(company)
+            company_match = False
+            company_overlap = False
 
             if person_company_norm and company_norm:
                 if person_company_norm == company_norm:
-                    score += 8
+                    company_match = True
                     signals.append("company exact match")
                 elif person_company_norm in company_norm or company_norm in person_company_norm:
-                    score += 5
+                    company_overlap = True
                     signals.append("company name overlap")
 
             role_match, role_points, role_signals = _role_overlap(title, evidence)
-            if role_match:
-                score += role_points
-                signals.extend(role_signals)
-
             job_evidence = _norm(" ".join([
                 title, company, location, _job_value(job, "text")
             ]))
             person_domain_hits = [term for term in _DOMAIN_TERMS if term in evidence]
-            shared_domain = [
-                term for term in person_domain_hits
-                if term in job_evidence
-            ]
-            if shared_domain:
-                score += 2
-                signals.append("shared domain: " + ", ".join(shared_domain[:3]))
+            shared_domain = [term for term in person_domain_hits if term in job_evidence]
 
-            if _location_overlap(person_location, location):
-                score += 1
-                signals.append("location overlap")
-
-            if any(_has_role_signal(evidence, value) for value in (
+            hiring_evidence = any(_has_role_signal(
+                evidence, value
+            ) for value in (
                 "recruiter", "recruiting", "recruitment", "talent acquisition",
                 "hiring", "sourcing",
-            )):
-                score += 2
-                signals.append("hiring-function evidence")
+            ))
+
+            if company_match:
+                score = 8
+                signals_for_score = list(signals)
+                if role_match:
+                    score += role_points
+                    signals_for_score.extend(role_signals)
+                if shared_domain:
+                    score += 2
+                    signals_for_score.append(
+                        "shared domain: " + ", ".join(shared_domain[:3])
+                    )
+                if _location_overlap(person_location, location):
+                    score += 1
+                    signals_for_score.append("location overlap")
+                if hiring_evidence:
+                    score += 2
+                    signals_for_score.append("hiring-function evidence")
+                association = "company_match"
+            else:
+                # Cross-company jobs are useful as leads only when there is
+                # meaningful role evidence. Generic domain overlap alone is
+                # intentionally insufficient to attach a specific vacancy.
+                if not role_match:
+                    continue
+                score = role_points
+                signals_for_score = list(role_signals)
+                if company_overlap:
+                    score += 2
+                    signals_for_score.append("company name overlap")
+                if shared_domain:
+                    score += 2
+                    signals_for_score.append(
+                        "shared domain: " + ", ".join(shared_domain[:3])
+                    )
+                if _location_overlap(person_location, location):
+                    score += 1
+                    signals_for_score.append("location overlap")
+                if hiring_evidence:
+                    score += 2
+                    signals_for_score.append("hiring-function evidence")
+
+                # Potential matches must have stronger evidence than a generic
+                # recruiter + data profile. Keep the minimum threshold explicit.
+                if score < max(7, minimum_score + 1):
+                    continue
+                association = "potential_match"
 
             if score >= minimum_score:
                 best.append((
@@ -294,10 +329,15 @@ def associate_people_with_jobs(
                         "url": _job_value(job, "url") or _job_value(job, "href"),
                         "posted": _job_value(job, "posted"),
                     },
-                    signals,
+                    signals_for_score,
+                    association,
                 ))
 
-        best.sort(key=lambda item: (item[0], bool(item[1].get("url"))), reverse=True)
+        best.sort(key=lambda item: (
+            item[0],
+            item[3] == "company_match",
+            bool(item[1].get("url")),
+        ), reverse=True)
         selected = best[: max(1, int(limit_per_person))]
         item = {
             "person": person,
@@ -306,13 +346,9 @@ def associate_people_with_jobs(
                     "job": job,
                     "score": score,
                     "signals": signals,
-                    "association": (
-                        "company_match"
-                        if any("company exact match" in signal for signal in signals)
-                        else "potential_match"
-                    ),
+                    "association": association,
                 }
-                for score, job, signals in selected
+                for score, job, signals, association in selected
             ],
         }
         output.append(item)
