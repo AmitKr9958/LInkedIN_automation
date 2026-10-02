@@ -272,7 +272,14 @@ def _is_plausible_details_section(text: str, section_name: str) -> bool:
     lowered = normalized.lower()
     if len(normalized) < _DETAILS_MIN_CHARS:
         return False
-    if any(marker in lowered for marker in _DETAILS_FALSE_POSITIVE_MARKERS):
+    # Details pages contain shared LinkedIn chrome (for example Activity,
+    # Followers, or Profile language). Those words must not invalidate an
+    # otherwise valid section. Reject only when the candidate itself is clearly
+    # a recommendation/navigation payload.
+    if section_name == "experience" and re.match(
+        r"(?i)^(?:connect|people you may know|who your viewers also viewed)\\b",
+        normalized,
+    ):
         return False
     if section_name == "experience":
         # Real experience pages contain employment/date signals. This prevents
