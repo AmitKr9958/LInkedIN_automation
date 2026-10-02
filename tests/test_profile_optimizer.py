@@ -130,3 +130,17 @@ def test_profile_optimizer_ai_receives_full_target_context(monkeypatch):
     assert "target_roles" in captured["user"]
     assert "target_locations" in captured["user"]
     assert report.drafts["headline"]
+
+
+from app.profile_optimizer import profile_fingerprint
+
+
+def test_profile_fingerprint_changes_when_profile_changes():
+    profile = {
+        "url": "https://www.linkedin.com/in/example/", "name": "Example",
+        "headline": "Power BI Developer", "location": "Delhi", "about": "SQL DAX",
+        "experience": "Built dashboards", "skills": "Power BI", "featured": "Project",
+    }
+    first = profile_fingerprint(profile)
+    assert first != profile_fingerprint(dict(profile, headline="Senior Power BI Developer"))
+    assert first == profile_fingerprint(dict(profile))
