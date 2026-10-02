@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .job_preferences import DEFAULT_JOB_PREFERENCES
@@ -55,7 +55,7 @@ def _keyword_hits(text: str, terms: list[str]) -> list[str]:
 
 
 def _has_metric(text: str) -> bool:
-    return bool(re.search(r"\\b\\d+(?:\\.\\d+)?\\s*(?:%|percent|x|years?|months?)\\b", text, re.I))
+    return bool(re.search(r"\b\d+(?:\.\d+)?\s*(?:%|percent|x|years?|months?)\b", text, re.I))
 
 
 def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[int, list[dict[str, Any]]]:
@@ -96,7 +96,7 @@ def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[i
             score += 20
         else:
             findings.append({"severity": "medium", "section": name, "issue": "add quantified outcomes that are already true"})
-        if re.search(r"\\b(?:recruit|open to|contact|connect|opportunit)", text, re.I):
+        if re.search(r"\b(?:recruit|open to|contact|connect|opportunit)", text, re.I):
             score += 10
         else:
             findings.append({"severity": "low", "section": name, "issue": "consider a concise recruiter-facing closing"})
@@ -113,7 +113,7 @@ def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[i
             score += 25
         else:
             findings.append({"severity": "high", "section": name, "issue": "experience lacks quantified outcomes"})
-        if re.search(r"\\b(?:built|developed|automated|optimized|reduced|improved|led|delivered|designed)\\b", text, re.I):
+        if re.search(r"\b(?:built|developed|automated|optimized|reduced|improved|led|delivered|designed)\b", text, re.I):
             score += 10
         else:
             findings.append({"severity": "low", "section": name, "issue": "use action + result language"})
@@ -218,19 +218,22 @@ def generate_profile_optimization(
 
     if use_llm and is_configured():
         system = (
-            "You are a conservative LinkedIn profile editor. Return JSON only. "
-            "Use ONLY facts, technologies, employers, achievements and numbers present "
-            "in the supplied profile. Never invent metrics, employers, titles, certifications "
-            "or years. Improve recruiter discoverability for Power BI/BI/Data Analyst roles. "
-            "Draft only; never describe or perform browser actions."
+            "You are the senior AI strategist for a LinkedIn profile optimization workflow. "
+            "Return JSON only. Analyze the profile first, then produce practical improvements "
+            "for recruiter search relevance, clarity, credible positioning, achievement evidence, "
+            "keyword coverage, and consistency. Use ONLY facts, technologies, employers, "
+            "achievements and numbers present in the supplied profile. Never invent metrics, "
+            "employers, titles, certifications, dates, years, tools, projects, responsibilities, "
+            "or outcomes. If evidence is missing, recommend adding it rather than fabricating it. "
+            "Keep keywords natural; do not stuff keywords. Draft only; never perform browser actions."
         )
         user = json.dumps(
             {
                 "profile": profile,
                 "audit": audit,
-                "target_roles": DEFAULT_JOB_PREFERENCES.keywords[:12],
+                "target_roles": DEFAULT_JOB_PREFERENCES.keywords,\n                "target_locations": DEFAULT_JOB_PREFERENCES.locations,
                 "required_limits": SECTION_LIMITS,
-                "schema": {"drafts": {"headline": "string", "about": "string", "experience": "string"}},
+                "schema": {\n                    "positioning": "one concise positioning statement grounded in the profile",\n                    "priority_actions": ["3-7 prioritized evidence-based improvements"],\n                    "keyword_strategy": ["relevant supported keywords to surface naturally"],\n                    "section_notes": {"headline": "string", "about": "string", "experience": "string"},\n                    "drafts": {"headline": "string", "about": "string", "experience": "string"},\n                },
             },
             ensure_ascii=False,
         )
@@ -250,7 +253,7 @@ def generate_profile_optimization(
         matched_keywords=audit["matched_keywords"],
         missing_keywords=audit["missing_keywords"],
         findings=audit["findings"],
-        recommendations=audit["recommendations"],
+        recommendations=audit["recommendations"] + list(ai_insights.get("priority_actions", [])),
         drafts=drafts,
         llm_used=llm_used,
         llm_error=llm_error,
