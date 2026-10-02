@@ -277,7 +277,7 @@ def _is_plausible_details_section(text: str, section_name: str) -> bool:
     # otherwise valid section. Reject only when the candidate itself is clearly
     # a recommendation/navigation payload.
     if section_name == "experience" and re.match(
-        r"(?i)^(?:connect|people you may know|who your viewers also viewed)\\b",
+        r"(?i)^(?:connect|people you may know|who your viewers also viewed)\b",
         normalized,
     ):
         return False
