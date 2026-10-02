@@ -17,6 +17,8 @@ def test_discovery_report_logs_activity(monkeypatch, tmp_path):
                 "company": "Example",
                 "location": "Gurgaon",
                 "url": "https://www.linkedin.com/jobs/view/123/",
+                "posted_hours": 1,
+                "posted_text": "1 hour ago",
             }
         ]
     )
