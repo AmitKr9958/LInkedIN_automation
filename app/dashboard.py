@@ -15,7 +15,6 @@ from .run_status import read_run_status
 from .skill_center import skill_catalog, run_skill
 from .store import list_activity
 from .application_tracker import ApplicationTracker, STATUSES, TRANSITIONS
-from .history import History
 from .job_preferences import DEFAULT_JOB_PREFERENCES
 
 
@@ -92,7 +91,11 @@ def _task_get(task_id: str) -> dict | None:
 
 
 def _db(path: str):
-    con = sqlite3.connect(path, timeout=2.0)
+    # Dashboard reads must never wait behind an agent write for seconds. SQLite
+    # returns a controlled OperationalError on contention; _safe_section then
+    # renders the affected panel with a warning instead of hanging the API.
+    con = sqlite3.connect(path, timeout=0.5)
+    con.execute("PRAGMA busy_timeout=500")
     con.row_factory = sqlite3.Row
     return con
 
@@ -150,17 +153,26 @@ def _summary() -> dict:
             return count, out
 
     def load_jobs():
-        # Ensure the job-history schema is migrated before applying the strict
-        # freshness contract. Unknown posting ages are excluded, matching the
-        # agent's runtime policy.
-        History(activity)
+        # This endpoint is read-only. Do not run History() migrations here because
+        # they acquire a write lock and can make /api/summary appear to hang while
+        # the scheduled agent is writing the shared SQLite database.
         with _db(activity) as db:
             freshness_hours = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
             cutoff = datetime.now(timezone.utc) - timedelta(hours=freshness_hours)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(job_history)").fetchall()}
+            required = {"posted_hours", "posted_text", "posted_at"}
+            if required.issubset(columns):
+                select = (
+                    "id,title,company,location,url,score,reasons,status,first_seen,"
+                    "posted_hours,posted_text,posted_at"
+                )
+            else:
+                # Older local databases may not have the posting metadata yet.
+                # Keep the dashboard readable without performing a migration in a
+                # GET request; unknown posting ages are excluded below.
+                select = "id,title,company,location,url,score,reasons,status,first_seen"
             raw_rows = db.execute(
-                "SELECT id,title,company,location,url,score,reasons,status,first_seen,"
-                "posted_hours,posted_text,posted_at "
-                "FROM job_history ORDER BY id DESC LIMIT 1000"
+                "SELECT " + select + " FROM job_history ORDER BY id DESC LIMIT 1000"
             ).fetchall()
 
             def _parse_dt(value):
@@ -174,14 +186,14 @@ def _summary() -> dict:
 
             rows = []
             for row in raw_rows:
-                posted_at = _parse_dt(row["posted_at"])
+                posted_at = _parse_dt(row["posted_at"]) if "posted_at" in row.keys() else None
                 if posted_at is None:
                     # Legacy rows may have only a captured numeric age. Reconstruct
                     # the approximate posting timestamp from first_seen rather than
                     # treating the stored age as if it were still current.
                     first_seen = _parse_dt(row["first_seen"])
                     try:
-                        age = float(row["posted_hours"]) if row["posted_hours"] is not None else None
+                        age = float(row["posted_hours"]) if "posted_hours" in row.keys() and row["posted_hours"] is not None else None
                     except (TypeError, ValueError):
                         age = None
                     if first_seen is not None and age is not None and age >= 0:
@@ -213,8 +225,8 @@ def _summary() -> dict:
                         "reasons": r["reasons"],
                         "status": r["status"],
                         "workplace_type": workplace_type,
-                        "posted": r["posted_text"] or "",
-                        "posted_hours": r["posted_hours"],
+                        "posted": (r["posted_text"] if "posted_text" in r.keys() else None) or "",
+                        "posted_hours": r["posted_hours"] if "posted_hours" in r.keys() else None,
                         "updated_at": r["first_seen"],
                     }
                 )

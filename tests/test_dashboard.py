@@ -257,3 +257,28 @@ def test_dashboard_uses_30_minute_cadence_and_clear_empty_application_values():
     assert "displayApplicationValue(x.applied_at)" in _HTML
     assert "displayApplicationValue(x.next_follow_up)" in _HTML
     assert "displayApplicationValue(x.recruiter)" in _HTML
+
+
+def test_dashboard_db_reader_uses_short_busy_timeout():
+    import inspect
+    import app.dashboard as dashboard
+
+    source = inspect.getsource(dashboard._db)
+    assert "timeout=0.5" in source
+    assert "busy_timeout=500" in source
+
+
+def test_dashboard_summary_does_not_run_history_migration(monkeypatch, tmp_path):
+    import sqlite3
+    import app.dashboard as dashboard
+
+    db_path = tmp_path / "data" / "activity.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            "CREATE TABLE job_history(id INTEGER PRIMARY KEY, title TEXT, company TEXT, location TEXT, url TEXT, score REAL, reasons TEXT, status TEXT, first_seen TEXT, posted_hours REAL, posted_text TEXT, posted_at TEXT)"
+        )
+        db.commit()
+
+    monkeypatch.setattr(dashboard, "ROOT", tmp_path)
+    dashboard._summary()
