@@ -286,6 +286,38 @@ def _details_url_matches(current_url: str, slug: str, section_name: str) -> bool
     return path == f"/in/{slug}{_DETAILS_PATHS[section_name].rstrip('/')}"
 
 
+_SECTION_NOISE_MARKERS = (
+    "who your viewers also viewed",
+    "people you may know",
+    "people also viewed",
+    "recommended for you",
+    "more profiles for you",
+    "explore premium profiles",
+    "you might like",
+    "about accessibility",
+)
+
+
+def _clean_profile_section_text(raw: str, section_name: str = "") -> str:
+    """Remove unrelated recommendation/footer UI from extracted profile sections."""
+    text = " ".join(str(raw or "").split())
+    if not text:
+        return ""
+    lowered = text.lower()
+    cut = len(text)
+    for marker in _SECTION_NOISE_MARKERS:
+        idx = lowered.find(marker)
+        if idx != -1:
+            cut = min(cut, idx)
+    cleaned = text[:cut].strip()
+    # A section heading can be returned as part of its own content by some
+    # LinkedIn layouts. Keep the content but remove only the heading prefix.
+    heading = _normalize_section_heading(section_name)
+    if heading and cleaned.lower().startswith(heading):
+        cleaned = cleaned[len(heading):].lstrip(" :-–—")
+    return cleaned
+
+
 def _clean_details_text(raw: str) -> str:
     text = " ".join(str(raw or "").split())
     lowered = text.lower()
@@ -294,7 +326,7 @@ def _clean_details_text(raw: str) -> str:
         idx = lowered.find(marker)
         if idx != -1:
             cut = min(cut, idx)
-    return text[:cut].strip()[:_DETAILS_MAX_CHARS]
+    return _clean_profile_section_text(text, "")[:_DETAILS_MAX_CHARS]
 
 
 async def _read_profile_details_page(page, section_name: str) -> str:
