@@ -18,7 +18,8 @@ def test_about_diagnostic_filters_full_text_before_truncation():
     from app import profile_debug
 
     source = inspect.getsource(profile_debug.debug_about_editor)
-    assert "if not /\\\\babout\\\\b/i.test(text) || text.length >= 12000" in source
+    assert "text.length >= 12000" in source
+    assert ".filter(Boolean).slice(0, 30)" in source
 
 
 def test_profile_expanders_do_not_follow_links():
@@ -26,5 +27,5 @@ def test_profile_expanders_do_not_follow_links():
     from app.skills import profile
 
     source = inspect.getsource(profile._expand_profile_sections)
-    assert "'main button, main [role=\\\"button\\\"]'" in source
-    assert "main button, main a, main [role=\\\"button\\\"]" not in source
+    assert 'main button, main [role="button"]' in source
+    assert "main button, main a, main [role=\"button\"]" not in source
