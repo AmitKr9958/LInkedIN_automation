@@ -282,3 +282,91 @@ def test_dashboard_summary_does_not_run_history_migration(monkeypatch, tmp_path)
 
     monkeypatch.setattr(dashboard, "ROOT", tmp_path)
     dashboard._summary()
+
+def test_dashboard_applications_filters_stale_posting_age_without_deleting_records(monkeypatch, tmp_path):
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+    import app.dashboard as dashboard
+
+    now = datetime.now(timezone.utc)
+    fresh_posted_at = (now - timedelta(hours=2)).isoformat()
+    old_posted_at = (now - timedelta(hours=20)).isoformat()
+    first_seen = (now - timedelta(hours=1)).isoformat()
+
+    db_path = tmp_path / "data" / "activity.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as db:
+        db.row_factory = sqlite3.Row
+        db.execute(
+            """CREATE TABLE applications(
+                job_url TEXT PRIMARY KEY, title TEXT, company TEXT, status TEXT,
+                updated_at TEXT, notes TEXT, discovered_at TEXT, applied_at TEXT,
+                source TEXT, location TEXT, recruiter TEXT, resume_version TEXT,
+                next_follow_up TEXT, interview_date TEXT, salary_notes TEXT
+            )"""
+        )
+        db.execute(
+            """CREATE TABLE job_history(
+                id INTEGER PRIMARY KEY, title TEXT, company TEXT, location TEXT,
+                url TEXT, score REAL, reasons TEXT, status TEXT, first_seen TEXT,
+                posted_hours REAL, posted_text TEXT, posted_at TEXT
+            )"""
+        )
+        db.execute(
+            "INSERT INTO applications VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("fresh", "Fresh BI", "Fresh Co", "new", now.isoformat(), "", first_seen, "", "", "Gurgaon", "", "", "", "", ""),
+        )
+        db.execute(
+            "INSERT INTO applications VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("old", "Old BI", "Old Co", "new", now.isoformat(), "", first_seen, "", "", "Gurgaon", "", "", "", "", ""),
+        )
+        db.execute(
+            "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (1, "Fresh BI", "Fresh Co", "Gurgaon", "fresh", 80, "fresh", "new", first_seen, 2, "2 hours ago", fresh_posted_at),
+        )
+        db.execute(
+            "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (2, "Old BI", "Old Co", "Gurgaon", "old", 80, "old", "new", first_seen, 20, "20 hours ago", old_posted_at),
+        )
+        db.commit()
+
+    monkeypatch.setattr(dashboard, "ROOT", tmp_path)
+    summary = dashboard._summary()
+
+    assert summary["application_count"] == 1
+    assert [item["title"] for item in summary["applications"]] == ["Fresh BI"]
+
+    with sqlite3.connect(db_path) as db:
+        assert db.execute("SELECT COUNT(*) FROM applications").fetchone()[0] == 2
+
+
+def test_dashboard_applications_exclude_unknown_age(monkeypatch, tmp_path):
+    import sqlite3
+    import app.dashboard as dashboard
+
+    db_path = tmp_path / "data" / "activity.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            """CREATE TABLE applications(
+                job_url TEXT PRIMARY KEY, title TEXT, company TEXT, status TEXT,
+                updated_at TEXT, notes TEXT, discovered_at TEXT
+            )"""
+        )
+        db.execute(
+            "INSERT INTO applications VALUES(?,?,?,?,?,?,?)",
+            ("unknown", "Unknown BI", "Unknown Co", "new", "not-a-date", "", "not-a-date"),
+        )
+        db.execute(
+            """CREATE TABLE job_history(
+                id INTEGER PRIMARY KEY, title TEXT, company TEXT, location TEXT,
+                url TEXT, score REAL, reasons TEXT, status TEXT, first_seen TEXT,
+                posted_hours REAL, posted_text TEXT, posted_at TEXT
+            )"""
+        )
+        db.commit()
+
+    monkeypatch.setattr(dashboard, "ROOT", tmp_path)
+    summary = dashboard._summary()
+    assert summary["application_count"] == 0
+    assert summary["applications"] == []
