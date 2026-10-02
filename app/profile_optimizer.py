@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .job_preferences import DEFAULT_JOB_PREFERENCES
@@ -28,6 +28,7 @@ class ProfileOptimizationReport:
     drafts: dict[str, Any]
     llm_used: bool
     llm_error: str | None = None
+    ai_insights: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -55,7 +56,7 @@ def _keyword_hits(text: str, terms: list[str]) -> list[str]:
 
 
 def _has_metric(text: str) -> bool:
-    return bool(re.search(r"\\b\\d+(?:\\.\\d+)?\\s*(?:%|percent|x|years?|months?)\\b", text, re.I))
+    return bool(re.search(r"\b\d+(?:\.\d+)?\s*(?:%|percent|x|years?|months?)", text, re.I))
 
 
 def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[int, list[dict[str, Any]]]:
@@ -96,7 +97,7 @@ def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[i
             score += 20
         else:
             findings.append({"severity": "medium", "section": name, "issue": "add quantified outcomes that are already true"})
-        if re.search(r"\\b(?:recruit|open to|contact|connect|opportunit)", text, re.I):
+        if re.search(r"\b(?:recruit|open to|contact|connect|opportunit)", text, re.I):
             score += 10
         else:
             findings.append({"severity": "low", "section": name, "issue": "consider a concise recruiter-facing closing"})
@@ -113,7 +114,7 @@ def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[i
             score += 25
         else:
             findings.append({"severity": "high", "section": name, "issue": "experience lacks quantified outcomes"})
-        if re.search(r"\\b(?:built|developed|automated|optimized|reduced|improved|led|delivered|designed)\\b", text, re.I):
+        if re.search(r"\b(?:built|developed|automated|optimized|reduced|improved|led|delivered|designed)\b", text, re.I):
             score += 10
         else:
             findings.append({"severity": "low", "section": name, "issue": "use action + result language"})
@@ -213,33 +214,67 @@ def generate_profile_optimization(
 ) -> ProfileOptimizationReport:
     audit = audit_profile(profile)
     drafts: dict[str, Any] = {}
+    ai_insights: dict[str, Any] = {}
     llm_used = False
     llm_error: str | None = None
 
     if use_llm and is_configured():
         system = (
-            "You are a conservative LinkedIn profile editor. Return JSON only. "
-            "Use ONLY facts, technologies, employers, achievements and numbers present "
-            "in the supplied profile. Never invent metrics, employers, titles, certifications "
-            "or years. Improve recruiter discoverability for Power BI/BI/Data Analyst roles. "
-            "Draft only; never describe or perform browser actions."
+            "You are the senior AI strategist for a LinkedIn profile optimization workflow. "
+            "Return JSON only. Analyze the profile first, then produce practical improvements "
+            "for recruiter search relevance, clarity, credible positioning, achievement evidence, "
+            "keyword coverage, and consistency. Use ONLY facts, technologies, employers, "
+            "achievements and numbers present in the supplied profile. Never invent metrics, "
+            "employers, titles, certifications, dates, years, tools, projects, responsibilities, "
+            "or outcomes. If evidence is missing, recommend adding it rather than fabricating it. "
+            "Keep keywords natural; do not stuff keywords. Draft only; never perform browser actions."
         )
         user = json.dumps(
             {
                 "profile": profile,
                 "audit": audit,
-                "target_roles": DEFAULT_JOB_PREFERENCES.keywords[:12],
+                "target_roles": DEFAULT_JOB_PREFERENCES.keywords,
+                "target_locations": DEFAULT_JOB_PREFERENCES.locations,
                 "required_limits": SECTION_LIMITS,
-                "schema": {"drafts": {"headline": "string", "about": "string", "experience": "string"}},
+                "schema": {
+                    "positioning": "one concise positioning statement grounded in the profile",
+                    "priority_actions": ["3-7 prioritized evidence-based improvements"],
+                    "keyword_strategy": ["relevant supported keywords to surface naturally"],
+                    "section_notes": {
+                        "headline": "string",
+                        "about": "string",
+                        "experience": "string",
+                    },
+                    "drafts": {
+                        "headline": "string",
+                        "about": "string",
+                        "experience": "string",
+                    },
+                },
             },
             ensure_ascii=False,
         )
         try:
-            drafts = _safe_drafts(
-                chat_json(system=system, user=user, temperature=0.1, max_tokens=2600),
-                profile,
-            )
-            llm_used = bool(drafts)
+            ai_raw = chat_json(system=system, user=user, temperature=0.1, max_tokens=3200)
+            drafts = _safe_drafts(ai_raw, profile)
+            if isinstance(ai_raw, dict):
+                positioning = ai_raw.get("positioning")
+                if isinstance(positioning, str) and positioning.strip():
+                    ai_insights["positioning"] = positioning.strip()[:600]
+                for key in ("priority_actions", "keyword_strategy"):
+                    value = ai_raw.get(key)
+                    if isinstance(value, list):
+                        ai_insights[key] = [
+                            str(item).strip() for item in value if str(item).strip()
+                        ][:7]
+                notes = ai_raw.get("section_notes")
+                if isinstance(notes, dict):
+                    ai_insights["section_notes"] = {
+                        section: str(note).strip()[:600]
+                        for section, note in notes.items()
+                        if section in SECTION_LIMITS and str(note).strip()
+                    }
+            llm_used = bool(drafts or ai_insights)
         except LLMError as exc:
             llm_error = str(exc)
 
@@ -250,8 +285,11 @@ def generate_profile_optimization(
         matched_keywords=audit["matched_keywords"],
         missing_keywords=audit["missing_keywords"],
         findings=audit["findings"],
-        recommendations=audit["recommendations"],
+        recommendations=audit["recommendations"] + list(
+            ai_insights.get("priority_actions", [])
+        ),
         drafts=drafts,
         llm_used=llm_used,
         llm_error=llm_error,
+        ai_insights=ai_insights,
     )
