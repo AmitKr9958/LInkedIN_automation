@@ -393,7 +393,7 @@ def test_about_edit_dialog_uses_icon_only_fallback_without_save():
         async def evaluate(self, script, *args):
             self.calls += 1
             if self.calls == 1:
-                assert "nearest edit control" in script
+                assert "About" in script
                 return True
             assert "textarea" in script
             return "Full About content from the LinkedIn editor."
