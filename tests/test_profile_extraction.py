@@ -55,6 +55,18 @@ def test_profile_text_normalization_repairs_flattened_inline_nodes():
     assert "2 mos Handled" in cleaned
 
 
+def test_live_profile_artifacts_are_repaired_without_camelcase_corruption():
+    raw = (
+        "75% queryperformance improvement refreshTechnical stack "
+        "speedby 20% metrics,enabling 2 mosHandled"
+    )
+    cleaned = profile._normalize_linkedin_extracted_text(raw)
+    assert cleaned == (
+        "75% query performance improvement refresh Technical stack "
+        "speed by 20% metrics, enabling 2 mos Handled"
+    )
+
+
 def test_about_footer_is_removed_and_featured_placeholder_is_empty():
     about = profile._clean_profile_section_text(
         "Real About content … more Top skills Microsoft Power BI • DAX",
