@@ -71,4 +71,4 @@ def test_profile_optimizer_keeps_read_only_audit_when_llm_returns_non_json(monke
     assert result["readable_result"]["section_audit"]["Headline"] == "Found"
     assert result["readable_result"]["section_audit"]["About"] == "Found"
     assert result["readable_result"]["ai_error"]
-    assert "No LinkedIn profile changes were made" in result["message"]
+    assert "no LinkedIn profile changes were made" in result["message"]
