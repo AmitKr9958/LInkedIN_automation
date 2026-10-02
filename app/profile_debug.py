@@ -4,25 +4,36 @@ from __future__ import annotations
 from typing import Any
 
 
-async def _prepare_profile(page) -> None:
-    """Load lazy profile content before inspecting the live DOM."""
+async def _prepare_profile(page) -> str:
+    """Load lazy profile content while keeping diagnostics on the configured profile."""
     try:
-        from .linkedin_reader import _scroll_profile_to_bottom, _expand_profile_sections
+        from .skills.profile import _expand_profile_sections, _scroll_profile_to_bottom
+        from .config import settings
 
+        expected_url = str(settings.profile_url or "").strip()
         await _scroll_profile_to_bottom(page, max_rounds=30)
         await _expand_profile_sections(page)
-        # Give lazy-rendered cards a little time to mount, then return to the
-        # About area near the top without changing any profile data.
         await page.wait_for_timeout(1000)
+
+        if expected_url and page.url.rstrip("/") != expected_url.rstrip("/"):
+            await page.goto(expected_url, wait_until="domcontentloaded", timeout=45_000)
+            await page.wait_for_timeout(1500)
+            await _scroll_profile_to_bottom(page, max_rounds=12)
+            await page.evaluate("window.scrollTo(0, 0)")
+            await page.wait_for_timeout(750)
+            return "" if page.url.rstrip("/") == expected_url.rstrip("/") else (
+                f"prepare:navigation_guard_failed:{page.url}"
+            )
+
         await page.evaluate("window.scrollTo(0, 0)")
         await page.wait_for_timeout(750)
-    except Exception:
-        # Diagnostics should still return useful evidence if a helper changes.
+        return ""
+    except Exception as exc:
         try:
             await page.evaluate("window.scrollTo(0, 0)")
         except Exception:
             pass
-
+        return f"prepare:{type(exc).__name__}:{exc}"
 
 async def debug_about_editor(page) -> dict[str, Any]:
     result = {
@@ -47,8 +58,11 @@ async def debug_about_editor(page) -> dict[str, Any]:
     except Exception as exc:
         result["errors"].append(f"session:{type(exc).__name__}:{exc}")
 
-    await _prepare_profile(page)
-    result["actions"].append("profile_scrolled_and_lazy_content_prepared")
+    prepare_error = await _prepare_profile(page)
+    if prepare_error:
+        result["errors"].append(prepare_error)
+    else:
+        result["actions"].append("profile_scrolled_and_lazy_content_prepared")
 
     try:
         headings = page.locator(
@@ -71,13 +85,9 @@ async def debug_about_editor(page) -> dict[str, Any]:
             r"""els => els.map((el, i) => {
                 const text = (el.innerText || el.textContent || '')
                     .replace(/\s+/g, ' ').trim();
-                return {
-                    index: i,
-                    tag: el.tagName,
-                    text: text.slice(0, 500)
-                };
-            }).filter(x => /\babout\b/i.test(x.text) && x.text.length < 12000)
-              .slice(0, 30)"""
+                if (!/\babout\b/i.test(text) || text.length >= 12000) return null;
+                return {index: i, tag: el.tagName, text: text.slice(0, 500)};
+            }).filter(Boolean).slice(0, 30)"""
         )
     except Exception as exc:
         result["errors"].append(f"about_text:{type(exc).__name__}:{exc}")
@@ -87,34 +97,46 @@ async def debug_about_editor(page) -> dict[str, Any]:
             "main button, main a, main [role='button'], main [data-control-name]"
         )
         result["edit_candidates"] = await controls.evaluate_all(
-            r"""els => els.map((el, i) => {
-                const n = value => (value || '').replace(/\s+/g, ' ').trim();
-                const label = n(el.getAttribute('aria-label'));
-                const title = n(el.getAttribute('title'));
-                const text = n(el.innerText || el.textContent);
-                const hay = [label, title, text].join(' ');
-                if (!/\bedit\b/i.test(hay)) return null;
-                let node = el;
-                let aboutScope = false;
-                let scopeText = '';
-                for (let d = 0; d < 12 && node; d += 1, node = node.parentElement) {
-                    const scope = n(node.innerText || node.textContent);
-                    if (/\babout\b/i.test(scope) && scope.length < 12000) {
-                        aboutScope = true;
-                        scopeText = scope.slice(0, 700);
-                        break;
+            r"""els => {
+                const norm = value => (value || '').replace(/\s+/g, ' ').trim();
+                const candidates = [];
+                for (let i = 0; i < els.length; i += 1) {
+                    const el = els[i];
+                    const label = norm(el.getAttribute('aria-label'));
+                    const title = norm(el.getAttribute('title'));
+                    const text = norm(el.innerText || el.textContent);
+                    const hay = [label, title, text].join(' ');
+                    if (!/\bedit\b/i.test(hay)) continue;
+
+                    let owner = null;
+                    let node = el;
+                    for (let depth = 0; depth < 9 && node; depth += 1, node = node.parentElement) {
+                        const heading = Array.from(node.querySelectorAll(
+                            ':scope h2, :scope h3, :scope h4, :scope [role="heading"], :scope [aria-level]'
+                        )).find(h => /^about$/i.test(norm(h.innerText || h.textContent)));
+                        const ownText = norm(node.innerText || node.textContent);
+                        const hasAboutHeading = Boolean(heading);
+                        const explicitAbout = /\babout\b/i.test(label + ' ' + title);
+                        if (hasAboutHeading || explicitAbout) {
+                            owner = node;
+                            break;
+                        }
+                        if (/^about$/i.test(ownText) && ownText.length < 12000) {
+                            owner = node.parentElement || node;
+                            break;
+                        }
                     }
+                    if (!owner) continue;
+                    const scopeText = norm(owner.innerText || owner.textContent);
+                    if (scopeText.length >= 12000 || !/\babout\b/i.test(scopeText + ' ' + label + ' ' + title)) continue;
+                    candidates.push({
+                        index: i, tag: el.tagName, label, title,
+                        text: text.slice(0, 250), aboutScope: true,
+                        scopeText: scopeText.slice(0, 700)
+                    });
                 }
-                return {
-                    index: i,
-                    tag: el.tagName,
-                    label,
-                    title,
-                    text: text.slice(0, 250),
-                    aboutScope,
-                    scopeText
-                };
-            }).filter(Boolean).slice(0, 80)"""
+                return candidates.slice(0, 50);
+            }"""
         )
     except Exception as exc:
         result["errors"].append(f"candidates:{type(exc).__name__}:{exc}")
