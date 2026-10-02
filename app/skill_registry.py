@@ -10,7 +10,7 @@ SKILLS = [
     Skill("auth", "Login/session verification"),
     Skill("profile", "Profile, headline, about, experience and skills"),
     Skill("jobs", "Job search and job detail extraction"),
-    Skill("people", "People and recruiter research"),
+    Skill("people", "People and hiring-contact research using job/company evidence"),
     Skill("companies", "Company page research"),
     Skill("posts", "Post extraction and content workflows"),
     Skill("saved", "Saved-post extraction and organization"),

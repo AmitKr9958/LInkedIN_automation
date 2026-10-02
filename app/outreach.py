@@ -17,23 +17,39 @@ class OutreachTarget:
     target_type: str = ""
     job_url: str = ""
     relevance_reason: str = ""
+    relevance_score: int = 0
+    matching_signals: list[str] | None = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        data = asdict(self)
+        data["matching_signals"] = list(self.matching_signals or [])
+        return data
 
 
-ROLE_PATTERNS = {
-    "recruiter": re.compile(r"\b(recruiter|talent acquisition|technical recruiter|recruiting)\b", re.I),
-    "hr": re.compile(r"\b(hr|human resources|people partner|talent partner)\b", re.I),
-    "hiring_manager": re.compile(r"\b(hiring manager|head of|director|vp|vice president|manager|lead)\b", re.I),
+_ROLE_SIGNALS = {
+    "recruiter": (
+        "recruiter", "technical recruiter", "recruiting", "recruitment",
+        "talent acquisition", "talent sourcing", "sourcing",
+    ),
+    "hr": (
+        "hr", "human resources", "people partner", "people operations",
+        "talent partner", "people & culture",
+    ),
+    "hiring_manager": (
+        "hiring manager", "department manager", "team manager",
+        "manager", "lead", "practice head", "function head", "business head",
+    ),
+    "business_leader": (
+        "head of", "director", "senior director", "vice president", "vp",
+        "chief", "general manager",
+    ),
 }
 
-
-def classify_target(title: str) -> str:
-    for target_type in ("recruiter", "hr", "hiring_manager"):
-        if ROLE_PATTERNS[target_type].search(title or ""):
-            return target_type
-    return "other"
+_DOMAIN_TERMS = (
+    "power bi", "business intelligence", "bi developer", "bi analyst",
+    "data analyst", "data analytics", "analytics", "reporting", "mis analyst",
+    "microsoft fabric", "fabric", "sql", "data",
+)
 
 
 def _person_value(person, key: str, default: str = "") -> str:
@@ -42,32 +58,135 @@ def _person_value(person, key: str, default: str = "") -> str:
     return str(getattr(person, key, default) or default)
 
 
-def score_target(person, job_title: str = "", company: str = "") -> OutreachTarget:
+def _norm(value: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9+#&/.-]+", " ", str(value or "").lower()).split())
+
+
+def _tokens(value: str) -> set[str]:
+    return {token for token in re.findall(r"[a-z0-9+#.-]{3,}", _norm(value))}
+
+
+def _has_role_signal(evidence: str, signal: str) -> bool:
+    pattern = rf"(?<![a-z0-9]){re.escape(signal)}(?![a-z0-9])"
+    return re.search(pattern, evidence, re.I) is not None
+
+
+def classify_target(title: str, text: str = "") -> str:
+    """Classify a contact from evidence, without requiring a recruiter title."""
+    evidence = _norm(" ".join((title or "", text or "")))
+    for target_type in ("recruiter", "hr", "hiring_manager", "business_leader"):
+        if any(_has_role_signal(evidence, signal) for signal in _ROLE_SIGNALS[target_type]):
+            return target_type
+    if any(term in evidence for term in _DOMAIN_TERMS):
+        return "domain_leader"
+    return "other"
+
+
+def _role_overlap(job_title: str, evidence: str) -> tuple[bool, int, list[str]]:
+    title_norm = _norm(job_title)
+    if not title_norm:
+        return False, 0, []
+    evidence_norm = _norm(evidence)
+    signals: list[str] = []
+    if title_norm and title_norm in evidence_norm:
+        signals.append(f"exact role phrase: {job_title}")
+        return True, 4, signals
+
+    job_tokens = {
+        token for token in _tokens(title_norm)
+        if token not in {"senior", "junior", "lead", "manager", "developer", "engineer", "analyst"}
+    }
+    overlap = sorted(token for token in job_tokens if token in _tokens(evidence_norm))
+    if overlap:
+        points = min(3, len(overlap))
+        signals.append("role terms: " + ", ".join(overlap[:4]))
+        return True, points, signals
+    return False, 0, []
+
+
+def score_target(person, job_title: str = "", company: str = "", job_location: str = "") -> OutreachTarget:
     title = _person_value(person, "headline")
-    target_type = classify_target(title)
-    text = " ".join([
+    person_company = _person_value(person, "company")
+    location = _person_value(person, "location")
+    text = _norm(" ".join([
         _person_value(person, "name"),
         title,
+        person_company,
+        location,
         _person_value(person, "text"),
-    ]).lower()
+    ]))
+
     score = 0
-    if target_type != "other":
-        score += 3
-    if company and company.lower() in text:
+    signals: list[str] = []
+    target_type = classify_target(title, text)
+
+    role_match, role_points, role_signals = _role_overlap(job_title, text)
+    score += role_points
+    signals.extend(role_signals)
+
+    company_norm = _norm(company)
+    if company_norm and company_norm in text:
+        score += 4
+        signals.append(f"company evidence: {company}")
+    if person_company and company_norm and _norm(person_company) == company_norm:
         score += 2
-    if job_title and any(token.lower() in text for token in job_title.split() if len(token) > 3):
+        signals.append("current-company field matches job company")
+
+    role_signal_hits = [
+        label
+        for label, values in _ROLE_SIGNALS.items()
+        if any(_has_role_signal(text, value) for value in values)
+    ]
+    if role_signal_hits:
+        score += 3
+        signals.append("hiring-function evidence: " + ", ".join(role_signal_hits))
+
+    domain_hits = [term for term in _DOMAIN_TERMS if term in text]
+    if domain_hits:
+        score += 2
+        signals.append("domain evidence: " + ", ".join(domain_hits[:4]))
+
+    if job_location and location and any(
+        token in _norm(location)
+        for token in _tokens(job_location)
+        if len(token) >= 4
+    ):
         score += 1
-    reason = f"target_type={target_type}; relevance_score={score}"
+        signals.append("location overlap")
+
+    if "hiring" in text or "open role" in text or "job opening" in text:
+        score += 2
+        signals.append("explicit hiring language")
+
+    evidence_gate = bool(
+        role_match
+        or domain_hits
+        or (company_norm and company_norm in text)
+        or "hiring" in text
+        or "open role" in text
+        or "job opening" in text
+    )
+    if not evidence_gate:
+        # Generic role/location signals alone cannot make a contact eligible.
+        score = min(score, 3)
+
+    if target_type == "other" and not evidence_gate:
+        # Generic HR/recruiting words alone are not enough.
+        score = max(0, score - 2)
+
+    reason = "; ".join(signals) if signals else "No strong hiring evidence found"
     target = OutreachTarget(
         name=_person_value(person, "name"),
-        profile_url=_person_value(person, "href"),
+        profile_url=_person_value(person, "href") or _person_value(person, "profile_url"),
         title=title,
-        company=company,
+        company=person_company or company,
         target_type=target_type,
         job_url="",
         relevance_reason=reason,
+        relevance_score=score,
+        matching_signals=signals,
     )
-    log_activity("outreach_targeted", target.name, "ok", reason)
+    log_activity("outreach_targeted", target.name, "ok", f"score={score}; {reason}")
     return target
 
 
@@ -85,18 +204,37 @@ def draft_followup(target: OutreachTarget, message: str, due_at: str | None = No
     return payload
 
 
-def build_outreach_plan(people: list, job: dict) -> list[OutreachTarget]:
-    """Rank already-read people against one job without performing outreach."""
+def build_outreach_plan(people: list, job: dict, limit: int = 10) -> list[OutreachTarget]:
+    """Rank already-read people against one job using multiple evidence signals.
+
+    This function does not perform LinkedIn navigation, scraping, or outreach.
+    It only scores person records that the caller already has.
+    """
     job_title = str(job.get("title", ""))
     company = str(job.get("company", ""))
+    job_location = str(job.get("location", ""))
     targets = []
     for person in people:
-        target = score_target(person, job_title, company)
-        if target.target_type != "other":
+        target = score_target(person, job_title, company, job_location)
+        # A contact is eligible when there is concrete role/company/domain/hiring
+        # evidence. Do not require a particular job title such as Recruiter.
+        concrete_evidence = any(
+            signal.startswith((
+                "exact role phrase:",
+                "role terms:",
+                "company evidence:",
+                "current-company field matches",
+                "domain evidence:",
+                "explicit hiring language",
+            ))
+            for signal in (target.matching_signals or [])
+        )
+        if target.relevance_score >= 4 and concrete_evidence:
             target.job_url = str(job.get("url") or job.get("href") or "")
             targets.append(target)
+
     return sorted(
         targets,
-        key=lambda item: int(item.relevance_reason.rsplit("=", 1)[-1]),
+        key=lambda item: (item.relevance_score, bool(item.profile_url), item.name.lower()),
         reverse=True,
-    )
+    )[: max(1, int(limit))]

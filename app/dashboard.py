@@ -741,8 +741,73 @@ function renderAgentResult(result){
  '<section class="agent-section"><div class="agent-section-head"><div><h3>Hiring signals</h3><p>Public posts that matched your hiring criteria.</p></div><span class="badge">'+esc(String(posts.length))+'</span></div>'+renderAgentPosts(posts)+'</section>'+
  diagnostics+'</div>';
 }
+function renderPeopleResults(rows){
+ const people=(rows||[]).filter(x=>x&&typeof x==='object');
+ if(!people.length)return '<div class="empty">No hiring contacts matched the supplied job/company evidence.</div>';
+ return '<div class="result-shell"><div class="result-head"><div><div class="result-title">Hiring contacts</div><div class="result-meta">'+esc(String(people.length))+' evidence-matched contacts</div></div></div><div class="result-cards">'+people.map(x=>{
+   const href=x.profile_url||x.href||'', name=x.name||'Contact', score=x.relevance_score??'—';
+   const reason=x.relevance_reason||x.matching_reason||'';
+   const msg=x.suggested_message||'';
+   const meta=[x.target_type,x.title,x.associated_company||x.company].filter(v=>v).join(' · ');
+   return '<article class="result-card">'+
+     '<div class="result-card-top"><div class="result-card-main"><div class="result-card-title">'+(href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+esc(name)+'</a>':'<b>'+esc(name)+'</b>')+'</div>'+
+     '<div class="result-card-meta">'+esc(meta||'Hiring contact')+' · relevance '+esc(String(score))+'</div></div>'+
+     '<div class="result-card-actions">'+(href?'<a class="btn" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Open profile ↗</a>':'')+
+     (msg?'<button class="btn primary" data-target="'+esc(href||name)+'" data-message="'+esc(msg)+'" onclick="prepareContactMessage(this)">Prepare message</button>':'')+'</div></div>'+
+     (reason?'<div class="result-card-text"><b>Why matched:</b> '+esc(reason)+'</div>':'')+
+     (msg?'<div class="result-message"><b>Suggested message</b><div style="margin-top:6px">'+esc(msg)+'</div></div>':'')+
+     '<div class="result-fields"><div class="result-field"><span>Message status</span><b>'+esc(x.message_status||'drafted')+'</b></div><div class="result-field"><span>Outreach status</span><b>'+esc(x.outreach_status||'not_sent')+'</b></div></div>'+
+     '</article>';
+ }).join('')+'</div></div>';
+}
+async function prepareContactMessage(button){
+ const target=button.dataset.target||'';
+ const message=button.dataset.message||'';
+ if(!target||!message){alert('Contact profile and message are required.');return}
+ button.disabled=true;
+ const card=button.closest('.result-card');
+ const statusId='contact-status-'+Math.random().toString(36).slice(2,10);
+ const status=document.createElement('div');
+ status.className='result-task-status';
+ status.id=statusId;
+ status.textContent='Preparing approval…';
+ if(card) card.appendChild(status);
+ try{
+   const result=await api('/api/skill',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+     skill:'messaging',
+     inputs:{target,payload:message}
+   })});
+   if(!result.task_id) throw new Error('No approval task was created.');
+   const poll=async()=>{
+     try{
+       const task=await api('/api/tasks/'+result.task_id);
+       if(task.status==='queued'||task.status==='running'){
+         status.textContent=task.status==='queued'?'Approval queued…':'Preparing approval…';
+         setTimeout(poll,700);
+         return;
+       }
+       if(task.status==='completed'){
+         status.textContent='Approval prepared — review it before sending.';
+         button.textContent='Approval prepared';
+         return;
+       }
+       status.textContent='Approval preparation failed: '+(task.error||'Unknown error');
+       button.disabled=false;
+     }catch(err){
+       status.textContent='Unable to check approval status.';
+       button.disabled=false;
+     }
+   };
+   poll();
+ }catch(e){
+   button.disabled=false;
+   status.textContent='Approval preparation failed.';
+   alert(e.message);
+ }
+}
 function renderResult(result){
  if(result==null)return '<div class="empty">No result returned.</div>';
+ if(result?.skill==='people' && result?.diagnostics?.contact_matching && Array.isArray(result?.data)) return renderPeopleResults(result.data);
  const data=result.data??result;
  if(Array.isArray(data)){
    if(!data.length)return '<div class="empty">No matching results found.</div>';

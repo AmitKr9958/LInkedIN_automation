@@ -15,6 +15,8 @@ from .skill_runtime import ensure_authenticated, run_read, run_read_on_page
 from .workflows import login_check
 from .llm_client import LLMError, chat_json, provider_status
 from .profile_grounding import validate_profile_drafts
+from .outreach import build_outreach_plan
+from .drafting import hiring_contact_message
 
 READ_SKILLS = {"auth", "profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
 APPROVAL_SKILLS = {"connections", "messaging", "engagement", "followups", "outreach"}
@@ -23,7 +25,13 @@ def skill_catalog() -> list[dict[str, Any]]:
     fields = {
         "auth": [], "profile": [],
         "jobs": [{"name":"query","label":"Job query","default":"Power BI"},{"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, Remote India"},{"name":"max_posted_hours","label":"Posted within hours","type":"number","default":48}],
-        "people": [{"name":"query","label":"Search","default":"Power BI recruiter"},{"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, India"}],
+        "people": [
+            {"name":"query","label":"Search terms","default":"Power BI recruiter"},
+            {"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, India"},
+            {"name":"job_title","label":"Associated job title (optional)"},
+            {"name":"company","label":"Associated company (optional)"},
+            {"name":"job_url","label":"Associated job URL (optional)"},
+        ],
         "companies": [{"name":"query","label":"Company search","default":"data analytics"}],
         "posts": [{"name":"query","label":"Post search","default":"Power BI"}],
         "saved": [], "notifications": [],
@@ -141,6 +149,42 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                     continue
                 seen.add(key)
                 data.append(item)
+            if name == "people":
+                job_title = str(inputs.get("job_title", "")).strip()
+                company = str(inputs.get("company", "")).strip()
+                job_url = str(inputs.get("job_url", "")).strip()
+                if job_title or company:
+                    job = {
+                        "title": job_title,
+                        "company": company,
+                        "location": raw_locations,
+                        "url": job_url,
+                    }
+                    targets = build_outreach_plan(data, job, limit=10)
+                    enriched = []
+                    for target in targets:
+                        draft = hiring_contact_message(
+                            target.name,
+                            job_title,
+                            company,
+                            target.target_type,
+                            target.relevance_reason,
+                            ["Power BI", "SQL", "Data Analytics"],
+                        )
+                        row = target.to_dict()
+                        row["associated_job_title"] = job_title
+                        row["associated_company"] = company
+                        row["suggested_message"] = draft.text
+                        row["message_status"] = "drafted"
+                        row["outreach_status"] = "not_sent"
+                        enriched.append(row)
+                    diagnostics["contact_matching"] = {
+                        "job_title": job_title,
+                        "company": company,
+                        "matched": len(enriched),
+                        "note": "Scored from already-read person records; no LinkedIn action was performed.",
+                    }
+                    return {"skill":name,"mode":"read","data":enriched,"diagnostics":diagnostics}
             return {"skill":name,"mode":"read","data":data,"diagnostics":diagnostics}
         kwargs = {}
         if name in {"companies","posts"}:
