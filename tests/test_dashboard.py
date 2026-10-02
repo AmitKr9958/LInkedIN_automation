@@ -14,7 +14,7 @@ def test_dashboard_has_control_center_sections():
         "/api/applications/transition",
         "transitionApplication",
         "COMMAND CENTER",
-        "READ-ONLY · 2H CADENCE",
+        "READ-ONLY · 30M CADENCE",
         "6H FRESHNESS",
         "posted within the last 6 hours",
         "Stale removed",
@@ -243,3 +243,10 @@ def test_dashboard_excludes_unknown_posting_age(monkeypatch, tmp_path):
     summary = dashboard._summary()
     assert summary["jobs_tracked"] == 0
     assert summary["jobs"] == []
+
+def test_dashboard_uses_30_minute_cadence_and_clear_empty_application_values():
+    assert "READ-ONLY · 30M CADENCE · 6H FRESHNESS" in _HTML
+    assert "function displayApplicationValue(value)" in _HTML
+    assert "displayApplicationValue(x.applied_at)" in _HTML
+    assert "displayApplicationValue(x.next_follow_up)" in _HTML
+    assert "displayApplicationValue(x.recruiter)" in _HTML
