@@ -188,7 +188,14 @@ def test_dashboard_application_actions_use_responsive_action_group():
 
 def test_dashboard_summary_filters_stale_jobs_with_posting_metadata(monkeypatch, tmp_path):
     import sqlite3
+    from datetime import datetime, timedelta, timezone
     import app.dashboard as dashboard
+
+    now = datetime.now(timezone.utc)
+    fresh_posted_at = (now - timedelta(hours=2)).isoformat()
+    fresh_first_seen = (now - timedelta(hours=1)).isoformat()
+    old_posted_at = (now - timedelta(hours=20)).isoformat()
+    old_first_seen = (now - timedelta(hours=19)).isoformat()
 
     db_path = tmp_path / "data" / "activity.sqlite3"
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -204,11 +211,11 @@ def test_dashboard_summary_filters_stale_jobs_with_posting_metadata(monkeypatch,
         )
         db.execute(
             "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-            (1, "Fresh BI Analyst", "Fresh Co", "Gurugram, Haryana, India", "fresh", 90, "fresh", "new", "2026-10-02T01:00:00+00:00", 2, "2 hours ago", "2026-10-02T00:00:00+00:00"),
+            (1, "Fresh BI Analyst", "Fresh Co", "Gurugram, Haryana, India", "fresh", 90, "fresh", "new", fresh_first_seen, 2, "2 hours ago", fresh_posted_at),
         )
         db.execute(
             "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-            (2, "Old BI Analyst", "Old Co", "Gurugram, Haryana, India", "old", 90, "old", "new", "2026-10-01T07:00:00+00:00", 20, "20 hours ago", "2026-09-30T13:00:00+00:00"),
+            (2, "Old BI Analyst", "Old Co", "Gurugram, Haryana, India", "old", 90, "old", "new", old_first_seen, 20, "20 hours ago", old_posted_at),
         )
         db.commit()
 
