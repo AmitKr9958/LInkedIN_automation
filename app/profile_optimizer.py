@@ -28,6 +28,7 @@ class ProfileOptimizationReport:
     drafts: dict[str, Any]
     llm_used: bool
     llm_error: str | None = None
+    ai_insights: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -213,6 +214,7 @@ def generate_profile_optimization(
 ) -> ProfileOptimizationReport:
     audit = audit_profile(profile)
     drafts: dict[str, Any] = {}
+    ai_insights: dict[str, Any] = {}
     llm_used = False
     llm_error: str | None = None
 
@@ -231,18 +233,48 @@ def generate_profile_optimization(
             {
                 "profile": profile,
                 "audit": audit,
-                "target_roles": DEFAULT_JOB_PREFERENCES.keywords,\n                "target_locations": DEFAULT_JOB_PREFERENCES.locations,
+                "target_roles": DEFAULT_JOB_PREFERENCES.keywords,
+                "target_locations": DEFAULT_JOB_PREFERENCES.locations,
                 "required_limits": SECTION_LIMITS,
-                "schema": {\n                    "positioning": "one concise positioning statement grounded in the profile",\n                    "priority_actions": ["3-7 prioritized evidence-based improvements"],\n                    "keyword_strategy": ["relevant supported keywords to surface naturally"],\n                    "section_notes": {"headline": "string", "about": "string", "experience": "string"},\n                    "drafts": {"headline": "string", "about": "string", "experience": "string"},\n                },
+                "schema": {
+                    "positioning": "one concise positioning statement grounded in the profile",
+                    "priority_actions": ["3-7 prioritized evidence-based improvements"],
+                    "keyword_strategy": ["relevant supported keywords to surface naturally"],
+                    "section_notes": {
+                        "headline": "string",
+                        "about": "string",
+                        "experience": "string",
+                    },
+                    "drafts": {
+                        "headline": "string",
+                        "about": "string",
+                        "experience": "string",
+                    },
+                },
             },
             ensure_ascii=False,
         )
         try:
-            drafts = _safe_drafts(
-                chat_json(system=system, user=user, temperature=0.1, max_tokens=2600),
-                profile,
-            )
-            llm_used = bool(drafts)
+            ai_raw = chat_json(system=system, user=user, temperature=0.1, max_tokens=3200)
+            drafts = _safe_drafts(ai_raw, profile)
+            if isinstance(ai_raw, dict):
+                positioning = ai_raw.get("positioning")
+                if isinstance(positioning, str) and positioning.strip():
+                    ai_insights["positioning"] = positioning.strip()[:600]
+                for key in ("priority_actions", "keyword_strategy"):
+                    value = ai_raw.get(key)
+                    if isinstance(value, list):
+                        ai_insights[key] = [
+                            str(item).strip() for item in value if str(item).strip()
+                        ][:7]
+                notes = ai_raw.get("section_notes")
+                if isinstance(notes, dict):
+                    ai_insights["section_notes"] = {
+                        section: str(note).strip()[:600]
+                        for section, note in notes.items()
+                        if section in SECTION_LIMITS and str(note).strip()
+                    }
+            llm_used = bool(drafts or ai_insights)
         except LLMError as exc:
             llm_error = str(exc)
 
@@ -253,8 +285,11 @@ def generate_profile_optimization(
         matched_keywords=audit["matched_keywords"],
         missing_keywords=audit["missing_keywords"],
         findings=audit["findings"],
-        recommendations=audit["recommendations"] + list(ai_insights.get("priority_actions", [])),
+        recommendations=audit["recommendations"] + list(
+            ai_insights.get("priority_actions", [])
+        ),
         drafts=drafts,
         llm_used=llm_used,
         llm_error=llm_error,
+        ai_insights=ai_insights,
     )
