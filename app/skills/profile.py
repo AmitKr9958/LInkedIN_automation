@@ -533,7 +533,9 @@ async def _read_about_from_edit_dialog(page) -> str:
                 return _clean_profile_section_text(str(value or ""), "about")
             except Exception:
                 return ""
-        locator = page.locator('[data-li-about-editor="1"], main button[aria-label*="edit" i], main [role="button"][aria-label*="edit" i]').first
+        locator = page.locator('[data-li-about-editor="1"], main button[aria-label*="edit" i], main [role="button"][aria-label*="edit" i]')
+        if hasattr(locator, "first"):
+            locator = locator.first
         if await locator.count() == 0:
             return ""
         if not hasattr(locator, "scroll_into_view_if_needed"):
