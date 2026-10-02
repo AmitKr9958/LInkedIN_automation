@@ -342,3 +342,38 @@ SQL
     assert "Who your viewers also viewed" not in extracted
     assert "Hitarth Patel" not in extracted
     assert "Skills" not in extracted
+
+
+def test_about_edit_dialog_reads_value_and_closes_without_save():
+    from app.skills.profile import _read_about_from_edit_dialog
+
+    class Keyboard:
+        def __init__(self):
+            self.pressed = []
+
+        async def press(self, key):
+            self.pressed.append(key)
+
+    class Page:
+        def __init__(self):
+            self.keyboard = Keyboard()
+            self.calls = 0
+
+        async def evaluate(self, script, *args):
+            self.calls += 1
+            if self.calls == 1:
+                # The selector logic itself runs in the browser; this fake only
+                # verifies that the helper performs a click/read/close sequence.
+                assert "edit" in script.lower()
+                return True
+            assert "textarea" in script
+            return "When a dashboard takes 8 seconds to load, executives stop trusting it. I make them load in 2."
+
+        async def wait_for_timeout(self, ms):
+            return None
+
+    page = Page()
+    result = asyncio.run(_read_about_from_edit_dialog(page))
+    assert "8 seconds" in result
+    assert "I make them load in 2" in result
+    assert page.keyboard.pressed == ["Escape"]

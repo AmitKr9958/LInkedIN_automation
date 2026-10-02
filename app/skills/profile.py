@@ -381,9 +381,150 @@ async def _read_profile_details_page(page, section_name: str) -> str:
     return ""
 
 
+
+async def _read_about_from_edit_dialog(page) -> str:
+    """Read the full About value from LinkedIn's edit dialog without saving.
+
+    The profile card can render only a preview of About, and some LinkedIn
+    layouts do not expose that preview through a stable section container.
+    Opening the About pencil is still a read-only operation as long as this
+    helper only reads the dialog value and closes it without clicking Save.
+    """
+    clicked = False
+    try:
+        clicked = bool(
+            await page.evaluate(
+                """() => {
+                    const norm = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                    const isAbout = value => norm(value) === 'about';
+
+                    const heading = Array.from(document.querySelectorAll(
+                        'main h1, main h2, main h3, main [role="heading"], main [aria-level]'
+                    )).find(node => isAbout(node.textContent));
+
+                    const editButton = node => Array.from(
+                        node.querySelectorAll('button, a, [role="button"]')
+                    ).find(candidate => {
+                        const label = norm(
+                            candidate.getAttribute('aria-label') ||
+                            candidate.getAttribute('title') ||
+                            candidate.textContent
+                        );
+                        return /edit/.test(label) && /about/.test(label);
+                    });
+
+                    if (heading) {
+                        let node = heading;
+                        for (let i = 0; i < 8 && node; i += 1, node = node.parentElement) {
+                            const scoped = editButton(node);
+                            if (scoped) {
+                                try { scoped.click(); return true; } catch (_) {}
+                            }
+
+                            const buttons = Array.from(node.querySelectorAll(
+                                'button, a, [role="button"]'
+                            ));
+                            const genericEdit = buttons.find(candidate => {
+                                const label = norm(
+                                    candidate.getAttribute('aria-label') ||
+                                    candidate.getAttribute('title') ||
+                                    candidate.textContent
+                                );
+                                return /edit/.test(label);
+                            });
+                            if (genericEdit) {
+                                try { genericEdit.click(); return true; } catch (_) {}
+                            }
+                        }
+                    }
+
+                    // Fallback for layouts where the heading/card is not
+                    // connected to the edit control in the DOM tree.
+                    const globalEdit = Array.from(document.querySelectorAll(
+                        'main button, main a, main [role="button"]'
+                    )).find(candidate => {
+                        const label = norm(
+                            candidate.getAttribute('aria-label') ||
+                            candidate.getAttribute('title') ||
+                            candidate.textContent
+                        );
+                        return /edit\s+about/.test(label);
+                    });
+                    if (globalEdit) {
+                        try { globalEdit.click(); return true; } catch (_) {}
+                    }
+                    return false;
+                }"""
+            )
+        )
+        if not clicked:
+            return ""
+
+        await page.wait_for_timeout(700)
+
+        value = await page.evaluate(
+            """() => {
+                const dialog = document.querySelector('[role="dialog"]');
+                if (!dialog) return '';
+
+                const editable = dialog.querySelector(
+                    'textarea, [contenteditable="true"], input[type="text"]'
+                );
+                if (!editable) return '';
+
+                return (
+                    editable.value ||
+                    editable.innerText ||
+                    editable.textContent ||
+                    ''
+                ).replace(/\s+/g, ' ').trim();
+            }"""
+        )
+        return _clean_profile_section_text(str(value or ""), "about")
+    except Exception as exc:
+        logger.warning("About edit-dialog read failed: %s", type(exc).__name__)
+        return ""
+    finally:
+        if clicked:
+            try:
+                await page.keyboard.press("Escape")
+                await page.wait_for_timeout(250)
+            except Exception:
+                # If keyboard interaction is unavailable, try the dialog close
+                # control. Never click a Save/Submit control in this reader.
+                try:
+                    await page.evaluate(
+                        """() => {
+                            const dialog = document.querySelector('[role="dialog"]');
+                            if (!dialog) return;
+                            const close = Array.from(dialog.querySelectorAll(
+                                'button, [role="button"]'
+                            )).find(candidate => {
+                                const label = (
+                                    candidate.getAttribute('aria-label') ||
+                                    candidate.getAttribute('title') ||
+                                    ''
+                                ).replace(/\s+/g, ' ').trim().toLowerCase();
+                                return /^(close|dismiss|cancel)\b/.test(label);
+                            });
+                            if (close) close.click();
+                        }"""
+                    )
+                except Exception:
+                    pass
+
+
 async def _read_profile_section(page, section_name: str) -> str:
     """Read one profile section using resilient, read-only DOM extraction."""
     title = _normalize_section_heading(section_name)
+
+    # About is sometimes rendered only as a truncated card preview. If the
+    # normal section extraction cannot recover it, open the About pencil,
+    # read the editable value, and close the dialog without saving.
+    if section_name == "about":
+        value = await _read_about_from_edit_dialog(page)
+        if value:
+            return value
 
     # LinkedIn's profile DOM is client-rendered and its wrapper elements change
     # over time. Find the semantic heading first, then walk to the smallest
