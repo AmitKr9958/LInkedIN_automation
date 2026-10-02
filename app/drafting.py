@@ -46,7 +46,8 @@ def hiring_contact_message(
     The text is generated from supplied job/contact evidence only. It does not
     send anything to LinkedIn.
     """
-    first_name = (name or "there").strip().split()[0]
+    name_text = " ".join(str(name or "").split())
+    first_name = name_text.split()[0] if name_text else "there"
     skill_text = ", ".join((skills or [])[:3])
     role_text = role.strip() or "the role"
     company_text = company.strip() or "your team"
