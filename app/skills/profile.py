@@ -254,6 +254,53 @@ _DETAILS_PATHS = {
 _DETAILS_MAX_CHARS = 12_000
 _DETAILS_MIN_CHARS = 40
 # Text LinkedIn appends below section content; never part of the section.
+_DETAILS_FALSE_POSITIVE_MARKERS = (
+    "people you may know",
+    "who your viewers also viewed",
+    "people also viewed",
+    "recommended for you",
+    "activity",
+    "create post",
+    "followers",
+    "profile language",
+    "public profile & url",
+)
+
+def _is_plausible_details_section(text: str, section_name: str) -> bool:
+    """Reject navigation/recommendation/activity text masquerading as section data."""
+    normalized = " ".join(str(text or "").split())
+    lowered = normalized.lower()
+    if len(normalized) < _DETAILS_MIN_CHARS:
+        return False
+    if any(marker in lowered for marker in _DETAILS_FALSE_POSITIVE_MARKERS):
+        return False
+    if section_name == "experience":
+        # Real experience pages contain employment/date signals. This prevents
+        # a details page that rendered only generic profile chrome from being
+        # accepted as employment history.
+        date_signal = re.search(
+            r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)"
+            r"\.?\s+\d{4}\b|\b\d{4}\s*[–-]\s*(?:\d{4}|present)\b|"
+            r"\b(?:present|current)\b",
+            normalized,
+            re.I,
+        )
+        if not date_signal:
+            return False
+        if re.search(r"(?i)\bconnect\s+[A-Z][^·•]{0,80}[·•]", normalized):
+            return False
+    if section_name == "skills":
+        # Skills pages should expose skill names; they should not look like the
+        # profile activity feed or recommendation surface.
+        skill_signal = re.search(
+            r"(?i)\b(?:power\s*bi|dax|sql|power\s*query|microsoft\s*fabric|"
+            r"tableau|python|excel|snowflake|data\s+analytics|business\s+intelligence)\b",
+            normalized,
+        )
+        if not skill_signal:
+            return False
+    return True
+
 _DETAILS_NOISE_MARKERS = (
     "more profiles for you",
     "people you may know",
@@ -363,11 +410,13 @@ async def _read_profile_details_page(page, section_name: str) -> str:
             return ""
 
         extracted = _extract_section_from_text(text, section_name)
-        if extracted:
+        if extracted and _is_plausible_details_section(extracted, section_name):
             return extracted
 
-        # Section-scoped page without an explicit heading: the page itself is the scope.
-        if len(text) >= _DETAILS_MIN_CHARS:
+        # Section-scoped page without an explicit heading: the page itself is the
+        # scope, but only accept it after the section-specific false-positive
+        # guard. Never return generic profile chrome as section content.
+        if _is_plausible_details_section(text, section_name):
             return text
     except Exception as exc:
         logger.warning("Details fallback failed for %s: %s", section_name, type(exc).__name__)
@@ -524,6 +573,17 @@ async def _read_profile_section(page, section_name: str) -> str:
         if value:
             return value
 
+    # Experience, Skills, and Featured have authenticated section-specific
+    # details routes. These sections are highly vulnerable to false positives
+    # from the main profile DOM (e.g. "Connect" recommendations and Activity).
+    # Prefer the section-specific route and, if it cannot be validated, fail
+    # closed instead of returning unrelated page content.
+    if section_name in _DETAILS_PATHS:
+        value = await _read_profile_details_page(page, section_name)
+        if value:
+            return _clean_profile_section_text(value, section_name)
+        return ""
+
     # LinkedIn's profile DOM is client-rendered and its wrapper elements change
     # over time. Find the semantic heading first, then walk to the smallest
     # useful profile-card/container that owns the heading. This avoids relying
@@ -653,15 +713,11 @@ async def _read_profile_section(page, section_name: str) -> str:
     except Exception:
         pass
 
-    # Fallback 3: authenticated, section-specific details page (one temp tab).
-    # Some layouts expose only a link/card on the main page; the real content
-    # lives on /details/<section>/.
-    if section_name in _DETAILS_PATHS:
-        value = await _read_profile_details_page(page, section_name)
-        if value:
-            return _clean_profile_section_text(value, section_name)
-
-    # Fallback 4: explicit IDs/ARIA/data attributes used by older and
+    # Details routes are handled before generic DOM fallbacks above.
+    # Never fall back to the main profile DOM for Experience/Skills/Featured,
+    # because unrelated recommendation/activity cards can be mistaken for
+    # section content.
+    # Fallback 3: explicit IDs/ARIA/data attributes used by older and
     # accessibility-oriented LinkedIn markup.
     selectors = (
         f"main section#{section_name}",
