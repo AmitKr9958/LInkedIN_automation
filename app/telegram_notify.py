@@ -99,6 +99,35 @@ def send_telegram_message_detailed(message: str, *, attempts: int = 3) -> tuple[
     return False, last_detail
 
 
+def notify_profile_optimization(
+    *,
+    score: int,
+    llm_used: bool,
+    findings: int,
+    drafts: int,
+    review_id: str | None = None,
+    llm_error: str = "",
+) -> bool:
+    """Send a compact weekly profile-optimization summary."""
+    lines = [
+        "LinkedIn Profile Optimizer",
+        "Profile audit completed",
+        f"Audit score: {score}/100",
+        f"Findings: {findings}",
+        f"Draft sections: {drafts}",
+        f"AI drafting: {'enabled' if llm_used else 'not used'}",
+    ]
+    if review_id:
+        lines.append(f"Review queued: {review_id}")
+        lines.append("No LinkedIn profile edit was executed.")
+    if llm_error:
+        lines.append(f"AI note: {llm_error[:300]}")
+    ok, reason = send_telegram_message_detailed("\n".join(lines))
+    if not ok:
+        logger.warning("Profile optimization Telegram notification not sent: %s", reason)
+    return ok
+
+
 def send_telegram_message(message: str) -> bool:
     """Send one Telegram message; return False and log a safe diagnostic on failure."""
     ok, _ = send_telegram_message_detailed(message)
