@@ -376,6 +376,14 @@ def _normalize_linkedin_extracted_text(raw: str) -> str:
         return ""
 
     replacements = (
+        # Exact flattened DOM joins observed in the live profile. Keep these
+        # explicit rather than applying broad camel-case splitting, which can
+        # corrupt legitimate terms such as VertiPaq, MySQL, and ChatGPT.
+        (r"(?i)queryperformance", "query performance"),
+        (r"(?i)refreshTechnical", "refresh Technical"),
+        (r"(?i)speedby", "speed by"),
+        (r"(?i)metrics,enabling", "metrics, enabling"),
+        (r"(?i)mosHandled", "mos Handled"),
         # Common flattened phrases/words observed in LinkedIn profile DOM.
         (r"(?i)query\s*performance", "query performance"),
         (r"(?i)refresh\s*technical", "refresh Technical"),
