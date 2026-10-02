@@ -202,7 +202,18 @@ def build_outreach_plan(people: list, job: dict, limit: int = 10) -> list[Outrea
         target = score_target(person, job_title, company, job_location)
         # A contact is eligible when there is concrete role/company/domain/hiring
         # evidence. Do not require a particular job title such as Recruiter.
-        if target.relevance_score >= 4:
+        concrete_evidence = any(
+            signal.startswith((
+                "exact role phrase:",
+                "role terms:",
+                "company evidence:",
+                "current-company field matches",
+                "domain evidence:",
+                "explicit hiring language",
+            ))
+            for signal in (target.matching_signals or [])
+        )
+        if target.relevance_score >= 4 and concrete_evidence:
             target.job_url = str(job.get("url") or job.get("href") or "")
             targets.append(target)
 
