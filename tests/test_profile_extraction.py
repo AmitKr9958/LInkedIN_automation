@@ -77,3 +77,10 @@ def test_profile_normalization_preserves_canonical_technology_names():
     assert "People Management" in cleaned
     assert "Power BI" in cleaned
     assert "Power Query" in cleaned
+
+
+def test_profile_normalization_repairs_concatenated_terms_after_regex_fix():
+    cleaned = profile._normalize_linkedin_extracted_text(
+        "queryperformance refreshTechnical speedby metrics,enabling 2 mosHandled"
+    )
+    assert cleaned == "query performance refresh Technical speed by metrics, enabling 2 mos Handled"
