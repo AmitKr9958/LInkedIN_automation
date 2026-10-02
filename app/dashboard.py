@@ -15,7 +15,6 @@ from .run_status import read_run_status
 from .skill_center import skill_catalog, run_skill
 from .store import list_activity
 from .application_tracker import ApplicationTracker, STATUSES, TRANSITIONS
-from .history import History
 from .job_preferences import DEFAULT_JOB_PREFERENCES
 
 
@@ -92,7 +91,11 @@ def _task_get(task_id: str) -> dict | None:
 
 
 def _db(path: str):
-    con = sqlite3.connect(path, timeout=2.0)
+    # Dashboard reads must never wait behind an agent write for seconds. SQLite
+    # returns a controlled OperationalError on contention; _safe_section then
+    # renders the affected panel with a warning instead of hanging the API.
+    con = sqlite3.connect(path, timeout=0.5)
+    con.execute("PRAGMA busy_timeout=500")
     con.row_factory = sqlite3.Row
     return con
 
@@ -150,10 +153,9 @@ def _summary() -> dict:
             return count, out
 
     def load_jobs():
-        # Ensure the job-history schema is migrated before applying the strict
-        # freshness contract. Unknown posting ages are excluded, matching the
-        # agent's runtime policy.
-        History(activity)
+        # This endpoint is read-only. Do not run History() migrations here because
+        # they acquire a write lock and can make /api/summary appear to hang while
+        # the scheduled agent is writing the shared SQLite database.
         with _db(activity) as db:
             freshness_hours = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
             cutoff = datetime.now(timezone.utc) - timedelta(hours=freshness_hours)
