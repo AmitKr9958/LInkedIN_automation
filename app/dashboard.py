@@ -136,12 +136,16 @@ def _summary() -> dict:
             if not all(column in columns for column in wanted):
                 wanted = ["job_url", "title", "company", "status", "updated_at", "notes"]
             select = ",".join("a." + column for column in wanted)
+            job_columns = {row[1] for row in db.execute("PRAGMA table_info(job_history)").fetchall()}
+            job_posted_at = "j.posted_at" if "posted_at" in job_columns else "NULL"
+            job_posted_hours = "j.posted_hours" if "posted_hours" in job_columns else "NULL"
+            app_discovered = "a.discovered_at" if "discovered_at" in columns else "a.updated_at"
             # Prefer the authoritative LinkedIn posting timestamp from job_history.
-            # If the job was not discovered in job_history, fall back to the
-            # application's discovered_at timestamp.
+            # If the job is not present there, fall back to the application's
+            # discovered_at timestamp. This is a display filter only.
             query = (
-                "SELECT " + select + ", j.posted_at AS job_posted_at, "
-                "j.posted_hours AS job_posted_hours, a.discovered_at AS app_discovered_at "
+                "SELECT " + select + ", " + job_posted_at + " AS job_posted_at, "
+                + job_posted_hours + " AS job_posted_hours, " + app_discovered + " AS app_discovered_at "
                 "FROM applications a LEFT JOIN job_history j ON j.url=a.job_url "
                 "ORDER BY a.updated_at DESC LIMIT 1000"
             )
