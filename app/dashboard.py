@@ -450,7 +450,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 let state={summary:null,skills:[],activeSkill:null,taskIds:[]};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function api(path,opts={}){
- const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),7000);
+ const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),30000);
  try{const r=await fetch(path,{...opts,signal:ctrl.signal}); const tx=await r.text(); let d={}; try{d=tx?JSON.parse(tx):{}}catch(_){d={error:tx}};
  clearTimeout(t); if(!r.ok)throw Error(d.error||r.statusText); return d;
  }catch(e){clearTimeout(t); if(e.name==='AbortError')throw Error('Dashboard API timed out'); throw e}
