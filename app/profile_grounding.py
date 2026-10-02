@@ -41,7 +41,7 @@ def _numbers(text: str) -> set[str]:
 
 
 def _canonical_number(value: str) -> str:
-    return value.replace(" ", "").lower().rstrip("+").rstrip(".0") if "." in value else value.replace(" ", "").lower().rstrip("+")
+    normalized = value.replace(" ", "").lower().rstrip("+")\n    if normalized.endswith(".0"):\n        normalized = normalized[:-2]\n    return normalized
 
 
 def _unsupported_numbers(source: str, draft: str) -> list[str]:
