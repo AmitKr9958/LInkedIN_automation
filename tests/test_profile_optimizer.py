@@ -76,3 +76,57 @@ def test_profile_optimizer_bounds_generated_sections(monkeypatch):
     assert "headline" not in report.drafts
     assert report.drafts["about"] == "ok"
     assert report.drafts["experience"] == "ok"
+
+
+def test_profile_audit_recognizes_verified_metrics_and_action_language():
+    report = audit_profile({
+        "headline": "Senior Power BI Developer | SQL | DAX",
+        "about": "Power BI professional. Reduced manual workload by 30%.",
+        "experience": "Automated reporting and improved refresh time by 20%.",
+        "skills": "Power BI, SQL, DAX",
+        "featured": "Dashboard portfolio",
+    })
+    assert not any(
+        item["issue"] == "add quantified outcomes that are already true"
+        for item in report["findings"]
+    )
+    assert not any(
+        item["issue"] == "experience lacks quantified outcomes"
+        for item in report["findings"]
+    )
+
+
+def test_profile_optimizer_ai_receives_full_target_context(monkeypatch):
+    profile = {
+        "headline": "Power BI Developer | SQL | DAX",
+        "about": "Power BI professional with 30% workload reduction.",
+        "experience": "Automated reporting and improved refresh time by 20%.",
+        "skills": "Power BI, SQL, DAX, Power Query",
+        "featured": "Dashboard portfolio",
+    }
+    captured = {}
+
+    def fake_chat_json(**kwargs):
+        captured["system"] = kwargs["system"]
+        captured["user"] = kwargs["user"]
+        return {
+            "positioning": "Power BI professional focused on reporting automation.",
+            "priority_actions": ["Clarify measurable business impact."],
+            "keyword_strategy": ["Power BI", "DAX", "SQL"],
+            "section_notes": {"headline": "Lead with target role and core stack."},
+            "drafts": {
+                "headline": "Power BI Developer | SQL | DAX",
+                "about": "Power BI professional with 30% workload reduction.",
+                "experience": "Automated reporting and improved refresh time by 20%.",
+            },
+        }
+
+    monkeypatch.setattr("app.profile_optimizer.is_configured", lambda: True)
+    monkeypatch.setattr("app.profile_optimizer.chat_json", fake_chat_json)
+    report = generate_profile_optimization(profile, use_llm=True)
+
+    assert report.llm_used is True
+    assert "senior AI strategist" in captured["system"]
+    assert "target_roles" in captured["user"]
+    assert "target_locations" in captured["user"]
+    assert report.drafts["headline"]
