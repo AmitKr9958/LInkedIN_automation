@@ -465,7 +465,7 @@ async def _read_profile_section(page, section_name: str) -> str:
         )
         value = " ".join(str(value or "").split())
         if value and len(value) > len(title) + 8:
-            return value
+            return _clean_profile_section_text(value, section_name)
     except Exception:
         pass
 
@@ -498,7 +498,7 @@ async def _read_profile_section(page, section_name: str) -> str:
                 )
                 value = " ".join(str(value or "").split())
                 if value and len(value) > len(title) + 8:
-                    return value
+                    return _clean_profile_section_text(value, section_name)
         except Exception:
             pass
 
@@ -510,7 +510,7 @@ async def _read_profile_section(page, section_name: str) -> str:
         raw = await page.locator("main").first.inner_text()
         extracted = _extract_section_from_text(raw, section_name)
         if extracted:
-            return extracted
+            return _clean_profile_section_text(extracted, section_name)
     except Exception:
         pass
 
@@ -520,7 +520,7 @@ async def _read_profile_section(page, section_name: str) -> str:
     if section_name in _DETAILS_PATHS:
         value = await _read_profile_details_page(page, section_name)
         if value:
-            return value
+            return _clean_profile_section_text(value, section_name)
 
     # Fallback 4: explicit IDs/ARIA/data attributes used by older and
     # accessibility-oriented LinkedIn markup.
@@ -539,7 +539,7 @@ async def _read_profile_section(page, section_name: str) -> str:
             if await loc.count():
                 text = " ".join((await loc.inner_text()).split())
                 if text and len(text) > len(title) + 8:
-                    return text
+                    return _clean_profile_section_text(text, section_name)
         except Exception:
             continue
 
@@ -569,7 +569,7 @@ def _extract_section_from_text(raw_text: str, section_name: str) -> str:
                 content.append(candidate)
             value = " ".join(content).strip()
             if len(value) > len(wanted) + 8:
-                return value
+                return _clean_profile_section_text(value, section_name)
 
     # Some Chromium/LinkedIn layouts flatten large parts of the page into a
     # single line. In that case, locate the requested heading in the normalized
@@ -604,7 +604,7 @@ def _extract_section_from_text(raw_text: str, section_name: str) -> str:
     ]
     end = min(following) if following else len(flat)
     value = flat[start:end].strip()
-    return value if len(value) > len(wanted) + 8 else ""
+    return _clean_profile_section_text(value, section_name) if len(value) > len(wanted) + 8 else ""
 
 async def _top_card_text(page) -> str:
     for selector in (
