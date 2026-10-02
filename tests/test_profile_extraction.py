@@ -66,3 +66,14 @@ def test_about_footer_is_removed_and_featured_placeholder_is_empty():
         "featured",
     )
     assert featured == ""
+
+
+def test_profile_normalization_preserves_canonical_technology_names():
+    raw = "Verti Paq My SQL Chat GPT PeopleManagement Power BI Power Query"
+    cleaned = profile._normalize_linkedin_extracted_text(raw)
+    assert "VertiPaq" in cleaned
+    assert "MySQL" in cleaned
+    assert "ChatGPT" in cleaned
+    assert "People Management" in cleaned
+    assert "Power BI" in cleaned
+    assert "Power Query" in cleaned

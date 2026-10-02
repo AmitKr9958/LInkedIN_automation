@@ -362,13 +362,18 @@ def _normalize_linkedin_extracted_text(raw: str) -> str:
     # LinkedIn occasionally concatenates adjacent inline text nodes. These
     # replacements are deliberately narrow so we do not rewrite user content.
     replacements = (
-        (r"queryperformance", "query performance"),
-        (r"refreshTechnical", "refresh Technical"),
-        (r"speedby", "speed by"),
-        (r"metrics,enabling", "metrics, enabling"),
-        (r"(\d+)\s*mosHandled\b", r"\1 mos Handled"),
-        (r"(\d+)\.(?=[A-Za-z])", r"\1. "),
-        (r"(?<=[a-z])(?=[A-Z])", " "),
+        (r"query\\s*performance", "query performance"),
+        (r"refresh\\s*technical", "refresh Technical"),
+        (r"speed\\s*by", "speed by"),
+        (r"metrics\\s*,\\s*enabling", "metrics, enabling"),
+        (r"(\\d+)\\s*mosHandled\\b", r"\\1 mos Handled"),
+        (r"(?i)\\bverti\\s*paq\\b", "VertiPaq"),
+        (r"(?i)\\bmy\\s*sql\\b", "MySQL"),
+        (r"(?i)\\bchat\\s*gpt\\b", "ChatGPT"),
+        (r"(?i)\\bpeople\\s*management\\b", "People Management"),
+        (r"(?i)\\bpower\\s*automate\\b", "Power Automate"),
+        (r"(?i)\\bpower\\s*query\\b", "Power Query"),
+        (r"(?i)\\bpower\\s*bi\\b", "Power BI"),
     )
     for pattern, replacement in replacements:
         text = re.sub(pattern, replacement, text)
