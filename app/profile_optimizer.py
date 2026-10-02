@@ -56,7 +56,7 @@ def _keyword_hits(text: str, terms: list[str]) -> list[str]:
 
 
 def _has_metric(text: str) -> bool:
-    return bool(re.search(r"\b\d+(?:\.\d+)?\s*(?:%|percent|x|years?|months?)\b", text, re.I))
+    return bool(re.search(r"\b\d+(?:\.\d+)?\s*(?:%|percent|x|years?|months?)", text, re.I))
 
 
 def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[int, list[dict[str, Any]]]:
