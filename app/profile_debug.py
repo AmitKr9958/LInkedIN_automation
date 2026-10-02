@@ -36,6 +36,7 @@ async def _prepare_profile(page) -> str:
         return f"prepare:{type(exc).__name__}:{exc}"
 
 async def debug_about_editor(page) -> dict[str, Any]:
+    """Inspect the live About editor without saving any profile changes."""
     result = {
         "url": page.url,
         "title": await page.title(),
