@@ -383,76 +383,55 @@ async def _read_profile_details_page(page, section_name: str) -> str:
 
 
 async def _read_about_from_edit_dialog(page) -> str:
-    """Read the full About value from LinkedIn's edit dialog without saving.
-
-    The profile card can render only a preview of About, and some LinkedIn
-    layouts do not expose that preview through a stable section container.
-    Opening the About pencil is still a read-only operation as long as this
-    helper only reads the dialog value and closes it without clicking Save.
-    """
+    """Read the full About value from LinkedIn's edit dialog without saving."""
     clicked = False
     try:
         clicked = bool(
             await page.evaluate(
-                """() => {
+                r"""() => {
                     const norm = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                    const isAbout = value => norm(value) === 'about';
+                    const isEditLabel = value => /edit/.test(norm(value));
+                    const isAboutText = value => /\babout\b/.test(norm(value));
 
-                    const heading = Array.from(document.querySelectorAll(
-                        'main h1, main h2, main h3, main [role="heading"], main [aria-level]'
-                    )).find(node => isAbout(node.textContent));
+                    const allControls = () => Array.from(document.querySelectorAll(
+                        'main button, main a, main [role="button"]'
+                    ));
 
-                    const editButton = node => Array.from(
-                        node.querySelectorAll('button, a, [role="button"]')
-                    ).find(candidate => {
+                    // Prefer an edit control whose nearest reasonable container
+                    // visibly belongs to the About card. This handles LinkedIn
+                    // layouts where the About title is a div/span rather than
+                    // a semantic heading and the pencil has no useful label.
+                    for (const control of allControls()) {
                         const label = norm(
-                            candidate.getAttribute('aria-label') ||
-                            candidate.getAttribute('title') ||
-                            candidate.textContent
+                            control.getAttribute('aria-label') ||
+                            control.getAttribute('title') ||
+                            control.textContent
                         );
-                        return /edit/.test(label) && /about/.test(label);
-                    });
+                        if (!isEditLabel(label) && !control.querySelector('svg')) continue;
 
-                    if (heading) {
-                        let node = heading;
-                        for (let i = 0; i < 8 && node; i += 1, node = node.parentElement) {
-                            const scoped = editButton(node);
-                            if (scoped) {
-                                try { scoped.click(); return true; } catch (_) {}
-                            }
-
-                            const buttons = Array.from(node.querySelectorAll(
-                                'button, a, [role="button"]'
-                            ));
-                            const genericEdit = buttons.find(candidate => {
-                                const label = norm(
-                                    candidate.getAttribute('aria-label') ||
-                                    candidate.getAttribute('title') ||
-                                    candidate.textContent
-                                );
-                                return /edit/.test(label);
-                            });
-                            if (genericEdit) {
-                                try { genericEdit.click(); return true; } catch (_) {}
+                        let node = control;
+                        for (let depth = 0; depth < 8 && node; depth += 1, node = node.parentElement) {
+                            const text = norm(node.innerText || node.textContent);
+                            if (isAboutText(text) && text.length < 12000) {
+                                try { control.click(); return true; } catch (_) {}
                             }
                         }
                     }
 
-                    // Fallback for layouts where the heading/card is not
-                    // connected to the edit control in the DOM tree.
-                    const globalEdit = Array.from(document.querySelectorAll(
-                        'main button, main a, main [role="button"]'
-                    )).find(candidate => {
+                    // Explicitly labelled About edit controls are the safest
+                    // fallback when the card relationship is not exposed.
+                    const labelled = allControls().find(control => {
                         const label = norm(
-                            candidate.getAttribute('aria-label') ||
-                            candidate.getAttribute('title') ||
-                            candidate.textContent
+                            control.getAttribute('aria-label') ||
+                            control.getAttribute('title') ||
+                            control.textContent
                         );
-                        return /edit\s+about/.test(label);
+                        return isEditLabel(label) && isAboutText(label);
                     });
-                    if (globalEdit) {
-                        try { globalEdit.click(); return true; } catch (_) {}
+                    if (labelled) {
+                        try { labelled.click(); return true; } catch (_) {}
                     }
+
                     return false;
                 }"""
             )
@@ -463,8 +442,11 @@ async def _read_about_from_edit_dialog(page) -> str:
         await page.wait_for_timeout(700)
 
         value = await page.evaluate(
-            """() => {
-                const dialog = document.querySelector('[role="dialog"]');
+            r"""() => {
+                const dialogs = Array.from(document.querySelectorAll(
+                    '[role="dialog"], .artdeco-modal'
+                ));
+                const dialog = dialogs[dialogs.length - 1];
                 if (!dialog) return '';
 
                 const editable = dialog.querySelector(
@@ -490,13 +472,15 @@ async def _read_about_from_edit_dialog(page) -> str:
                 await page.keyboard.press("Escape")
                 await page.wait_for_timeout(250)
             except Exception:
-                # If keyboard interaction is unavailable, try the dialog close
-                # control. Never click a Save/Submit control in this reader.
                 try:
                     await page.evaluate(
-                        """() => {
-                            const dialog = document.querySelector('[role="dialog"]');
+                        r"""() => {
+                            const dialogs = Array.from(document.querySelectorAll(
+                                '[role="dialog"], .artdeco-modal'
+                            ));
+                            const dialog = dialogs[dialogs.length - 1];
                             if (!dialog) return;
+
                             const close = Array.from(dialog.querySelectorAll(
                                 'button, [role="button"]'
                             )).find(candidate => {
@@ -512,6 +496,8 @@ async def _read_about_from_edit_dialog(page) -> str:
                     )
                 except Exception:
                     pass
+            except Exception:
+                pass
 
 
 async def _read_profile_section(page, section_name: str) -> str:
