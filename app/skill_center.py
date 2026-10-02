@@ -153,7 +153,7 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                 job_title = str(inputs.get("job_title", "")).strip()
                 company = str(inputs.get("company", "")).strip()
                 job_url = str(inputs.get("job_url", "")).strip()
-                if job_title or company or job_url:
+                if job_title or company:
                     job = {
                         "title": job_title,
                         "company": company,
