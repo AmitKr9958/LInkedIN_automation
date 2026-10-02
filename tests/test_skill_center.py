@@ -72,3 +72,41 @@ def test_profile_optimizer_keeps_read_only_audit_when_llm_returns_non_json(monke
     assert result["readable_result"]["section_audit"]["About"] == "Found"
     assert result["readable_result"]["ai_error"]
     assert "no LinkedIn profile changes were made" in result["message"]  # read-only safety contract
+
+
+def test_profile_optimizer_grounds_every_headline_option(monkeypatch):
+    import app.skill_center as skill_center
+
+    def fake_llm(**kwargs):
+        return {
+            "overall_assessment": "Test",
+            "strengths": [],
+            "missing_information": [],
+            "headline_options": [
+                "Power BI Developer | 10 years | DAX | SQL",
+                "Certified Tableau Architect | 25 years",
+                "Power BI Developer | Microsoft Fabric",
+            ],
+            "about_draft": "",
+            "experience_improvements": [],
+            "skills_to_highlight": [],
+            "featured_recommendations": [],
+            "keyword_strategy": [],
+            "next_actions": [],
+        }
+
+    monkeypatch.setattr(skill_center, "chat_json", fake_llm)
+    result = asyncio.run(
+        skill_center.run_skill(
+            "profile_optimizer",
+            {
+                "source": "manual",
+                "profile": '{"name":"Amit","headline":"Power BI Developer | 10 years","about":"Power BI SQL DAX","experience":"Built dashboards","skills":"Power BI SQL Microsoft Fabric","featured":""}',
+            },
+        )
+    )
+    grounding = result["source_grounding"]
+    assert len(grounding["headline_options"]) == 3
+    assert grounding["headline_options"][0]["status"] == "safe"
+    assert grounding["headline_options"][1]["status"] == "blocked"
+    assert grounding["publishable"] is False
