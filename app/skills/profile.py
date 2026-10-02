@@ -538,29 +538,8 @@ async def _read_about_from_edit_dialog(page) -> str:
             locator = locator.first
         if await locator.count() == 0:
             return ""
-        if not hasattr(locator, "scroll_into_view_if_needed"):
-            try:
-                value = await page.evaluate(
-                    r"""() => {
-                        const dialogs = Array.from(document.querySelectorAll(
-                            '[role="dialog"], div[aria-modal="true"], [data-test-modal]'
-                        ));
-                        for (const dialog of dialogs.reverse()) {
-                            const field = dialog.querySelector(
-                                'textarea, [contenteditable="true"], input[type="text"]'
-                            );
-                            if (!field) continue;
-                            return typeof field.value === 'string'
-                                ? field.value
-                                : (field.innerText || field.textContent || '');
-                        }
-                        return '';
-                    }"""
-                )
-                return _clean_profile_section_text(str(value or ""), "about")
-            except Exception:
-                return ""
-        await locator.scroll_into_view_if_needed(timeout=5_000)
+        if hasattr(locator, "scroll_into_view_if_needed"):
+            await locator.scroll_into_view_if_needed(timeout=5_000)
         await locator.click(timeout=5_000)
 
         for _ in range(8):
