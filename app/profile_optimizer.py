@@ -121,6 +121,17 @@ def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[i
     return min(score, 100), findings
 
 
+def profile_fingerprint(profile: dict[str, Any]) -> str:
+    """Stable fingerprint used to prevent applying a stale approved proposal."""
+    import hashlib
+    relevant = {
+        key: _text(profile.get(key))
+        for key in ("url", "name", "headline", "location", "about", "experience", "skills", "featured")
+    }
+    raw = json.dumps(relevant, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def audit_profile(profile: dict[str, Any]) -> dict[str, Any]:
     terms = _terms()
     sections = {
