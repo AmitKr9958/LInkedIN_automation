@@ -102,10 +102,10 @@ def _section_score(name: str, value: str, target_keywords: list[str]) -> tuple[i
         else:
             findings.append({"severity": "low", "section": name, "issue": "consider a concise recruiter-facing closing"})
     else:
-        if len(text) <= SECTION_LIMITS["experience"]:
-            score += 15
-        else:
-            findings.append({"severity": "medium", "section": name, "issue": "experience content is unusually long"})
+        # The reader aggregates multiple LinkedIn Experience entries into one
+        # audit field. LinkedIn limits apply to each individual position, not
+        # to the aggregate snapshot, so do not penalize correct multi-role data.
+        score += 15
         if len(_keyword_hits(text, target_keywords)) >= 3:
             score += 25
         else:
@@ -156,7 +156,7 @@ def audit_profile(profile: dict[str, Any]) -> dict[str, Any]:
             section_scores[name] = 0
             findings.append({"severity": "medium", "section": name, "issue": "section is empty"})
 
-    all_text = "\\n".join(sections.values())
+    all_text = "\n".join(sections.values())
     matched = _keyword_hits(all_text, terms)
     target_terms = [
         "Power BI", "SQL", "DAX", "Power Query", "Microsoft Fabric",
@@ -190,6 +190,8 @@ def audit_profile(profile: dict[str, Any]) -> dict[str, Any]:
     if not _has_metric(sections["about"] + " " + sections["experience"]):
         recommendations.append("Add verified metrics from real work; do not invent numbers.")
 
+    headline_length = len(sections["headline"])
+    about_length = len(sections["about"])
     return {
         "score": score,
         "section_scores": section_scores,
@@ -197,6 +199,14 @@ def audit_profile(profile: dict[str, Any]) -> dict[str, Any]:
         "missing_keywords": missing,
         "findings": findings,
         "recommendations": recommendations,
+        "optimization_signals": {
+            "headline_characters": headline_length,
+            "headline_limit": SECTION_LIMITS["headline"],
+            "about_characters": about_length,
+            "about_limit": SECTION_LIMITS["about"],
+            "experience_is_aggregate_snapshot": True,
+            "featured_is_optional_evidence_section": True,
+        },
     }
 
 
