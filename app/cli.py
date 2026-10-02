@@ -423,7 +423,7 @@ def profile_optimize(
         output["profile_fingerprint"] = profile_fingerprint(payload)
         return output
 
-    report = asyncio.run(_run()).to_dict()
+    report = asyncio.run(_run())
     review_id = None
     if queue_review:
         payload = json.dumps(report, ensure_ascii=False, separators=(",", ":"))
