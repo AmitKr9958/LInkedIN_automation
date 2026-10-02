@@ -43,3 +43,26 @@ def test_details_section_guard_rejects_skills_activity_noise():
         "Activity 2,177 followers Create post People you may know",
         "skills",
     )
+
+
+def test_profile_text_normalization_repairs_flattened_inline_nodes():
+    raw = "75% queryperformance improvement refreshTechnical stack speedby 2. metrics,enabling 2 mosHandled"
+    cleaned = profile._normalize_linkedin_extracted_text(raw)
+    assert "query performance" in cleaned
+    assert "refresh Technical" in cleaned
+    assert "speed by" in cleaned
+    assert "metrics, enabling" in cleaned
+    assert "2 mos Handled" in cleaned
+
+
+def test_about_footer_is_removed_and_featured_placeholder_is_empty():
+    about = profile._clean_profile_section_text(
+        "Real About content … more Top skills Microsoft Power BI • DAX",
+        "about",
+    )
+    assert about == "Real About content"
+    featured = profile._clean_profile_section_text(
+        "Show what you’re proud of Feature your best articles, posts, documents",
+        "featured",
+    )
+    assert featured == ""
