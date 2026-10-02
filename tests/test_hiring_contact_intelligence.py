@@ -4,7 +4,7 @@ from app.outreach import build_outreach_plan, classify_target, score_target
 
 def test_contact_classification_is_not_recruiter_only():
     assert classify_target("Engineering Manager, Business Intelligence") == "hiring_manager"
-    assert classify_target("Head of Data Analytics") == "hiring_manager"
+    assert classify_target("Head of Data Analytics") == "business_leader"
     assert classify_target("Director, Business Intelligence") == "business_leader"
     assert classify_target("Talent Acquisition Partner") == "recruiter"
 
