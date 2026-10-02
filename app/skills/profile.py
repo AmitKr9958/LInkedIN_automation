@@ -563,48 +563,29 @@ async def _read_about_from_edit_dialog(page) -> str:
 
         for _ in range(8):
             await page.wait_for_timeout(350)
-            dialogs = page.locator('[role="dialog"], div[aria-modal="true"], [data-test-modal]')
-            count = await dialogs.count()
-            for index in range(count - 1, -1, -1):
-                dialog = dialogs.nth(index)
-                try:
-                    if not hasattr(dialog, "is_visible"):
-                        value = await page.evaluate(
-                            r"""() => {
-                                const dialogs = Array.from(document.querySelectorAll(
-                                    '[role="dialog"], div[aria-modal="true"], [data-test-modal]'
-                                ));
-                                for (const dialog of dialogs.reverse()) {
-                                    const field = dialog.querySelector(
-                                        'textarea, [contenteditable="true"], input[type="text"]'
-                                    );
-                                    if (!field) continue;
-                                    return typeof field.value === 'string'
-                                        ? field.value
-                                        : (field.innerText || field.textContent || '');
-                                }
-                                return '';
-                            }"""
-                        )
-                        value = _clean_profile_section_text(str(value or ""), "about")
-                        if value:
-                            return value
-                        continue
-                    if not await dialog.is_visible():
-                        continue
-                    fields = dialog.locator('textarea, [contenteditable="true"], input[type="text"]')
-                    if await fields.count() == 0:
-                        continue
-                    for field_index in range(await fields.count()):
-                        field = fields.nth(field_index)
-                        value = await field.input_value() if await field.evaluate(
-                            "el => typeof el.value === 'string'"
-                        ) else await field.inner_text()
-                        value = _clean_profile_section_text(str(value or ""), "about")
-                        if value:
-                            return value
-                except Exception:
-                    continue
+            try:
+                value = await page.evaluate(
+                    r"""() => {
+                        const dialogs = Array.from(document.querySelectorAll(
+                            '[role="dialog"], div[aria-modal="true"], [data-test-modal]'
+                        ));
+                        for (const dialog of dialogs.reverse()) {
+                            const field = dialog.querySelector(
+                                'textarea, [contenteditable="true"], input[type="text"]'
+                            );
+                            if (!field) continue;
+                            return typeof field.value === 'string'
+                                ? field.value
+                                : (field.innerText || field.textContent || '');
+                        }
+                        return '';
+                    }"""
+                )
+                value = _clean_profile_section_text(str(value or ""), "about")
+                if value:
+                    return value
+            except Exception:
+                continue
         return ""
     except Exception as exc:
         logger.warning("About edit-dialog read failed: %s", type(exc).__name__)
