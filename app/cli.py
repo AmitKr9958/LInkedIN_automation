@@ -456,6 +456,28 @@ def profile_optimize(
 
     typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
 
+
+@app.command("profile-about-debug")
+def profile_about_debug(output: str = typer.Option("profile_about_debug.json", "--output", help="Local JSON diagnostics output path.")):
+    """Diagnose the live About editor with read-only browser interactions."""
+    from pathlib import Path
+    from .browser import linkedin_browser
+    from .skill_runtime import ensure_authenticated
+    from .profile_debug import debug_about_editor
+    async def _run():
+        async with linkedin_browser() as browser:
+            page=browser.pages[0] if browser.pages else await browser.new_page()
+            await ensure_authenticated(page, settle_ms=2000, attempts=3)
+            if not str(settings.profile_url or "").strip(): raise RuntimeError("PROFILE_URL is required")
+            await page.goto(settings.profile_url, wait_until="domcontentloaded", timeout=60000)
+            await page.wait_for_timeout(2500)
+            return await debug_about_editor(page)
+    result=asyncio.run(_run())
+    destination=Path(output); destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    typer.echo(json.dumps(result, indent=2, ensure_ascii=False)); typer.echo(f"diagnostics: {destination}")
+    if not result.get("dialog", {}).get("opened"): raise typer.Exit(code=1)
+
 @app.command("profile-apply")
 def profile_apply(item_id: str):
     """Apply one already-approved profile optimization proposal."""
