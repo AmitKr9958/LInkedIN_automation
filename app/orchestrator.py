@@ -28,20 +28,38 @@ def build_discovery_report(
     # when the current LinkedIn search returns no jobs.
     if freshness_hours is None:
         freshness_hours = float(DEFAULT_JOB_PREFERENCES.posted_within_hours)
-    removed = history.cleanup_older_than_hours(float(freshness_hours))
+    # First remove stale rows that were already in the dashboard. Then upsert
+    # this cycle's candidates and run the cleanup again. The second cleanup is
+    # important: LinkedIn can return a stale result during a fresh search, and
+    # we must never reinsert that job into the dashboard or application-tracking
+    # pipeline.
+    removed_before = history.cleanup_older_than_hours(float(freshness_hours))
     new_count = 0
     for item in ranked:
         job = item["job"]
         if history.get_by_url(job.get("url", "")) is None:
             new_count += 1
         history.upsert_job(job, item["score"], item["reasons"])
+
+    removed_after = history.cleanup_older_than_hours(float(freshness_hours))
+    removed = removed_before + removed_after
+
+    # Only return candidates that survived the authoritative freshness cleanup.
+    # This prevents build_agent_report() from tracking an older-than-window job
+    # as an application candidate even if LinkedIn returned it in this cycle.
+    fresh_ranked = []
+    for item in ranked:
+        url = str(item["job"].get("url", "")).strip()
+        if url and history.get_by_url(url) is not None:
+            fresh_ranked.append(item)
+
     log_activity(
         "discovery_run",
         "linkedin_jobs",
         "ok",
-        f"ranked={len(ranked)} new={new_count} removed_stale={removed} freshness_hours={freshness_hours:g}",
+        f"ranked={len(fresh_ranked)} new={new_count} removed_stale={removed} freshness_hours={freshness_hours:g}",
     )
-    return DiscoveryReport(ranked, new_count, removed_stale=removed)
+    return DiscoveryReport(fresh_ranked, new_count, removed_stale=removed)
 
 
 def queue_message(target: str, message: str) -> str:
