@@ -750,12 +750,18 @@ function renderPeopleResults(rows){
    const reason=x.relevance_reason||x.matching_reason||'';
    const msg=x.suggested_message||'';
    const meta=[x.target_type,x.title,x.associated_company||x.company].filter(v=>v).join(' · ');
+   const jobTitle=x.associated_job_title||'';
+   const jobCompany=x.associated_company||'';
+   const jobUrl=x.associated_job_url||'';
+   const jobMeta=[jobCompany,x.associated_job_location,x.associated_job_posted].filter(v=>v).join(' · ');
+   const association=x.association_type||'';
    return '<article class="result-card">'+
      '<div class="result-card-top"><div class="result-card-main"><div class="result-card-title">'+(href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+esc(name)+'</a>':'<b>'+esc(name)+'</b>')+'</div>'+
      '<div class="result-card-meta">'+esc(meta||'Hiring contact')+' · relevance '+esc(String(score))+'</div></div>'+
      '<div class="result-card-actions">'+(href?'<a class="btn" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Open profile ↗</a>':'')+
      (msg?'<button class="btn primary" data-target="'+esc(href||name)+'" data-message="'+esc(msg)+'" onclick="prepareContactMessage(this)">Prepare message</button>':'')+'</div></div>'+
      (reason?'<div class="result-card-text"><b>Why matched:</b> '+esc(reason)+'</div>':'')+
+     (jobTitle?'<div class="result-message"><b>Associated job</b><div style="margin-top:6px">'+(jobUrl?'<a href="'+esc(jobUrl)+'" target="_blank" rel="noopener noreferrer">'+esc(jobTitle)+'</a>':'<b>'+esc(jobTitle)+'</b>')+(jobMeta?' · '+esc(jobMeta):'')+(association?' <span class="badge">'+esc(association.replace('_',' '))+'</span>':'')+'</div></div>':'<div class="result-card-text"><b>Associated job:</b> No evidence-backed job match found in the current freshness window.</div>')+
      (msg?'<div class="result-message"><b>Suggested message</b><div style="margin-top:6px">'+esc(msg)+'</div></div>':'')+
      '<div class="result-fields"><div class="result-field"><span>Message status</span><b>'+esc(x.message_status||'drafted')+'</b></div><div class="result-field"><span>Outreach status</span><b>'+esc(x.outreach_status||'not_sent')+'</b></div></div>'+
      '</article>';

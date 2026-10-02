@@ -67,3 +67,40 @@ def test_hiring_contact_message_is_job_specific():
     assert "Acme" in draft.text
     assert "Anita" in draft.text
     assert "relevance" not in draft.text.lower()
+
+
+def test_people_can_be_associated_with_fresh_job_evidence():
+    from app.outreach import associate_people_with_jobs
+
+    people = [
+        {
+            "name": "Anita Sharma",
+            "headline": "Talent Acquisition - Data & Analytics",
+            "company": "Acme",
+            "location": "Gurugram, India",
+            "href": "https://www.linkedin.com/in/anita",
+            "text": "Talent Acquisition hiring Data & Analytics at Acme",
+        },
+        {
+            "name": "Generic Recruiter",
+            "headline": "Recruiter",
+            "company": "Other Co",
+            "location": "Gurugram, India",
+            "href": "https://www.linkedin.com/in/generic",
+            "text": "Recruiter",
+        },
+    ]
+    jobs = [
+        {
+            "title": "Power BI Developer",
+            "company": "Acme",
+            "location": "Gurugram, India",
+            "url": "https://www.linkedin.com/jobs/view/123",
+            "posted": "2 hours ago",
+        }
+    ]
+
+    rows = associate_people_with_jobs(people, jobs)
+    assert rows[0]["associated_jobs"][0]["association"] == "company_match"
+    assert rows[0]["associated_jobs"][0]["job"]["url"].endswith("/123")
+    assert rows[1]["associated_jobs"] == []

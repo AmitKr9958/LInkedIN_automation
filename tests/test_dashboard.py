@@ -433,3 +433,9 @@ def test_dashboard_has_recruiter_batch_approval_controls():
         "batch approval is limited to 30 actions",
     ]:
         assert marker in _HTML
+
+
+def test_dashboard_renders_associated_job_context_for_people():
+    assert "Associated job" in _HTML
+    assert "No evidence-backed job match found in the current freshness window." in _HTML
+    assert "association_type" in _HTML

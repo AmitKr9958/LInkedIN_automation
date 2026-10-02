@@ -15,7 +15,8 @@ from .skill_runtime import ensure_authenticated, run_read, run_read_on_page
 from .workflows import login_check
 from .llm_client import LLMError, chat_json, provider_status
 from .profile_grounding import validate_profile_drafts
-from .outreach import build_outreach_plan
+from .outreach import associate_people_with_jobs, build_outreach_plan
+from .job_preferences import DEFAULT_JOB_PREFERENCES
 from .drafting import hiring_contact_message
 
 READ_SKILLS = {"auth", "profile", "jobs", "people", "companies", "posts", "saved", "notifications"}
@@ -111,6 +112,8 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
             if not locations:
                 locations = ["Gurgaon/Gurugram"]
             results = []
+            auto_jobs = []
+            auto_diagnostics = {}
             diagnostics = {
                 "requested_locations": locations,
                 "location_runs": {},
@@ -139,6 +142,19 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                     result = await run_read_on_page(page, name, **kwargs)
                     diagnostics["location_runs"][location] = result.diagnostics or {}
                     results.extend(result.data or [])
+
+                    if name == "people" and not str(inputs.get("job_title", "")).strip() and not str(inputs.get("company", "")).strip():
+                        for job_query in ("Power BI", "Data Analyst", "Business Intelligence"):
+                            job_result = await run_read_on_page(
+                                page,
+                                "jobs",
+                                query=job_query,
+                                keywords=job_query,
+                                location=location,
+                                max_posted_hours=float(DEFAULT_JOB_PREFERENCES.posted_within_hours),
+                            )
+                            auto_diagnostics[f"{location}:{job_query}"] = job_result.diagnostics or {}
+                            auto_jobs.extend(job_result.data or [])
 
             # De-duplicate by the stable URL when available.
             seen = set()
@@ -174,17 +190,106 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                         row = target.to_dict()
                         row["associated_job_title"] = job_title
                         row["associated_company"] = company
+                        row["associated_job_url"] = job_url
+                        row["association_type"] = "manual_job_context"
                         row["suggested_message"] = draft.text
                         row["message_status"] = "drafted"
                         row["outreach_status"] = "not_sent"
                         enriched.append(row)
                     diagnostics["contact_matching"] = {
+                        "mode": "manual",
                         "job_title": job_title,
                         "company": company,
                         "matched": len(enriched),
                         "note": "Scored from already-read person records; no LinkedIn action was performed.",
                     }
                     return {"skill":name,"mode":"read","data":enriched,"diagnostics":diagnostics}
+
+                # Automatic association uses jobs collected while the persistent browser
+                # session was open above. No closed Playwright page is reused here.
+                job_seen = set()
+                unique_jobs = []
+                for job in auto_jobs:
+                    key = getattr(job, "href", "") or getattr(job, "url", "") or repr(job)
+                    if key in job_seen:
+                        continue
+                    job_seen.add(key)
+                    unique_jobs.append(job)
+
+                associations = associate_people_with_jobs(data, unique_jobs, limit_per_person=1)
+                enriched = []
+                for item in associations:
+                    person = item["person"]
+                    selected = item["associated_jobs"][0] if item["associated_jobs"] else None
+                    if selected:
+                        job = selected["job"]
+                        job_data = job.to_dict() if hasattr(job, "to_dict") else vars(job)
+                        associated_title = str(job_data.get("title", "") or "")
+                        associated_company = str(job_data.get("company", "") or "")
+                        associated_url = str(job_data.get("url") or job_data.get("href") or "")
+                        association_type = selected["association"]
+                        association_reason = "; ".join(selected["signals"])
+                        target = build_outreach_plan(
+                            [person],
+                            {
+                                "title": associated_title,
+                                "company": associated_company,
+                                "location": str(job_data.get("location", "") or ""),
+                                "url": associated_url,
+                            },
+                            limit=1,
+                        )
+                        if target:
+                            target = target[0]
+                            draft = hiring_contact_message(
+                                target.name,
+                                associated_title,
+                                associated_company,
+                                target.target_type,
+                                target.relevance_reason,
+                                ["Power BI", "SQL", "Data Analytics"],
+                            )
+                            row = target.to_dict()
+                        else:
+                            row = {
+                                "name": str(getattr(person, "name", "") or ""),
+                                "profile_url": str(getattr(person, "href", "") or ""),
+                                "title": str(getattr(person, "headline", "") or ""),
+                                "company": str(getattr(person, "company", "") or ""),
+                                "target_type": "other",
+                                "relevance_score": 0,
+                                "matching_signals": [],
+                            }
+                            draft = hiring_contact_message(
+                                row["name"],
+                                associated_title,
+                                associated_company,
+                                row["target_type"],
+                                association_reason,
+                                ["Power BI", "SQL", "Data Analytics"],
+                            )
+                        row["associated_job_title"] = associated_title
+                        row["associated_company"] = associated_company
+                        row["associated_job_url"] = associated_url
+                        row["associated_job_location"] = str(job_data.get("location", "") or "")
+                        row["associated_job_posted"] = str(job_data.get("posted", "") or "")
+                        row["association_type"] = association_type
+                        row["association_score"] = selected["score"]
+                        row["association_reason"] = association_reason
+                        row["suggested_message"] = draft.text
+                        row["message_status"] = "drafted"
+                        row["outreach_status"] = "not_sent"
+                        enriched.append(row)
+
+                diagnostics["contact_matching"] = {
+                    "mode": "automatic",
+                    "jobs_considered": len(unique_jobs),
+                    "matched": len(enriched),
+                    "freshness_hours": float(DEFAULT_JOB_PREFERENCES.posted_within_hours),
+                    "note": "Associated from already-read LinkedIn people and fresh target-role jobs. No LinkedIn action was performed.",
+                    "job_searches": auto_diagnostics,
+                }
+                return {"skill":name,"mode":"read","data":enriched,"diagnostics":diagnostics}
             return {"skill":name,"mode":"read","data":data,"diagnostics":diagnostics}
         kwargs = {}
         if name in {"companies","posts"}:

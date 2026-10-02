@@ -190,6 +190,134 @@ def score_target(person, job_title: str = "", company: str = "", job_location: s
     return target
 
 
+
+def _job_value(job, key: str, default: str = "") -> str:
+    if isinstance(job, dict):
+        return str(job.get(key, default) or default)
+    return str(getattr(job, key, default) or default)
+
+
+def _location_overlap(person_location: str, job_location: str) -> bool:
+    person_norm = _norm(person_location)
+    return bool(
+        job_location
+        and person_norm
+        and any(
+            token in person_norm
+            for token in _tokens(job_location)
+            if len(token) >= 4
+        )
+    )
+
+
+def associate_people_with_jobs(
+    people: list,
+    jobs: list,
+    *,
+    limit_per_person: int = 1,
+    minimum_score: int = 6,
+) -> list[dict]:
+    """Attach the strongest already-read job evidence to each person.
+
+    Association is read-only and evidence based. A company match is the strongest
+    signal; role/domain and location overlap can support a weaker potential match.
+    No LinkedIn action is performed.
+    """
+    output: list[dict] = []
+    for person in people:
+        person_company = _person_value(person, "company")
+        person_location = _person_value(person, "location")
+        evidence = _norm(" ".join([
+            _person_value(person, "name"),
+            _person_value(person, "headline"),
+            person_company,
+            person_location,
+            _person_value(person, "text"),
+        ]))
+        best: list[tuple[int, dict, list[str]]] = []
+
+        for job in jobs:
+            title = _job_value(job, "title")
+            company = _job_value(job, "company")
+            location = _job_value(job, "location")
+            if not title or not company:
+                continue
+
+            score = 0
+            signals: list[str] = []
+            person_company_norm = _norm(person_company)
+            company_norm = _norm(company)
+
+            if person_company_norm and company_norm:
+                if person_company_norm == company_norm:
+                    score += 8
+                    signals.append("company exact match")
+                elif person_company_norm in company_norm or company_norm in person_company_norm:
+                    score += 5
+                    signals.append("company name overlap")
+
+            role_match, role_points, role_signals = _role_overlap(title, evidence)
+            if role_match:
+                score += role_points
+                signals.extend(role_signals)
+
+            job_evidence = _norm(" ".join([
+                title, company, location, _job_value(job, "text")
+            ]))
+            person_domain_hits = [term for term in _DOMAIN_TERMS if term in evidence]
+            shared_domain = [
+                term for term in person_domain_hits
+                if term in job_evidence
+            ]
+            if shared_domain:
+                score += 2
+                signals.append("shared domain: " + ", ".join(shared_domain[:3]))
+
+            if _location_overlap(person_location, location):
+                score += 1
+                signals.append("location overlap")
+
+            if any(_has_role_signal(evidence, value) for value in (
+                "recruiter", "recruiting", "recruitment", "talent acquisition",
+                "hiring", "sourcing",
+            )):
+                score += 2
+                signals.append("hiring-function evidence")
+
+            if score >= minimum_score:
+                best.append((
+                    score,
+                    {
+                        "title": title,
+                        "company": company,
+                        "location": location,
+                        "url": _job_value(job, "url") or _job_value(job, "href"),
+                        "posted": _job_value(job, "posted"),
+                    },
+                    signals,
+                ))
+
+        best.sort(key=lambda item: (item[0], bool(item[1].get("url"))), reverse=True)
+        selected = best[: max(1, int(limit_per_person))]
+        item = {
+            "person": person,
+            "associated_jobs": [
+                {
+                    "job": job,
+                    "score": score,
+                    "signals": signals,
+                    "association": (
+                        "company_match"
+                        if any("company exact match" in signal for signal in signals)
+                        else "potential_match"
+                    ),
+                }
+                for score, job, signals in selected
+            ],
+        }
+        output.append(item)
+    return output
+
 def draft_connection(target: OutreachTarget, role: str = "", skills: list[str] | None = None) -> dict:
     note = connection_note(target.name, role or target.title, skills or []).text
     payload = {"target": target.to_dict(), "note": note, "status": "drafted"}
