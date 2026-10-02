@@ -227,7 +227,18 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                     selected = item["associated_jobs"][0] if item["associated_jobs"] else None
                     if selected:
                         job = selected["job"]
-                        job_data = job.to_dict() if hasattr(job, "to_dict") else vars(job)
+                        job_data = (
+                            job.to_dict()
+                            if hasattr(job, "to_dict")
+                            else {
+                                key: getattr(job, key, "")
+                                for key in (
+                                    "title", "company", "location", "url", "href", "posted"
+                                )
+                            }
+                            if not isinstance(job, dict)
+                            else job
+                        )
                         associated_title = str(job_data.get("title", "") or "")
                         associated_company = str(job_data.get("company", "") or "")
                         associated_url = str(job_data.get("url") or job_data.get("href") or "")
