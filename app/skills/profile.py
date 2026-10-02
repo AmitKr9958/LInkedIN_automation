@@ -297,10 +297,15 @@ def _is_plausible_details_section(text: str, section_name: str) -> bool:
         if re.search(r"(?i)\bconnect\s+[A-Z][^·•]{0,80}[·•]", normalized):
             return False
     if section_name in {"skills", "featured"}:
-        # The details route itself provides the section scope. We only reject
-        # known activity/navigation surfaces here; do not require a fixed
-        # technology vocabulary because users can have arbitrary skills or
-        # featured items.
+        # The details route itself provides the section scope. Do not reject
+        # shared chrome when it accompanies valid section content, but reject
+        # a candidate that is plainly an activity/recommendation payload.
+        if re.match(
+            r"(?i)^(?:activity|create post|people you may know|"
+            r"who your viewers also viewed)\\b",
+            normalized,
+        ):
+            return False
         return True
     return True
 
