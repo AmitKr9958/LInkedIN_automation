@@ -302,7 +302,7 @@ def _is_plausible_details_section(text: str, section_name: str) -> bool:
         # a candidate that is plainly an activity/recommendation payload.
         if re.match(
             r"(?i)^(?:activity|create post|people you may know|"
-            r"who your viewers also viewed)\\b",
+            r"who your viewers also viewed)\b",
             normalized,
         ):
             return False
