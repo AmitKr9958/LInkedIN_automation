@@ -7,6 +7,7 @@ from .content_skills import (
 )
 from .post_audit import audit_post
 from .story_bank import StoryBank
+from .profile_optimizer import audit_profile, generate_profile_optimization
 
 READ_CONTENT = {
     "hook_extractor": extract_hook,
@@ -28,6 +29,13 @@ DRAFT_CONTENT = {
 }
 
 def dispatch(skill: str, **kwargs):
+    if skill == "profile_optimizer":
+        profile = kwargs.get("profile")
+        if not isinstance(profile, dict):
+            raise TypeError("profile_optimizer requires a profile dict")
+        if kwargs.get("optimize", False):
+            return generate_profile_optimization(profile, use_llm=kwargs.get("use_llm", True)).to_dict()
+        return audit_profile(profile)
     if skill in READ_CONTENT:
         return READ_CONTENT[skill](**kwargs)
     if skill in DRAFT_CONTENT:

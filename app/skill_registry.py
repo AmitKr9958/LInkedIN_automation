@@ -29,7 +29,7 @@ SKILLS = [
     Skill("humanizer", "Audit and clean AI-like writing without detector-evasion claims"),
     Skill("hook_extractor", "Analyze the structure of a supplied post hook"),
     Skill("repurposer", "Adapt supplied source content into LinkedIn-native copy"),
-    Skill("profile_optimizer", "Audit profile sections and identify missing information"),
+    Skill("profile_optimizer", "Audit and draft recruiter-focused profile improvements from the authenticated profile", False),
     Skill("interviewer", "Interview the user to build concrete story material"),
     Skill("story_bank", "Persist and retrieve reusable career stories"),
     Skill("engager_analytics", "Analyze supplied engager records"),

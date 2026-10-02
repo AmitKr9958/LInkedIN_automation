@@ -204,7 +204,7 @@ def test_dashboard_summary_filters_stale_jobs_with_posting_metadata(monkeypatch,
         )
         db.execute(
             "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-            (1, "Fresh BI Analyst", "Fresh Co", "Gurugram, Haryana, India", "fresh", 90, "fresh", "new", "2026-10-01T07:00:00+00:00", 2, "2 hours ago", "2026-10-01T06:00:00+00:00"),
+            (1, "Fresh BI Analyst", "Fresh Co", "Gurugram, Haryana, India", "fresh", 90, "fresh", "new", "2026-10-02T01:00:00+00:00", 2, "2 hours ago", "2026-10-02T00:00:00+00:00"),
         )
         db.execute(
             "INSERT INTO job_history VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
