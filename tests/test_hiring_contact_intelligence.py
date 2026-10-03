@@ -104,3 +104,49 @@ def test_people_can_be_associated_with_fresh_job_evidence():
     assert rows[0]["associated_jobs"][0]["association"] == "company_match"
     assert rows[0]["associated_jobs"][0]["job"]["url"].endswith("/123")
     assert rows[1]["associated_jobs"] == []
+
+
+def test_cross_company_role_overlap_can_be_a_potential_match():
+    from app.outreach import associate_people_with_jobs
+
+    people = [{
+        "name": "Data Recruiter",
+        "headline": "Technical Recruiter | Hiring Data Analysts",
+        "company": "Other Co",
+        "location": "Gurugram, India",
+        "href": "https://www.linkedin.com/in/data-recruiter",
+        "text": "Technical Recruiter hiring Data Analysts",
+    }]
+    jobs = [{
+        "title": "Data Analyst",
+        "company": "Target Co",
+        "location": "India (Remote)",
+        "url": "https://www.linkedin.com/jobs/view/456",
+        "posted": "3 hours ago",
+    }]
+
+    rows = associate_people_with_jobs(people, jobs)
+    assert rows[0]["associated_jobs"][0]["association"] == "potential_match"
+
+
+def test_cross_company_generic_domain_overlap_is_not_a_specific_job_match():
+    from app.outreach import associate_people_with_jobs
+
+    people = [{
+        "name": "Analytics Recruiter",
+        "headline": "Recruiter | Data Analytics",
+        "company": "Other Co",
+        "location": "Gurugram, India",
+        "href": "https://www.linkedin.com/in/analytics-recruiter",
+        "text": "Recruiter supporting data and analytics hiring",
+    }]
+    jobs = [{
+        "title": "Online Data Analyst - Odia (India) B",
+        "company": "TELUS Digital AI Data Solutions",
+        "location": "India (Remote)",
+        "url": "https://www.linkedin.com/jobs/view/789",
+        "posted": "3 hours ago",
+    }]
+
+    rows = associate_people_with_jobs(people, jobs)
+    assert rows[0]["associated_jobs"] == []
