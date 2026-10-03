@@ -76,3 +76,17 @@ def test_queue_batch_decision_only_changes_pending_items(tmp_path):
     assert q.get(first).status == "approved"
     assert q.get(second).status == "approved"
     assert q.get(third).status == "rejected"
+
+
+def test_queue_lists_approved_messages_and_records_manual_completion(tmp_path):
+    q = ApprovalQueue(str(tmp_path / "db.sqlite3"))
+    message = q.add("message", "https://www.linkedin.com/in/recruiter/", "Hello recruiter")
+    other = q.add("connection_request", "https://www.linkedin.com/in/recruiter/", "Connect")
+    assert q.decide(message, True) is True
+    assert q.decide(other, True) is True
+    approved = q.list_approved_messages()
+    assert [item.id for item in approved] == [message]
+    assert q.mark_manual_sent(message) is True
+    assert q.get(message).status == "manual_sent"
+    assert q.list_approved_messages() == []
+    assert q.mark_manual_sent(message) is False
