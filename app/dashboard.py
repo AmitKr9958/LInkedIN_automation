@@ -120,6 +120,35 @@ def _summary() -> dict:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def load_approved_outreach():
+        from .outreach_assistant import validate_manual_outreach
+        from .approval_queue import ApprovalQueue
+
+        items = ApprovalQueue(activity).list_approved_messages(limit=30)
+        out = []
+        for item in items:
+            try:
+                packet = validate_manual_outreach(item)
+            except Exception as exc:
+                out.append({
+                    "id": item.id,
+                    "target": item.target,
+                    "message": item.payload,
+                    "valid": False,
+                    "error": str(exc),
+                    "created_at": item.created_at,
+                })
+                continue
+            out.append({
+                "id": packet.review_id,
+                "target": packet.target,
+                "message": packet.message,
+                "valid": True,
+                "error": "",
+                "created_at": item.created_at,
+            })
+        return out
+
     def load_applications():
         # The Applications tab is an active discovery pipeline, so it follows
         # the same 6-hour freshness contract as Jobs. We filter the dashboard
@@ -278,6 +307,7 @@ def _summary() -> dict:
             return count, out
 
     approvals = _safe_section("approvals", load_approvals, [], warnings)
+    approved_outreach = _safe_section("approved_outreach", load_approved_outreach, [], warnings)
     application_data = _safe_section("applications", load_applications, (0, []), warnings)
     job_data = _safe_section("jobs", load_jobs, (0, []), warnings)
     last_run = _safe_section("last_run", read_run_status, {}, warnings)
@@ -303,6 +333,7 @@ def _summary() -> dict:
         "pending_approvals": len(approvals),
         "recent_jobs": len(job_data[1]),
         "approvals": approvals,
+        "approved_outreach": approved_outreach,
         "applications": application_data[1],
         "jobs": job_data[1],
         "last_run": last_run,
@@ -424,6 +455,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
 <section id="approvals" class="view">
 <div class="card approval-hero"><div class="approval-hero-icon">✓</div><div><div class="section-kicker">GOVERNANCE GATE</div><h2>Review before LinkedIn actions</h2><p>Anything that could contact, publish, engage, or change your LinkedIn account must stay under your control. You can review recruiter outreach in one batch of up to 30 queued actions.</p></div></div>
 <div class="approval-flow"><div><span>1</span><b>Prepare</b><small>Automation creates a review item</small></div><div class="approval-arrow">→</div><div><span>2</span><b>Review</b><small>You inspect the target and proposed action</small></div><div class="approval-arrow">→</div><div><span>3</span><b>Decide</b><small>Approve or reject explicitly</small></div></div>
+<div class="card" style="margin-top:14px"><div class="cardhead"><div><h2>Approved outreach</h2><p>Approved messages are never sent by the automation. Open the profile, copy the approved text, send it yourself, then record completion.</p></div><span class="badge green">MANUAL SEND</span></div><div id="approvedOutreachCards"></div></div>
 <div class="card" style="margin-top:14px"><div class="cardhead"><div><h2>Pending approvals</h2><p id="approvalSummary">No pending actions.</p></div><div style="display:flex;gap:8px;align-items:center"><button class="btn primary" title="batch approval is limited to 30 actions" onclick="batchApproveRecruiter()">✓ Approve selected recruiter outreach (max 30)</button><span id="approvalCount" class="badge amber">0 pending</span></div></div><div id="approvalCards"></div></div>
 </section>
 <section id="agent" class="view">
@@ -557,6 +589,14 @@ function renderTables(d){
  const approvals=d.approvals||[];
  document.getElementById('approvalCount').textContent=approvals.length+' pending';
  document.getElementById('approvalSummary').textContent=approvals.length?approvals.length+' action'+(approvals.length===1?'':'s')+' waiting for your review.':'Nothing is waiting for approval.';
+ const approvedOutreach=d.approved_outreach||[];
+ document.getElementById('approvedOutreachCards').innerHTML=approvedOutreach.length?'<div class="approval-list">'+approvedOutreach.map(x=>{
+   const invalid=!x.valid;
+   return '<article class="approval-card"><div class="approval-card-head"><div><span class="badge '+(invalid?'red':'green')+'">'+(invalid?'BLOCKED':'APPROVED — MANUAL SEND')+'</span><h3>Recruiter / hiring-contact message</h3><div class="approval-target">'+esc(x.target||'Invalid target')+'</div></div><div class="approval-date">'+esc(x.created_at||'')+'</div></div>'+
+     '<div class="approval-proposal"><div class="approval-label">Approved message</div><div>'+esc(x.message||'')+'</div></div>'+
+     (invalid?'<div class="error">'+esc(x.error||'Manual-send validation failed.')+'</div>':'<div class="approval-actions"><a class="btn primary" href="'+esc(x.target)+'" target="_blank" rel="noopener noreferrer">Open LinkedIn profile ↗</a><button class="btn" onclick="copyApprovedMessage(this)" data-message="'+esc(x.message||'')+'">Copy message</button><button class="btn" onclick="markManualSent(this)" data-id="'+esc(x.id)+'">✓ Mark manually sent</button></div>')+
+     '</article>';
+ }).join('')+'</div>':'<div class="approval-empty"><div class="approval-empty-icon">—</div><h3>No approved outreach waiting</h3><p>Approve a recruiter message first. The approved message can then be copied and sent manually in LinkedIn.</p></div>';
  document.getElementById('approvalCards').innerHTML=approvals.length?'<div class="approval-list">'+approvals.map(x=>{
    const action=String(x.action||'').replace(/^skill:/,'').replaceAll('_',' ');
    const payload=x.payload||'No proposed action details were provided.';
@@ -855,6 +895,24 @@ async function watchAgent(id){
    if(d.status==='queued'||d.status==='running')setTimeout(poll,1000);else refreshAll();
  };poll();
 }
+async function copyApprovedMessage(button){
+ const message=button.dataset.message||'';
+ try{
+   await navigator.clipboard.writeText(message);
+   button.textContent='Copied ✓';
+   setTimeout(()=>{button.textContent='Copy message'},1400);
+ }catch(e){alert('Clipboard access failed. Please copy the approved message manually.')}
+}
+async function markManualSent(button){
+ const id=button.dataset.id||'';
+ if(!id)return;
+ if(!confirm('Confirm that you personally sent this exact approved message in LinkedIn?'))return;
+ button.disabled=true;
+ try{
+   await api('/api/outreach/manual-sent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item_id:id})});
+   refreshAll();
+ }catch(e){button.disabled=false;alert(e.message)}
+}
 async function batchApproveRecruiter(){
  const checks=[...document.querySelectorAll('.recruiter-approval-check:checked')];
  const ids=checks.map(x=>x.value).slice(0,30);
@@ -1080,6 +1138,30 @@ class _Handler(BaseHTTPRequestHandler):
                     raise ValueError("batch contains missing, decided, or non-recruiter approval actions")
                 changed = queue.decide_many(allowed, approved)
                 self._send(200, {"changed": changed, "changed_count": len(changed), "approved": approved, "limit": 30})
+            except ValueError as exc:
+                self._send(400, {"error": str(exc)})
+            except Exception as exc:
+                self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
+            return
+        if path == "/api/outreach/manual-sent":
+            try:
+                body = _read_json_body(self)
+                item_id = str(body.get("item_id", "")).strip()
+                if not item_id:
+                    raise ValueError("item_id is required")
+                from .approval_queue import ApprovalQueue
+                from .outreach_assistant import validate_manual_outreach
+                queue = ApprovalQueue()
+                item = queue.get(item_id)
+                if item is None:
+                    self._send(404, {"error": "approval item not found"})
+                    return
+                validate_manual_outreach(item)
+                changed = queue.mark_manual_sent(item_id)
+                if not changed:
+                    self._send(409, {"error": "Outreach item is no longer approved or was already completed."})
+                    return
+                self._send(200, {"changed": True, "status": "manual_sent", "item_id": item_id})
             except ValueError as exc:
                 self._send(400, {"error": str(exc)})
             except Exception as exc:
