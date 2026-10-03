@@ -60,6 +60,55 @@ def _job_title_matches_preferences(
     return False
 
 
+def _filter_jobs_by_preference_exclusions(
+    data: list[Any],
+    diagnostics: dict | None = None,
+) -> list[Any]:
+    """Reject jobs that violate the configured internship/fresher policy."""
+    import re
+    kept: list[Any] = []
+    rejected_internship = 0
+    rejected_fresher = 0
+    samples: list[dict[str, Any]] = []
+
+    internship_patterns = (
+        r"\\bintern(ship)?\\b",
+        r"\\binterns\\b",
+        r"\\btrainee\\b",
+    )
+    fresher_patterns = (
+        r"\\bfresher\\b",
+        r"\\bentry[- ]level\\b",
+        r"\\b0\\s*[-–]?\\s*1\\s*(?:year|yr|years|yrs)?\\b",
+        r"\\b0\\s*(?:year|yr|years|yrs)\\b",
+        r"\\b1\\s*(?:year|yr|years|yrs)\\b",
+    )
+
+    for job in data:
+        title = str(getattr(job, "title", "") or "")
+        text = str(getattr(job, "text", "") or "")
+        evidence = _normalize_job_title(f"{title} {text}")
+        if DEFAULT_JOB_PREFERENCES.exclude_internships and any(re.search(p, evidence) for p in internship_patterns):
+            rejected_internship += 1
+            if len(samples) < 5:
+                samples.append({"title": title[:120], "company": str(getattr(job, "company", "") or "")[:120], "reason": "internship"})
+            continue
+        if DEFAULT_JOB_PREFERENCES.exclude_fresher_roles and any(re.search(p, evidence) for p in fresher_patterns):
+            rejected_fresher += 1
+            if len(samples) < 5:
+                samples.append({"title": title[:120], "company": str(getattr(job, "company", "") or "")[:120], "reason": "fresher"})
+            continue
+        kept.append(job)
+
+    if diagnostics is not None:
+        diagnostics["preference_exclusion_enabled"] = True
+        diagnostics["rejected_internship"] = rejected_internship
+        diagnostics["rejected_fresher"] = rejected_fresher
+        diagnostics["preference_rejection_samples"] = samples
+        diagnostics["returned_after_preference_exclusions"] = len(kept)
+    return kept
+
+
 def _filter_jobs_by_title(
     data: list[Any],
     keywords: list[str] | None = None,
@@ -251,6 +300,10 @@ async def run_read_on_page(page, skill: str, **kwargs) -> RuntimeResult:
         data = _filter_jobs_by_title(
             data,
             DEFAULT_JOB_PREFERENCES.keywords,
+            diagnostics=diagnostics,
+        )
+        data = _filter_jobs_by_preference_exclusions(
+            data,
             diagnostics=diagnostics,
         )
         data = _filter_jobs_by_freshness(
