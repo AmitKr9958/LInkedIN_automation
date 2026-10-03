@@ -90,3 +90,19 @@ def test_queue_lists_approved_messages_and_records_manual_completion(tmp_path):
     assert q.get(message).status == "manual_sent"
     assert q.list_approved_messages() == []
     assert q.mark_manual_sent(message) is False
+
+
+def test_queue_lists_approved_connections_and_records_manual_completion(tmp_path):
+    q = ApprovalQueue(str(tmp_path / "db.sqlite3"))
+    item = q.add(
+        "connection_request",
+        "https://www.linkedin.com/in/recruiter/",
+        "Hello, I would like to connect.",
+    )
+    assert q.decide(item, True) is True
+    approved = q.list_approved_connections()
+    assert [row.id for row in approved] == [item]
+    assert q.mark_manual_connection_sent(item) is True
+    assert q.get(item).status == "manual_sent"
+    assert q.list_approved_connections() == []
+    assert q.mark_manual_connection_sent(item) is False
