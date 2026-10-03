@@ -85,6 +85,14 @@ async def test_login_check_keep_open_settles_after_auth():
     )
     # Headless must be restored after interactive login.
     assert mock_settings.headless is True
+    # The post-close verification must be able to recover from the fresh
+    # persistent context's about:blank page.
+    assert page.goto.await_count >= 2
+    assert any(
+        call.args
+        and call.args[0].endswith("/feed/")
+        for call in page.goto.await_args_list
+    )
 
 
 @pytest.mark.asyncio
