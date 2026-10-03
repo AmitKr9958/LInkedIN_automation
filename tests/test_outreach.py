@@ -34,3 +34,23 @@ def test_build_outreach_plan_links_people_to_job():
     assert len(plan) == 1
     assert plan[0].target_type == "recruiter"
     assert plan[0].job_url.endswith("/1")
+
+
+def test_exact_company_association_is_company_match():
+    from app.outreach import associate_people_with_jobs
+
+    person = {
+        "name": "Recruiter One",
+        "headline": "Senior Technical Recruiter | Data Hiring",
+        "company": "Clearwater Analytics",
+        "location": "Noida, India",
+        "href": "https://www.linkedin.com/in/recruiter-one",
+    }
+    jobs = [{
+        "title": "Data Analyst - Revenue Operations",
+        "company": "Clearwater Analytics",
+        "location": "Noida, Uttar Pradesh, India",
+        "url": "https://www.linkedin.com/jobs/view/1",
+    }]
+    result = associate_people_with_jobs([person], jobs)
+    assert result[0]["associated_jobs"][0]["association"] == "company_match"
