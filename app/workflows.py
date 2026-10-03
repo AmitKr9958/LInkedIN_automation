@@ -130,6 +130,21 @@ async def login_check(
                         if verify_browser.pages
                         else await verify_browser.new_page()
                     )
+                    # A newly opened persistent context normally starts on
+                    # about:blank. current_session_state is intentionally
+                    # read-only and does not navigate, so calling it directly
+                    # here can report a false persistence failure even when the
+                    # stored LinkedIn session is healthy. Navigate to the feed
+                    # first, then perform the same authenticated-state check
+                    # used by debug-auth.
+                    feed_url = f"{settings.linkedin_base_url.rstrip('/')}/feed/"
+                    if verify_page.url.rstrip("/") != feed_url.rstrip("/"):
+                        await verify_page.goto(
+                            feed_url,
+                            wait_until="domcontentloaded",
+                            timeout=60_000,
+                        )
+                    await verify_page.wait_for_timeout(2_000)
                     verify_state = await current_session_state(verify_page)
                 if not verify_state.get("authenticated"):
                     state = {
