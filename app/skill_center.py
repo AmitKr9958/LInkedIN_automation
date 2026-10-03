@@ -27,7 +27,7 @@ def skill_catalog() -> list[dict[str, Any]]:
         "auth": [], "profile": [],
         "jobs": [{"name":"query","label":"Job query","default":"Power BI"},{"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, Remote India"},{"name":"max_posted_hours","label":"Posted within hours","type":"number","default":48}],
         "people": [
-            {"name":"query","label":"Search terms","default":"Power BI recruiter"},
+            {"name":"query","label":"Search terms","default":"recruiter OR \"talent acquisition\" OR \"hiring manager\" OR \"human resources\" OR \"head of\" OR director OR \"vice president\""},
             {"name":"location","label":"Locations (comma separated)","default":"Gurgaon/Gurugram, Noida, Delhi, India"},
             {"name":"job_title","label":"Associated job title (optional)"},
             {"name":"company","label":"Associated company (optional)"},
@@ -133,22 +133,12 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                 }
 
                 for location in locations:
-                    kwargs = {"query": query, "keywords": query, "location": location}
-                    if name == "jobs" and str(inputs.get("max_posted_hours","")).strip():
-                        try:
-                            kwargs["max_posted_hours"] = float(inputs["max_posted_hours"])
-                        except ValueError:
-                            raise ValueError("Posted within hours must be a number")
-                    result = await run_read_on_page(page, name, **kwargs)
-                    diagnostics["location_runs"][location] = result.diagnostics or {}
-                    results.extend(result.data or [])
-
                     if name == "people" and not str(inputs.get("job_title", "")).strip() and not str(inputs.get("company", "")).strip():
-                        # Keep the automatic association lightweight: one LinkedIn job
-                        # search per location instead of three sequential navigations. The
-                        # combined OR query still gives the matcher evidence across the
-                        # target roles while avoiding dashboard request timeouts.
-                        job_query = '"Power BI" OR "Data Analyst" OR "Business Intelligence"'
+                        # People discovery is driven by the companies with fresh target-role
+                        # openings, not by a recruiter-only query. Search a bounded set of
+                        # hiring-function queries so managers, TA/HR and leadership can all
+                        # enter the evidence pool, then associate contacts back to fresh jobs.
+                        job_query = DEFAULT_JOB_SEARCH_QUERY
                         job_result = await run_read_on_page(
                             page,
                             "jobs",
@@ -159,6 +149,24 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                         )
                         auto_diagnostics[f"{location}:target_roles"] = job_result.diagnostics or {}
                         auto_jobs.extend(job_result.data or [])
+                        hiring_query = (
+                            'recruiter OR "talent acquisition" OR "hiring manager" OR '
+                            '"human resources" OR "head of" OR director OR "vice president" OR chief'
+                        )
+                        result = await run_read_on_page(
+                            page, name, query=hiring_query, location=location
+                        )
+                    else:
+                        kwargs = {"query": query, "keywords": query, "location": location}
+                        if name == "jobs" and str(inputs.get("max_posted_hours","")).strip():
+                            try:
+                                kwargs["max_posted_hours"] = float(inputs["max_posted_hours"])
+                            except ValueError:
+                                raise ValueError("Posted within hours must be a number")
+                        result = await run_read_on_page(page, name, **kwargs)
+
+                    diagnostics["location_runs"][location] = result.diagnostics or {}
+                    results.extend(result.data or [])
 
             # De-duplicate by the stable URL when available.
             seen = set()
@@ -296,10 +304,25 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                         row["outreach_status"] = "not_sent"
                         enriched.append(row)
 
+                # Keep only evidence-backed hiring/recruiting contacts. Generic employees
+                # and unrelated domain profiles are not outreach candidates.
+                enriched = [
+                    row for row in enriched
+                    if row.get("target_type") in {
+                        "recruiter", "hr", "hiring_manager", "business_leader", "domain_leader"
+                    }
+                ]
                 diagnostics["contact_matching"] = {
                     "mode": "automatic",
                     "jobs_considered": len(unique_jobs),
+                    "matched_before_role_gate": len(associations),
                     "matched": len(enriched),
+                    "target_types": {
+                        target_type: sum(1 for row in enriched if row.get("target_type") == target_type)
+                        for target_type in (
+                            "recruiter", "hr", "hiring_manager", "business_leader", "domain_leader"
+                        )
+                    },
                     "freshness_hours": float(DEFAULT_JOB_PREFERENCES.posted_within_hours),
                     "note": "Associated from already-read LinkedIn people and fresh target-role jobs. No LinkedIn action was performed.",
                     "job_searches": auto_diagnostics,
