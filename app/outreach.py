@@ -315,7 +315,7 @@ def associate_people_with_jobs(
 
                 # Potential matches must have stronger evidence than a generic
                 # recruiter + data profile. Keep the minimum threshold explicit.
-                if score < max(7, minimum_score + 1):
+                if score < max(8, minimum_score + 2):
                     continue
                 association = "potential_match"
 
