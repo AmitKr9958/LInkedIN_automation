@@ -72,16 +72,16 @@ def _filter_jobs_by_preference_exclusions(
     samples: list[dict[str, Any]] = []
 
     internship_patterns = (
-        r"\\bintern(ship)?\\b",
-        r"\\binterns\\b",
-        r"\\btrainee\\b",
+        r"\bintern(ship)?\b",
+        r"\binterns\b",
+        r"\btrainee\b",
     )
     fresher_patterns = (
-        r"\\bfresher\\b",
-        r"\\bentry[- ]level\\b",
-        r"\\b0\\s*[-–]?\\s*1\\s*(?:year|yr|years|yrs)?\\b",
-        r"\\b0\\s*(?:year|yr|years|yrs)\\b",
-        r"\\b1\\s*(?:year|yr|years|yrs)\\b",
+        r"\bfresher\b",
+        r"\bentry[- ]level\b",
+        r"\b0\s*[-–]?\s*1\s*(?:year|yr|years|yrs)?\b",
+        r"\b0\s*(?:year|yr|years|yrs)\b",
+        r"\b1\s*(?:year|yr|years|yrs)\b",
     )
 
     for job in data:
