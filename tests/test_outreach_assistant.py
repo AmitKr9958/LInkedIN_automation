@@ -18,7 +18,7 @@ def test_manual_outreach_rejects_non_linkedin_target():
         validate_manual_outreach(_item("https://example.com/person"))
         assert False, "expected validation error"
     except OutreachValidationError as exc:
-        assert "LinkedIn" in str(exc)
+        assert "linkedin.com" in str(exc)
 
 
 def test_manual_outreach_rejects_non_profile_target():
