@@ -439,3 +439,22 @@ def test_dashboard_renders_associated_job_context_for_people():
     assert "Associated job" in _HTML
     assert "No evidence-backed job match found in the current freshness window." in _HTML
     assert "association_type" in _HTML
+
+
+def test_dashboard_exposes_manual_outreach_guardrails():
+    import inspect
+    import app.dashboard as dashboard
+
+    assert "approved_outreach" in inspect.getsource(dashboard._summary)
+    assert "/api/outreach/manual-sent" in inspect.getsource(dashboard._Handler.do_POST)
+    for marker in [
+        "Approved outreach",
+        "MANUAL SEND",
+        "Open LinkedIn profile",
+        "Copy message",
+        "Mark manually sent",
+        "copyApprovedMessage",
+        "markManualSent",
+        "Approved messages are never sent by the automation",
+    ]:
+        assert marker in dashboard._HTML
