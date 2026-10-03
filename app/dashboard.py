@@ -805,7 +805,7 @@ function renderPeopleResults(rows){
      (reason?'<div class="result-card-text"><b>Why matched:</b> '+esc(reason)+'</div>':'')+
      (jobTitle?'<div class="result-message"><b>Associated job</b><div style="margin-top:6px">'+(jobUrl?'<a href="'+esc(jobUrl)+'" target="_blank" rel="noopener noreferrer">'+esc(jobTitle)+'</a>':'<b>'+esc(jobTitle)+'</b>')+(jobMeta?' · '+esc(jobMeta):'')+(association?' <span class="badge">'+esc(association.replace('_',' '))+'</span>':'')+'</div></div>':'<div class="result-card-text"><b>Associated job:</b> No evidence-backed job match found in the current freshness window.</div>')+
      (msg?'<div class="result-message"><b>Suggested message</b><div style="margin-top:6px">'+esc(msg)+'</div></div>':'')+
-     '<div class="result-fields"><div class="result-field"><span>Message status</span><b>'+esc(x.message_status||'drafted')+'</b></div><div class="result-field"><span>Outreach status</span><b>'+esc(x.outreach_status||'not_sent')+'</b></div></div>'+
+     '<div class="result-fields"><div class="result-field"><span>Connection note status</span><b>'+esc(x.message_status||'drafted')+'</b></div><div class="result-field"><span>Outreach status</span><b>'+esc(x.outreach_status||'not_sent')+'</b></div></div>'+
      '</article>';
  }).join('')+'</div></div>';
 }
