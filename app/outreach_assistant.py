@@ -24,8 +24,8 @@ def validate_manual_outreach(item: ApprovalItem) -> OutreachPacket:
     This deliberately does not open LinkedIn, click Message, or send anything.
     LinkedIn currently prohibits third-party automation of message sending.
     """
-    if item.action != "message":
-        raise OutreachValidationError("Only approved message items can enter the outreach workspace.")
+    if item.action not in {"message", "connection_request"}:
+        raise OutreachValidationError("Only approved message or connection-request items can enter the outreach workspace.")
     if item.status != "approved":
         raise OutreachValidationError("Only approved outreach items can enter the outreach workspace.")
 
