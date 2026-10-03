@@ -168,11 +168,32 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
                     diagnostics["location_runs"][location] = result.diagnostics or {}
                     results.extend(result.data or [])
 
-            # De-duplicate by the stable URL when available.
+            # De-duplicate people by a canonical LinkedIn profile URL. The
+            # People search can return the same member from multiple query/location
+            # result sets with small field differences, so repr(item) is not a safe
+            # identity key.
+            from urllib.parse import urlparse, urlunparse
+
+            def _person_url(item: Any) -> str:
+                if isinstance(item, dict):
+                    value = item.get("href") or item.get("url") or item.get("profile_url") or ""
+                else:
+                    value = getattr(item, "href", "") or getattr(item, "url", "") or getattr(item, "profile_url", "") or ""
+                raw = str(value).strip()
+                if not raw:
+                    return ""
+                parsed = urlparse(raw)
+                if parsed.netloc:
+                    path = parsed.path.rstrip("/")
+                    return urlunparse(("https", parsed.netloc.lower(), path, "", "", "")).lower()
+                return raw.rstrip("/").lower()
+
             seen = set()
             data = []
             for item in results:
-                key = getattr(item, "href", "") or getattr(item, "url", "") or repr(item)
+                key = _person_url(item)
+                if not key:
+                    key = repr(item)
                 if key in seen:
                     continue
                 seen.add(key)
