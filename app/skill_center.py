@@ -340,7 +340,11 @@ async def run_skill(name: str, inputs: dict[str, Any]) -> dict[str, Any]:
         target = str(inputs.get("target","")).strip() or "manual-review"
         payload = str(inputs.get("payload","")).strip()
         if not payload: raise ValueError("Requested action/draft is required")
-        item_id = ApprovalQueue().add(f"skill:{name}",target,payload)
+        approval_action = {
+            "connections": "connection_request",
+            "messaging": "message",
+        }.get(name, f"skill:{name}")
+        item_id = ApprovalQueue().add(approval_action, target, payload)
         return {"skill":name,"mode":"approval","status":"pending_approval","approval_id":item_id,
                 "message":"Prepared for human approval. No LinkedIn account action was executed."}
 
