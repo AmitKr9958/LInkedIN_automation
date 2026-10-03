@@ -124,7 +124,8 @@ def _summary() -> dict:
         from .outreach_assistant import validate_manual_outreach
         from .approval_queue import ApprovalQueue
 
-        items = ApprovalQueue(activity).list_approved_messages(limit=30)
+        queue = ApprovalQueue(activity)
+        items = queue.list_approved_messages(limit=30) + queue.list_approved_connections(limit=30)
         out = []
         for item in items:
             try:
@@ -141,6 +142,7 @@ def _summary() -> dict:
                 continue
             out.append({
                 "id": packet.review_id,
+                "action": item.action,
                 "target": packet.target,
                 "message": packet.message,
                 "valid": True,
@@ -593,8 +595,8 @@ function renderTables(d){
  document.getElementById('approvedOutreachCards').innerHTML=approvedOutreach.length?'<div class="approval-list">'+approvedOutreach.map(x=>{
    const invalid=!x.valid;
    return '<article class="approval-card"><div class="approval-card-head"><div><span class="badge '+(invalid?'red':'green')+'">'+(invalid?'BLOCKED':'APPROVED — MANUAL SEND')+'</span><h3>Recruiter / hiring-contact message</h3><div class="approval-target">'+esc(x.target||'Invalid target')+'</div></div><div class="approval-date">'+esc(x.created_at||'')+'</div></div>'+
-     '<div class="approval-proposal"><div class="approval-label">Approved message</div><div>'+esc(x.message||'')+'</div></div>'+
-     (invalid?'<div class="error">'+esc(x.error||'Manual-send validation failed.')+'</div>':'<div class="approval-actions"><a class="btn primary" href="'+esc(x.target)+'" target="_blank" rel="noopener noreferrer">Open LinkedIn profile ↗</a><button class="btn" onclick="copyApprovedMessage(this)" data-message="'+esc(x.message||'')+'">Copy message</button><button class="btn" onclick="markManualSent(this)" data-id="'+esc(x.id)+'">✓ Mark manually sent</button></div>')+
+     '<div class="approval-proposal"><div class="approval-label">'+(x.action==='connection_request'?'Connection note':'Approved message')+'</div><div>'+esc(x.message||'')+'</div></div>'+
+     (invalid?'<div class="error">'+esc(x.error||'Manual-send validation failed.')+'</div>':'<div class="approval-actions"><a class="btn primary" href="'+esc(x.target)+'" target="_blank" rel="noopener noreferrer">Open LinkedIn profile ↗</a><button class="btn" onclick="copyApprovedMessage(this)" data-message="'+esc(x.message||'')+'">Copy '+(x.action==='connection_request'?'note':'message')+'</button><button class="btn" onclick="markManualSent(this)" data-id="'+esc(x.id)+'">✓ Mark manually sent</button></div>')+
      '</article>';
  }).join('')+'</div>':'<div class="approval-empty"><div class="approval-empty-icon">—</div><h3>No approved outreach waiting</h3><p>Approve a recruiter message first. The approved message can then be copied and sent manually in LinkedIn.</p></div>';
  document.getElementById('approvalCards').innerHTML=approvals.length?'<div class="approval-list">'+approvals.map(x=>{
@@ -1157,7 +1159,10 @@ class _Handler(BaseHTTPRequestHandler):
                     self._send(404, {"error": "approval item not found"})
                     return
                 validate_manual_outreach(item)
-                changed = queue.mark_manual_sent(item_id)
+                if item.action == "connection_request":
+                    changed = queue.mark_manual_connection_sent(item_id)
+                else:
+                    changed = queue.mark_manual_sent(item_id)
                 if not changed:
                     self._send(409, {"error": "Outreach item is no longer approved or was already completed."})
                     return
