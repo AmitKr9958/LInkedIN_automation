@@ -49,7 +49,7 @@ async def test_login_check_returns_unauthenticated_without_wait():
 @pytest.mark.asyncio
 async def test_login_check_keep_open_settles_after_auth():
     """After auth is detected, login must navigate to feed and settle before close."""
-    page = _make_page(url="https://www.linkedin.com/feed/")
+    page = _make_page(url="https://www.linkedin.com/login")
     browser = _make_browser(page)
 
     states = [
