@@ -308,7 +308,11 @@ def associate_people_with_jobs(
                     "signals": signals,
                     "association": (
                         "company_match"
-                        if any("company exact match" in signal for signal in signals)
+                        if (
+                            _norm(person_company)
+                            and _norm(_job_value(job, "company"))
+                            and _norm(person_company) == _norm(_job_value(job, "company"))
+                        )
                         else "potential_match"
                     ),
                 }
