@@ -89,6 +89,19 @@ class ApprovalQueue:
             ).fetchall()
         return [ApprovalItem(*row) for row in rows]
 
+    def list_approved_connections(self, limit: int = 30) -> list[ApprovalItem]:
+        """Return approved connection requests waiting for the user to send manually."""
+        limit = max(1, min(int(limit), 30))
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT id,action,target,payload,status,created_at "
+                "FROM approval_queue "
+                "WHERE status='approved' AND action='connection_request' "
+                "ORDER BY created_at LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [ApprovalItem(*row) for row in rows]
+
     def list_approved_messages(self, limit: int = 30) -> list[ApprovalItem]:
         """Return approved, not-yet-completed message approvals for manual sending."""
         limit = max(1, min(int(limit), 30))
@@ -166,6 +179,28 @@ class ApprovalQueue:
             )
             db.commit()
             return cursor.rowcount == 1
+
+    def mark_manual_connection_sent(self, item_id: str) -> bool:
+        """Record that the user manually sent an approved LinkedIn connection request."""
+        with self._connect() as db:
+            cursor = db.execute(
+                "UPDATE approval_queue SET status='manual_sent', applied_at=?, apply_error=NULL "
+                "WHERE id=? AND status='approved' AND action='connection_request'",
+                (datetime.now(timezone.utc).isoformat(), item_id),
+            )
+            db.commit()
+        if cursor.rowcount == 1:
+            row = self.get(item_id)
+            target = row.target if row else item_id
+            log_activity(
+                "connection_request_manual_sent",
+                target,
+                "manual_sent",
+                "User confirmed the approved connection request was sent manually.",
+                path=self.path,
+            )
+            return True
+        return False
 
     def mark_manual_sent(self, item_id: str) -> bool:
         """Record that the user manually sent an approved LinkedIn message."""
