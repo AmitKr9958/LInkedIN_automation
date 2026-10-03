@@ -422,7 +422,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;ba
   <div class="hero"><div class="section-kicker" style="color:#9bd6ff">COMMAND CENTER</div><h2>Discover opportunities. Review signals. Stay in control.</h2><p>The agent continuously discovers jobs and hiring signals while keeping account-changing actions behind human approval. Use the workspace below to review results, manage your pipeline and launch individual skills.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="showView('jobs')">Review jobs →</button><button class="btn" onclick="openSkill('profile_optimizer')">Optimize LinkedIn profile →</button><button class="btn" onclick="showView('skills')">Open Skill Center →</button></div></div>
   <div class="grid quick">
     <button onclick="openSkill('jobs')"><b>Find Power BI jobs</b><span>LinkedIn · Delhi / Gurgaon / Noida / Remote India</span></button>
-    <button onclick="openSkill('people')"><b>Find recruiters</b><span>People research · read-only</span></button>
+    <button onclick="openSkill('people')"><b>Find hiring contacts</b><span>Managers · TA · recruiters · leadership · read-only</span></button>
     <button onclick="openSkill('posts')"><b>Find hiring posts</b><span>Content search · read-only</span></button>
     <button onclick="openSkill('post_writer')"><b>Write a LinkedIn post</b><span>Local drafting · approval before publish</span></button>
   </div>
