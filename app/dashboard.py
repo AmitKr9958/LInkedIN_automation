@@ -801,7 +801,7 @@ function renderPeopleResults(rows){
      '<div class="result-card-top"><div class="result-card-main"><div class="result-card-title">'+(href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+esc(name)+'</a>':'<b>'+esc(name)+'</b>')+'</div>'+
      '<div class="result-card-meta">'+esc(meta||'Hiring contact')+' · relevance '+esc(String(score))+'</div></div>'+
      '<div class="result-card-actions">'+(href?'<a class="btn" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Open profile ↗</a>':'')+
-     (msg?'<button class="btn primary" data-target="'+esc(href||name)+'" data-message="'+esc(msg)+'" onclick="prepareContactMessage(this)">Prepare message</button>':'')+'</div></div>'+
+     (msg?'<button class="btn primary" data-target="'+esc(href||name)+'" data-message="'+esc(msg)+'" onclick="prepareConnectionRequest(this)">Prepare connection request</button>':'')+'</div></div>'+
      (reason?'<div class="result-card-text"><b>Why matched:</b> '+esc(reason)+'</div>':'')+
      (jobTitle?'<div class="result-message"><b>Associated job</b><div style="margin-top:6px">'+(jobUrl?'<a href="'+esc(jobUrl)+'" target="_blank" rel="noopener noreferrer">'+esc(jobTitle)+'</a>':'<b>'+esc(jobTitle)+'</b>')+(jobMeta?' · '+esc(jobMeta):'')+(association?' <span class="badge">'+esc(association.replace('_',' '))+'</span>':'')+'</div></div>':'<div class="result-card-text"><b>Associated job:</b> No evidence-backed job match found in the current freshness window.</div>')+
      (msg?'<div class="result-message"><b>Suggested message</b><div style="margin-top:6px">'+esc(msg)+'</div></div>':'')+
@@ -809,21 +809,19 @@ function renderPeopleResults(rows){
      '</article>';
  }).join('')+'</div></div>';
 }
-async function prepareContactMessage(button){
+async function prepareConnectionRequest(button){
  const target=button.dataset.target||'';
  const message=button.dataset.message||'';
- if(!target||!message){alert('Contact profile and message are required.');return}
+ if(!target||!message){alert('Contact profile and personalized note are required.');return}
  button.disabled=true;
  const card=button.closest('.result-card');
- const statusId='contact-status-'+Math.random().toString(36).slice(2,10);
  const status=document.createElement('div');
  status.className='result-task-status';
- status.id=statusId;
- status.textContent='Preparing approval…';
+ status.textContent='Preparing connection-request approval…';
  if(card) card.appendChild(status);
  try{
    const result=await api('/api/skill',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-     skill:'messaging',
+     skill:'connections',
      inputs:{target,payload:message}
    })});
    if(!result.task_id) throw new Error('No approval task was created.');
@@ -836,8 +834,8 @@ async function prepareContactMessage(button){
          return;
        }
        if(task.status==='completed'){
-         status.textContent='Approval prepared — review it before sending.';
-         button.textContent='Approval prepared';
+         status.textContent='Connection request prepared — review it before sending manually.';
+         button.textContent='Request prepared';
          return;
        }
        status.textContent='Approval preparation failed: '+(task.error||'Unknown error');
