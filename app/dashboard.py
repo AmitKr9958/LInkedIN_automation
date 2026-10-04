@@ -16,6 +16,7 @@ from .skill_center import skill_catalog, run_skill
 from .store import list_activity
 from .application_tracker import ApplicationTracker, STATUSES, TRANSITIONS
 from .job_preferences import DEFAULT_JOB_PREFERENCES
+from .run_lock import AgentAlreadyRunning, agent_lock
 
 
 # One worker prevents two Playwright sessions from competing for the same
@@ -25,6 +26,17 @@ _TASKS: dict[str, dict] = {}
 _TASK_LOCK = threading.Lock()
 _MAX_TASKS = 100
 _MAX_REQUEST_BODY_BYTES = 1_048_576
+
+
+def _run_agent_with_lock():
+    """Run one dashboard-triggered agent cycle under the same cross-process lock as the CLI/scheduler."""
+    from .daily_agent import run_agent_once
+
+    try:
+        with agent_lock():
+            return asyncio.run(run_agent_once(max_posted_hours=6))
+    except AgentAlreadyRunning:
+        raise
 
 
 def _task_submit(kind: str, fn) -> str:
@@ -1036,7 +1048,7 @@ class _Handler(BaseHTTPRequestHandler):
             task = _task_get(path.rsplit("/", 1)[-1])
             self._send(200 if task else 404, task or {"error": "task not found"})
         elif path == "/api/system":
-            self._send(200, {"service":"linkedin-agent-dashboard","host":"127.0.0.1","port":self.server.server_address[1],"skills":len(skill_catalog()),"application_statuses":list(STATUSES),"version":"2.1"})
+            self._send(200, {"service":"linkedin-agent-dashboard","host":"127.0.0.1","port":self.server.server_address[1],"skills":len(skill_catalog()),"application_statuses":list(STATUSES),"version":"2.2"})
         elif path == "/api/activity":
             self._send(200, {"activity": _summary().get("activity", [])})
         else:
@@ -1063,8 +1075,7 @@ class _Handler(BaseHTTPRequestHandler):
                 if _has_active_task("agent"):
                     self._send(409, {"error": "An agent run is already queued or running."})
                     return
-                from .daily_agent import run_agent_once
-                task_id = _task_submit("agent", lambda: asyncio.run(run_agent_once(max_posted_hours=6)))
+                task_id = _task_submit("agent", _run_agent_with_lock)
                 self._send(202, {"task_id": task_id, "status": "queued"})
             except Exception as exc:
                 self._send(400, {"error": f"{type(exc).__name__}: {exc}"})
@@ -1230,7 +1241,7 @@ def serve(host="127.0.0.1", port=8765):
             "python -m app dashboard --port 8766"
         ) from exc
     print(f"dashboard: http://{host}:{port}")
-    print("LinkedIn Agent Control Center 2.0")
+    print("LinkedIn Agent Control Center 2.2")
     print("Press Ctrl+C to stop.")
     try:
         server.serve_forever()
