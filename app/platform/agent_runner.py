@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+
+from ..daily_agent import AgentRunReport, run_agent_once
+from ..job_preferences import DEFAULT_JOB_PREFERENCES
+from ..run_lock import AgentAlreadyRunning, agent_lock
+from ..run_status import write_run_status
+from ..telegram_notify import notify_agent_completion
+from .logging import configure_logging, set_run_id
+from .models import AgentRunResult, RunState
+from .run_repository import RunRepository
+
+logger = logging.getLogger(__name__)
+
+
+class AgentRunError(RuntimeError):
+    def __init__(self, message: str, result: AgentRunResult):
+        super().__init__(message)
+        self.result = result
+
+
+class AgentRunner:
+    """Single execution boundary used by CLI, dashboard and future API workers."""
+
+    def __init__(self, repository: RunRepository | None = None) -> None:
+        self.repository = repository or RunRepository()
+
+    def run(
+        self,
+        *,
+        locations: list[str] | None = None,
+        max_posted_hours: float | None = None,
+    ) -> AgentRunReport:
+        configure_logging()
+        run_id = uuid.uuid4().hex
+        set_run_id(run_id)
+        started = datetime.now(timezone.utc)
+        clock = time.monotonic()
+        window = DEFAULT_JOB_PREFERENCES.posted_within_hours if max_posted_hours is None else max_posted_hours
+        metadata = {"freshness_hours": window, "locations": locations or list(DEFAULT_JOB_PREFERENCES.locations)}
+        self.repository.start(run_id, started, metadata)
+        logger.info("agent run started", extra={"run_id": run_id})
+        try:
+            with agent_lock():
+                report = asyncio.run(run_agent_once(locations=locations, max_posted_hours=max_posted_hours))
+        except AgentAlreadyRunning as exc:
+            result = self._failure(run_id, started, clock, exc, RunState.BLOCKED, metadata)
+            raise AgentRunError(str(exc), result) from exc
+        except Exception as exc:
+            result = self._failure(run_id, started, clock, exc, RunState.FAILED, metadata)
+            raise AgentRunError(str(exc), result) from exc
+
+        finished = datetime.now(timezone.utc)
+        duration = round(time.monotonic() - clock, 2)
+        result = AgentRunResult(
+            run_id=run_id, state=RunState.SUCCEEDED, started_at=started, finished_at=finished,
+            duration_seconds=duration, jobs_found=report.jobs_found, new_jobs=report.new_jobs,
+            tracked_jobs=report.tracked_jobs, hiring_posts=len(report.hiring_posts),
+            recruiter_targets=len(report.recruiter_targets), drafts=len(report.connection_drafts),
+            stale_jobs_removed=int((report.diagnostics or {}).get("stale_jobs_removed", 0) or 0),
+            metadata={"timings_seconds": (report.diagnostics or {}).get("timings_seconds", {})},
+        )
+        self.repository.finish(result)
+        write_run_status(success=True, jobs_found=result.jobs_found, new_jobs=result.new_jobs,
+                         hiring_posts=result.hiring_posts, recruiter_targets=result.recruiter_targets,
+                         drafts=result.drafts, duration_seconds=duration, started_at=started.isoformat())
+        notify_agent_completion(success=True, duration_seconds=duration, jobs=result.jobs_found,
+                                new_jobs=result.new_jobs, tracked_jobs=result.tracked_jobs,
+                                hiring_posts=result.hiring_posts, recruiter_targets=result.recruiter_targets,
+                                connection_drafts=result.drafts, stale_jobs_removed=result.stale_jobs_removed,
+                                freshness_hours=float(window))
+        logger.info("agent run completed", extra={"run_id": run_id})
+        return report
+
+    def _failure(self, run_id: str, started: datetime, clock: float, exc: Exception,
+                 state: RunState, metadata: dict[str, Any]) -> AgentRunResult:
+        finished = datetime.now(timezone.utc)
+        duration = round(time.monotonic() - clock, 2)
+        result = AgentRunResult(run_id=run_id, state=state, started_at=started, finished_at=finished,
+                                duration_seconds=duration, error_type=type(exc).__name__,
+                                error_message=str(exc), metadata=metadata)
+        self.repository.finish(result)
+        write_run_status(success=False, duration_seconds=duration, error=str(exc), started_at=started.isoformat())
+        notify_agent_completion(success=False, duration_seconds=duration, error_message=str(exc))
+        logger.exception("agent run failed", extra={"run_id": run_id})
+        return result
