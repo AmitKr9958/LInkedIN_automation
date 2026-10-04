@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.platform.api import create_control_plane
@@ -176,3 +177,26 @@ def test_control_task_service_submits_and_persists_result(tmp_path):
     assert completed["status"] == "completed"
     assert completed["result"]["run_id"] == "run-test"
     service.shutdown()
+
+
+def test_agent_runner_cannot_bypass_safety_gate(tmp_path, monkeypatch):
+    from app.platform.agent_runner import AgentRunError, AgentRunner
+
+    class FakeNotifications:
+        def deliver_pending(self, sender, *, limit):
+            return 0
+
+        def enqueue(self, **kwargs):
+            return None
+
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "agent_enabled", False)
+    repo = RunRepository(tmp_path / "platform.sqlite3")
+    runner = AgentRunner(repository=repo, notifications=FakeNotifications())
+
+    with pytest.raises(AgentRunError) as error:
+        runner.run()
+
+    assert error.value.result.state == RunState.BLOCKED
+    assert repo.latest().state == RunState.BLOCKED
