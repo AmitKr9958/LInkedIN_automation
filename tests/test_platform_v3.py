@@ -96,3 +96,39 @@ def test_task_repository_prune_keeps_active_tasks(tmp_path):
 
     assert repo.get("active") is not None
     assert len(repo.list(100)) == 51
+
+
+def test_notification_outbox_is_durable_and_idempotent(tmp_path):
+    from app.platform.notification_repository import NotificationRepository
+
+    repo = NotificationRepository(tmp_path / "platform.sqlite3")
+    repo.enqueue("n-1", "agent-run:r-1:completion", "telegram", "hello")
+    repo.enqueue("n-1-duplicate", "agent-run:r-1:completion", "telegram", "hello again")
+
+    pending = repo.pending()
+    assert len(pending) == 1
+    assert pending[0]["message"] == "hello"
+
+    calls = []
+
+    def sender(message):
+        calls.append(message)
+        return True, "sent"
+
+    assert repo.deliver_pending(sender) == 1
+    assert calls == ["hello"]
+    assert repo.pending() == []
+    assert repo.get("n-1")["status"] == "sent"
+
+
+def test_notification_outbox_retains_failures_for_retry(tmp_path):
+    from app.platform.notification_repository import NotificationRepository
+
+    repo = NotificationRepository(tmp_path / "platform.sqlite3")
+    repo.enqueue("n-2", "agent-run:r-2:completion", "telegram", "retry me")
+
+    assert repo.deliver_pending(lambda message: (False, "network down")) == 0
+    item = repo.get("n-2")
+    assert item["status"] == "pending"
+    assert item["attempts"] == 1
+    assert item["last_error"] == "network down"
