@@ -42,3 +42,24 @@ def test_control_plane_health_and_runs(tmp_path):
 def test_control_plane_latest_returns_404_without_runs(tmp_path):
     client = TestClient(create_control_plane(RunRepository(tmp_path / "platform.sqlite3")))
     assert client.get("/api/v3/runs/latest").status_code == 404
+
+
+def test_task_repository_persists_lifecycle(tmp_path):
+    from app.platform.task_repository import TaskRepository
+
+    repo = TaskRepository(tmp_path / "platform.sqlite3")
+    repo.create("task-1", "agent")
+    repo.mark_running("task-1")
+    repo.mark_completed("task-1", {"run_id": "run-1", "ok": True})
+
+    item = repo.get("task-1")
+    assert item["status"] == "completed"
+    assert item["result"]["run_id"] == "run-1"
+
+
+def test_task_repository_detects_active_work(tmp_path):
+    from app.platform.task_repository import TaskRepository
+
+    repo = TaskRepository(tmp_path / "platform.sqlite3")
+    repo.create("task-2", "agent")
+    assert repo.has_active("agent") is True
