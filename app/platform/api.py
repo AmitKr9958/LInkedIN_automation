@@ -13,10 +13,13 @@ class AgentTaskRequest(BaseModel):
     max_posted_hours: float | None = Field(default=None, gt=0, le=720)
 
 
-def create_control_plane(repository: RunRepository | None = None) -> FastAPI:
+def create_control_plane(
+    repository: RunRepository | None = None,
+    task_service: ControlTaskService | None = None,
+) -> FastAPI:
     repo = repository or RunRepository()
     tasks = TaskRepository(repo.path)
-    task_service = ControlTaskService(tasks)
+    task_service = task_service or ControlTaskService(tasks)
     app = FastAPI(
         title="LinkedIn Automation Control Plane",
         version="3.0",
