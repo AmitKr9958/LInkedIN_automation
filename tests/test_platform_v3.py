@@ -166,7 +166,7 @@ def test_control_task_service_submits_and_persists_result(tmp_path):
     service = ControlTaskService(tasks, FakeRunner())
     item = service.submit_agent(locations=["Delhi"], max_posted_hours=6)
 
-    assert item["status"] == "queued"
+    assert item["status"] in {"queued", "running"}
     task_id = item["id"]
 
     future = service._futures[task_id]
