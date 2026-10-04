@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linkedin-automation"
-version = "0.1.0"
+version = "0.3.0"
 description = "Local-first LinkedIn workflow assistant with Playwright and approval gates"
 requires-python = ">=3.11"
 dependencies = [
@@ -13,6 +13,8 @@ dependencies = [
   "typer>=0.16,<1",
   "pydantic>=2.10,<3",
   "pydantic-settings>=2.7,<3",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +22,7 @@ dev = [
   "pytest>=9.0.3,<10",
   "pytest-asyncio>=1.4,<2",
   "pytest-playwright>=0.7,<1",
+  "httpx>=0.28,<1",
   "ruff>=0.12,<1",
 ]
 

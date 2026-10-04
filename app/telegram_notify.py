@@ -162,7 +162,7 @@ def send_telegram_message(message: str) -> bool:
     return ok
 
 
-def notify_agent_completion(
+def build_agent_completion_message(
     *,
     success: bool,
     duration_seconds: float,
@@ -175,8 +175,8 @@ def notify_agent_completion(
     stale_jobs_removed: int = 0,
     freshness_hours: float = 48,
     error_message: str = "",
-) -> bool:
-    """Send a compact completion/failure summary for one agent cycle."""
+) -> str:
+    """Build the stable operator message for one governed agent cycle."""
     status = "✅ COMPLETED" if success else "❌ FAILED"
     lines = [
         "LinkedIn Automation",
@@ -200,8 +200,39 @@ def notify_agent_completion(
     elif error_message:
         lines.append(f"Error: {error_message[:700]}")
     lines.append("No LinkedIn account-changing action was executed.")
+    return "\n".join(lines)
 
-    ok, reason = send_telegram_message_detailed("\n".join(lines))
+
+def notify_agent_completion(
+    *,
+    success: bool,
+    duration_seconds: float,
+    jobs: int = 0,
+    new_jobs: int = 0,
+    tracked_jobs: int = 0,
+    hiring_posts: int = 0,
+    recruiter_targets: int = 0,
+    connection_drafts: int = 0,
+    stale_jobs_removed: int = 0,
+    freshness_hours: float = 48,
+    error_message: str = "",
+) -> bool:
+    """Send a compact completion/failure summary for one agent cycle."""
+    ok, reason = send_telegram_message_detailed(
+        build_agent_completion_message(
+            success=success,
+            duration_seconds=duration_seconds,
+            jobs=jobs,
+            new_jobs=new_jobs,
+            tracked_jobs=tracked_jobs,
+            hiring_posts=hiring_posts,
+            recruiter_targets=recruiter_targets,
+            connection_drafts=connection_drafts,
+            stale_jobs_removed=stale_jobs_removed,
+            freshness_hours=freshness_hours,
+            error_message=error_message,
+        )
+    )
     if ok:
         logger.info("Telegram notification sent successfully")
     else:

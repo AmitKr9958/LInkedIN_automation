@@ -26,10 +26,10 @@ from .agent_test import run_agent_test
 from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
 from .daily_agent import run_agent_once
-from .run_lock import AgentAlreadyRunning, agent_lock
-from .run_status import read_run_status, write_run_status
+from .run_status import read_run_status
 from .dashboard import serve as serve_dashboard
-from .telegram_notify import notify_agent_completion
+from .platform.agent_runner import AgentRunError, AgentRunner
+from .platform.control_plane import serve as serve_control_plane
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
 
@@ -520,130 +520,39 @@ def dashboard(host: str = "127.0.0.1", port: int = 8765):
     serve_dashboard(host, port)
 
 
+@app.command("control-plane")
+def control_plane(host: str = "127.0.0.1", port: int = 8766):
+    """Start the V3 FastAPI control plane; binds to localhost."""
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        raise typer.BadParameter("control plane must bind to localhost")
+    serve_control_plane(host, port)
+
+
 @app.command("agent")
 def agent(
-    locations: str = typer.Option(
-        "",
-        "--locations",
-        help="Comma-separated locations. Defaults to Delhi,Gurgaon,Noida.",
-    ),
-    max_posted_hours: Optional[float] = typer.Option(
-        None,
-        "--max-posted-hours",
-        help="Override the 6-hour job freshness window. Use a negative value to disable it.",
-    ),
+    locations: str = typer.Option("", "--locations", help="Comma-separated locations. Defaults to configured preferences."),
+    max_posted_hours: Optional[float] = typer.Option(None, "--max-posted-hours", help="Override the configured freshness window. Use a negative value to disable it."),
 ):
-    """Run the governed end-to-end workflow: discover, rank, track, target and draft."""
-    import sys
-    import time as _time
-    from datetime import datetime, timezone
-
+    """Run one governed agent cycle through the V3 execution boundary."""
     if not settings.agent_enabled:
-        typer.echo(
-            "agent: blocked by safety gate. Set LINKEDIN_AGENT_ENABLED=true "
-            "only after confirming the account/session is available.",
-            err=True,
-        )
+        typer.echo("agent: blocked by safety gate. Set LINKEDIN_AGENT_ENABLED=true only after confirming the account/session is available.", err=True)
         raise typer.Exit(code=3)
-
     requested_locations = [x.strip() for x in locations.split(",") if x.strip()] if locations else None
-    window = None if max_posted_hours is None else (
-        None if max_posted_hours < 0 else max_posted_hours
-    )
-    started = _time.monotonic()
-    started_at = datetime.now(timezone.utc).isoformat()
-    typer.echo(
-        f"agent: starting (headless={settings.headless}, dry_run={settings.dry_run}, "
-        f"max_posted_hours={window if window is not None else 'default-6'})",
-        err=True,
-    )
+    window = None if max_posted_hours is None else (None if max_posted_hours < 0 else max_posted_hours)
     try:
-        with agent_lock():
-            report = asyncio.run(
-                run_agent_once(
-                    locations=requested_locations,
-                    max_posted_hours=window,
-                )
-            )
-    except AgentAlreadyRunning as exc:
+        report = AgentRunner().run(locations=requested_locations, max_posted_hours=window)
+    except AgentRunError as exc:
         typer.echo(f"agent: FAIL ({type(exc).__name__}: {exc})", err=True)
-        duration = round(_time.monotonic() - started, 2)
-        write_run_status(
-            success=False,
-            error=str(exc),
-            started_at=started_at,
-            duration_seconds=duration,
-        )
-        notify_agent_completion(
-            success=False,
-            duration_seconds=duration,
-            error_message=str(exc),
-        )
-        raise typer.Exit(code=2)
-    except Exception as exc:
-        duration = _time.monotonic() - started
-        message = f"{type(exc).__name__}: {exc}"
-        typer.echo(f"agent: FAIL ({message})", err=True)
-        if "session is not verified" in str(exc).lower() or "not authenticated" in str(exc).lower():
-            typer.echo(
-                "Authentication failure. Run: python -m app login  (HEADLESS=false), "
-                "complete LinkedIn sign-in in the visible browser, then "
-                "python -m app debug-auth",
-                err=True,
-            )
-        write_run_status(
-            success=False,
-            duration_seconds=round(duration, 2),
-            error=message,
-            started_at=started_at,
-        )
-        notify_agent_completion(
-            success=False,
-            duration_seconds=duration,
-            error_message=message,
-        )
-        sys.stderr.flush()
-        sys.stdout.flush()
-        raise typer.Exit(code=1)
-
-    duration = _time.monotonic() - started
-    write_run_status(
-        success=True,
-        jobs_found=report.jobs_found,
-        new_jobs=report.new_jobs,
-        hiring_posts=len(report.hiring_posts),
-        recruiter_targets=len(report.recruiter_targets),
-        drafts=len(report.connection_drafts),
-        duration_seconds=round(duration, 2),
-        started_at=started_at,
-    )
-    notify_agent_completion(
-        success=True,
-        duration_seconds=duration,
-        jobs=report.jobs_found,
-        new_jobs=report.new_jobs,
-        tracked_jobs=report.tracked_jobs,
-        hiring_posts=len(report.hiring_posts),
-        recruiter_targets=len(report.recruiter_targets),
-        connection_drafts=len(report.connection_drafts),
-        stale_jobs_removed=int((report.diagnostics or {}).get("stale_jobs_removed", 0) or 0),
-        freshness_hours=float(window if window is not None else DEFAULT_JOB_PREFERENCES.posted_within_hours),
-    )
-    # Emit timing diagnostics for operator visibility (no secrets).
+        raise typer.Exit(code=2 if exc.result.state.value == "blocked" else 1)
     timings = (report.diagnostics or {}).get("timings_seconds") or {}
     if timings:
         typer.echo(f"agent-timings: {json.dumps(timings, default=str)}", err=True)
     typer.echo(json.dumps(report.to_dict(), indent=2, default=str))
     typer.echo(
-        f"agent-summary: jobs={report.jobs_found} new={report.new_jobs} "
-        f"tracked={report.tracked_jobs} recruiter_targets={len(report.recruiter_targets)} "
-        f"connection_drafts={len(report.connection_drafts)} "
-        f"duration_s={round(duration, 1)}"
+        f"agent-summary: jobs={report.jobs_found} new={report.new_jobs} tracked={report.tracked_jobs} "
+        f"recruiter_targets={len(report.recruiter_targets)} connection_drafts={len(report.connection_drafts)}"
     )
-    typer.echo(
-        "No LinkedIn account-changing action was executed. "
-        "Connection/message/publish actions remain approval-gated."
-    )
+    typer.echo("No LinkedIn account-changing action was executed. Connection/message/publish actions remain approval-gated.")
 
 
 @app.command("discover-jobs")

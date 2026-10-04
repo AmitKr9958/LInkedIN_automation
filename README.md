@@ -184,6 +184,52 @@ The scheduled agent uses `--max-posted-hours 4`, `HEADLESS=true`, `DRY_RUN=true`
 
 `release-check` combines the blocking local `doctor` checks, deterministic self-tests, and the safe end-to-end workflow test. It never performs a LinkedIn action. `doctor` verifies the core modules, writable local profile, policy configuration, approval mode, project root, LinkedIn HTTPS endpoint, and the installed Chromium runtime. Consequential requests are also restricted to a known action allowlist and bounded payload size before they can enter the approval queue.
 
+
+## V3 platform architecture
+
+The repository now has a staged V3 platform boundary while preserving the existing LinkedIn-safe workflows:
+
+```text
+                     Local Control Plane
+               +----------------------------+
+               | FastAPI /api/v3            |
+               | health • readiness • runs  |
+               +-------------+--------------+
+                             |
+                    AgentRunner (single
+                    execution boundary)
+                             |
+          +------------------+------------------+
+          |                  |                  |
+     Policy / Gates     Browser Skills      Persistence
+          |                  |                  |
+     approval + DRY_RUN   Playwright       SQLite/WAL
+          |                  |                  |
+          +------------------+------------------+
+                             |
+                    Telegram / operator
+                       notifications
+```
+
+V3 deliberately does **not** introduce unrestricted LinkedIn automation. The existing safety model remains authoritative: local browser ownership, read-only discovery, human approval for consequential actions, no credential/session-token extraction, and no stealth/CAPTCHA bypass.
+
+### V3 operator commands
+
+```powershell
+python -m app control-plane
+# health: http://127.0.0.1:8766/api/v3/health
+# readiness: http://127.0.0.1:8766/api/v3/readiness
+# API docs: http://127.0.0.1:8766/docs
+
+python -m app agent
+```
+
+The V3 control plane records durable run history in `data/platform.sqlite3`. This means dashboard/API consumers can see historical runs after a process restart instead of relying only on in-memory task state.
+
+### Rebuild policy
+
+The `main` branch remains the production baseline. The V3 rebuild is developed on an isolated branch and is promoted only after deterministic tests, security checks, browser smoke tests, scheduler validation, Telegram completion validation, and a final production-readiness review all pass.
+
 ## Security model
 
 - secrets stay local
