@@ -10,11 +10,7 @@ from ..config import ROOT
 
 
 class TaskRepository:
-    """Durable control-plane task ledger.
-
-    Tasks are operator state, not browser state. Persisting them means a
-    dashboard restart no longer destroys the history of submitted work.
-    """
+    """Durable control-plane task ledger."""
 
     def __init__(self, path: str | Path | None = None) -> None:
         self.path = Path(path) if path else ROOT / "data" / "platform.sqlite3"
@@ -90,6 +86,22 @@ class TaskRepository:
                 ),
             )
             con.commit()
+
+    def recover_interrupted(self) -> int:
+        """Fail closed for tasks whose worker process disappeared."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as con:
+            cursor = con.execute(
+                """UPDATE control_tasks
+                   SET status='failed',
+                       finished_at=?,
+                       error_type='ControlPlaneRestarted',
+                       error_message='Task interrupted because the control-plane worker restarted'
+                   WHERE status IN ('queued','running')""",
+                (now,),
+            )
+            con.commit()
+            return cursor.rowcount
 
     def get(self, task_id: str) -> dict[str, Any] | None:
         with self._connect() as con:
