@@ -96,8 +96,19 @@ class TaskRepository:
             row = con.execute(
                 "SELECT * FROM control_tasks WHERE task_id=?", (task_id,)
             ).fetchone()
-        if row is None:
-            return None
+        return self._row_to_dict(row) if row is not None else None
+
+    def list(self, limit: int = 20) -> list[dict[str, Any]]:
+        limit = max(1, min(limit, 1000))
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM control_tasks ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    @staticmethod
+    def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         result = None
         if row["result_json"]:
             try:
@@ -131,10 +142,13 @@ class TaskRepository:
         keep = max(50, min(keep, 1000))
         with self._connect() as con:
             con.execute(
-                """DELETE FROM control_tasks WHERE task_id IN (
-                    SELECT task_id FROM control_tasks
-                    ORDER BY created_at DESC LIMIT -1 OFFSET ?
-                )""",
+                """DELETE FROM control_tasks
+                   WHERE status NOT IN ('queued','running')
+                     AND task_id NOT IN (
+                        SELECT task_id FROM control_tasks
+                        WHERE status NOT IN ('queued','running')
+                        ORDER BY created_at DESC LIMIT ?
+                     )""",
                 (keep,),
             )
             con.commit()
