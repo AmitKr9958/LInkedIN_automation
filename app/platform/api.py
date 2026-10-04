@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -19,10 +21,21 @@ def create_control_plane(
 ) -> FastAPI:
     repo = repository or RunRepository()
     tasks = TaskRepository(repo.path)
-    task_service = task_service or ControlTaskService(tasks)
+    owns_task_service = task_service is None
+    service = task_service or ControlTaskService(tasks)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        try:
+            yield
+        finally:
+            if owns_task_service:
+                service.shutdown(wait=False)
+
     app = FastAPI(
         title="LinkedIn Automation Control Plane",
         version="3.0",
+        lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -44,7 +57,7 @@ def create_control_plane(
     @app.post("/api/v3/tasks/agent", status_code=202)
     def submit_agent_task(request: AgentTaskRequest) -> dict:
         try:
-            return task_service.submit_agent(
+            return service.submit_agent(
                 locations=request.locations or None,
                 max_posted_hours=request.max_posted_hours,
             )
