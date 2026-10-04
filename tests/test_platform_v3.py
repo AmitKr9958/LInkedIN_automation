@@ -55,6 +55,7 @@ def test_task_repository_persists_lifecycle(tmp_path):
     item = repo.get("task-1")
     assert item["status"] == "completed"
     assert item["result"]["run_id"] == "run-1"
+    assert repo.list(10)[0]["id"] == "task-1"
 
 
 def test_task_repository_detects_active_work(tmp_path):
@@ -63,3 +64,35 @@ def test_task_repository_detects_active_work(tmp_path):
     repo = TaskRepository(tmp_path / "platform.sqlite3")
     repo.create("task-2", "agent")
     assert repo.has_active("agent") is True
+
+
+def test_control_plane_lists_durable_tasks(tmp_path):
+    from app.platform.task_repository import TaskRepository
+
+    path = tmp_path / "platform.sqlite3"
+    repo = RunRepository(path)
+    tasks = TaskRepository(path)
+    tasks.create("task-3", "agent")
+
+    client = TestClient(create_control_plane(repo))
+    response = client.get("/api/v3/tasks?limit=10")
+
+    assert response.status_code == 200
+    assert response.json()["tasks"][0]["id"] == "task-3"
+
+
+def test_task_repository_prune_keeps_active_tasks(tmp_path):
+    from app.platform.task_repository import TaskRepository
+
+    repo = TaskRepository(tmp_path / "platform.sqlite3")
+    for index in range(55):
+        task_id = f"done-{index}"
+        repo.create(task_id, "agent")
+        repo.mark_completed(task_id, {"index": index})
+    repo.create("active", "agent")
+    repo.mark_running("active")
+
+    repo.prune(50)
+
+    assert repo.get("active") is not None
+    assert len(repo.list(100)) == 51
