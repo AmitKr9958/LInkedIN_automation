@@ -9,11 +9,21 @@ from .task_repository import TaskRepository
 def create_control_plane(repository: RunRepository | None = None) -> FastAPI:
     repo = repository or RunRepository()
     tasks = TaskRepository(repo.path)
-    app = FastAPI(title="LinkedIn Automation Control Plane", version="3.0", docs_url="/docs", redoc_url="/redoc")
+    app = FastAPI(
+        title="LinkedIn Automation Control Plane",
+        version="3.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+    )
 
     @app.get("/api/v3/health")
     def health() -> dict:
-        return {"ok": True, "service": "linkedin-automation", "version": "3.0", "storage": repo.health()}
+        return {
+            "ok": True,
+            "service": "linkedin-automation",
+            "version": "3.0",
+            "storage": repo.health(),
+        }
 
     @app.get("/api/v3/readiness")
     def readiness() -> dict:
@@ -29,12 +39,7 @@ def create_control_plane(repository: RunRepository | None = None) -> FastAPI:
 
     @app.get("/api/v3/tasks")
     def task_list(limit: int = Query(20, ge=1, le=100)) -> dict:
-        with tasks._connect() as con:
-            rows = con.execute(
-                "SELECT task_id FROM control_tasks ORDER BY created_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-        return {"tasks": [tasks.get(row["task_id"]) for row in rows]}
+        return {"tasks": tasks.list(limit)}
 
     @app.get("/api/v3/runs")
     def runs(limit: int = Query(20, ge=1, le=100)) -> dict:
