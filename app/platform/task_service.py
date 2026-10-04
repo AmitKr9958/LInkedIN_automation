@@ -23,6 +23,7 @@ class ControlTaskService:
         runner: AgentRunner | None = None,
     ) -> None:
         self.repository = repository or TaskRepository()
+        self.repository.recover_interrupted()
         self.runner = runner or AgentRunner()
         self._executor = ThreadPoolExecutor(
             max_workers=1,
