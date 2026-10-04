@@ -132,3 +132,47 @@ def test_notification_outbox_retains_failures_for_retry(tmp_path):
     assert item["status"] == "pending"
     assert item["attempts"] == 1
     assert item["last_error"] == "network down"
+
+
+def test_control_plane_rejects_invalid_agent_task_request(tmp_path):
+    client = TestClient(create_control_plane(RunRepository(tmp_path / "platform.sqlite3")))
+    response = client.post(
+        "/api/v3/tasks/agent",
+        json={"max_posted_hours": 0},
+    )
+    assert response.status_code == 422
+
+
+def test_control_task_service_submits_and_persists_result(tmp_path):
+    from app.daily_agent import AgentRunReport
+    from app.platform.task_repository import TaskRepository
+    from app.platform.task_service import ControlTaskService
+
+    class FakeRunner:
+        def run(self, **kwargs):
+            return AgentRunReport(
+                jobs_found=1,
+                new_jobs=1,
+                ranked_jobs=[],
+                tracked_jobs=1,
+                recruiter_targets=[],
+                connection_drafts=[],
+                hiring_posts=[],
+                hiring_post_targets=[],
+                diagnostics={"run_id": "run-test"},
+            )
+
+    tasks = TaskRepository(tmp_path / "platform.sqlite3")
+    service = ControlTaskService(tasks, FakeRunner())
+    item = service.submit_agent(locations=["Delhi"], max_posted_hours=6)
+
+    assert item["status"] == "queued"
+    task_id = item["id"]
+
+    future = service._futures[task_id]
+    future.result(timeout=5)
+
+    completed = tasks.get(task_id)
+    assert completed["status"] == "completed"
+    assert completed["result"]["run_id"] == "run-test"
+    service.shutdown()
