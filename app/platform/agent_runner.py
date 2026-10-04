@@ -78,6 +78,7 @@ class AgentRunner:
 
         finished = datetime.now(timezone.utc)
         duration = round(time.monotonic() - clock, 2)
+        report.diagnostics = {**(report.diagnostics or {}), "run_id": run_id}
         result = AgentRunResult(
             run_id=run_id,
             state=RunState.SUCCEEDED,
@@ -95,6 +96,7 @@ class AgentRunner:
             ),
             metadata={
                 "timings_seconds": (report.diagnostics or {}).get("timings_seconds", {}),
+                "run_id": run_id,
             },
         )
         self.repository.finish(result)
@@ -131,7 +133,7 @@ class AgentRunner:
             duration_seconds=duration,
             error_type=type(exc).__name__,
             error_message=str(exc),
-            metadata=metadata,
+            metadata={**metadata, "run_id": run_id},
         )
         self.repository.finish(result)
         write_run_status(
