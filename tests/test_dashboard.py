@@ -176,14 +176,13 @@ def test_dashboard_manual_agent_uses_six_hour_freshness_window():
     assert "_run_agent_with_lock" in source
 
 
-def test_dashboard_agent_uses_shared_cross_process_lock():
+def test_dashboard_agent_routes_through_v3_runner():
     import inspect
     import app.dashboard as dashboard
 
     helper_source = inspect.getsource(dashboard._run_agent_with_lock)
-    assert "with agent_lock()" in helper_source
-    assert "run_agent_once(max_posted_hours=6)" in helper_source
-    assert "AgentAlreadyRunning" in helper_source
+    assert "AgentRunner().run(max_posted_hours=6)" in helper_source
+    assert "AgentRunError" in helper_source
 
 def test_dashboard_track_application_marks_already_tracked_jobs():
     assert "state.summary?.applications" in _HTML
