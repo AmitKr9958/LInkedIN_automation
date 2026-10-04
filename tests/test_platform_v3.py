@@ -67,6 +67,20 @@ def test_task_repository_detects_active_work(tmp_path):
     assert repo.has_active("agent") is True
 
 
+def test_task_repository_recovers_interrupted_work(tmp_path):
+    from app.platform.task_repository import TaskRepository
+
+    repo = TaskRepository(tmp_path / "platform.sqlite3")
+    repo.create("queued", "agent")
+    repo.create("running", "agent")
+    repo.mark_running("running")
+
+    assert repo.recover_interrupted() == 2
+    assert repo.get("queued")["status"] == "failed"
+    assert repo.get("running")["status"] == "failed"
+    assert repo.get("running")["error"].startswith("ControlPlaneRestarted:")
+
+
 def test_control_plane_lists_durable_tasks(tmp_path):
     from app.platform.task_repository import TaskRepository
 
