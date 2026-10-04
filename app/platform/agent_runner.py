@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from ..config import settings
 from ..daily_agent import AgentRunReport, run_agent_once
 from ..job_preferences import DEFAULT_JOB_PREFERENCES
 from ..run_lock import AgentAlreadyRunning, agent_lock
@@ -60,6 +61,13 @@ class AgentRunner:
         self.repository.start(run_id, started, metadata)
         logger.info("agent run started", extra={"run_id": run_id})
         self._retry_pending_notifications()
+
+        if not settings.agent_enabled:
+            exc = PermissionError(
+                "agent execution is disabled by the LINKEDIN_AGENT_ENABLED safety gate"
+            )
+            result = self._failure(run_id, started, clock, exc, RunState.BLOCKED, metadata)
+            raise AgentRunError(str(exc), result) from exc
 
         try:
             with agent_lock():
