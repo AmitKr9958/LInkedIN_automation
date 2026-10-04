@@ -26,11 +26,9 @@ from .agent_test import run_agent_test
 from .media import build_image_prompt, build_quote_card
 from .publishing import PublishRequest, queue_publish
 from .daily_agent import run_agent_once
-from .run_lock import AgentAlreadyRunning, agent_lock
-from .run_status import read_run_status, write_run_status
+from .run_status import read_run_status
 from .dashboard import serve as serve_dashboard
 from .platform.control_plane import serve as serve_control_plane
-from .telegram_notify import notify_agent_completion
 from .platform.agent_runner import AgentRunError, AgentRunner
 
 app = typer.Typer(help="Local LinkedIn workflow assistant")
