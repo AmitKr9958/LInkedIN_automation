@@ -18,6 +18,7 @@ from .application_tracker import ApplicationTracker, STATUSES, TRANSITIONS
 from .job_preferences import DEFAULT_JOB_PREFERENCES
 from .run_lock import AgentAlreadyRunning, agent_lock
 from .platform.agent_runner import AgentRunError, AgentRunner
+from .platform.task_repository import TaskRepository
 
 
 # One worker prevents two Playwright sessions from competing for the same
@@ -27,6 +28,7 @@ _TASKS: dict[str, dict] = {}
 _TASK_LOCK = threading.Lock()
 _MAX_TASKS = 100
 _MAX_REQUEST_BODY_BYTES = 1_048_576
+_TASK_REPOSITORY = TaskRepository()
 
 
 def _run_agent_with_lock():
@@ -41,6 +43,7 @@ def _run_agent_with_lock():
 
 def _task_submit(kind: str, fn) -> str:
     task_id = uuid.uuid4().hex[:12]
+    _TASK_REPOSITORY.create(task_id, kind)
     with _TASK_LOCK:
         if len(_TASKS) >= _MAX_TASKS:
             finished = [k for k, v in _TASKS.items() if v.get("status") in {"completed", "failed"}]
@@ -49,13 +52,16 @@ def _task_submit(kind: str, fn) -> str:
         _TASKS[task_id] = {"id": task_id, "kind": kind, "status": "queued"}
 
     def worker():
+        _TASK_REPOSITORY.mark_running(task_id)
         with _TASK_LOCK:
             _TASKS[task_id]["status"] = "running"
         try:
             result = fn()
+            _TASK_REPOSITORY.mark_completed(task_id, result)
             with _TASK_LOCK:
                 _TASKS[task_id].update(status="completed", result=result)
         except Exception as exc:
+            _TASK_REPOSITORY.mark_failed(task_id, exc)
             with _TASK_LOCK:
                 _TASKS[task_id].update(
                     status="failed",
@@ -67,6 +73,8 @@ def _task_submit(kind: str, fn) -> str:
 
 
 def _has_active_task(kind: str) -> bool:
+    if _TASK_REPOSITORY.has_active(kind):
+        return True
     with _TASK_LOCK:
         return any(
             item.get("kind") == kind and item.get("status") in {"queued", "running"}
@@ -97,6 +105,9 @@ def _read_json_body(handler) -> dict:
 
 
 def _task_get(task_id: str) -> dict | None:
+    item = _TASK_REPOSITORY.get(task_id)
+    if item is not None:
+        return item
     with _TASK_LOCK:
         item = _TASKS.get(task_id)
         return dict(item) if item else None
