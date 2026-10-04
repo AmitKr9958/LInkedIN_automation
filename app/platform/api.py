@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from .run_repository import RunRepository
 from .task_repository import TaskRepository
+from .task_service import ControlTaskService
+
+
+class AgentTaskRequest(BaseModel):
+    locations: list[str] = Field(default_factory=list, max_length=20)
+    max_posted_hours: float | None = Field(default=None, gt=0, le=720)
 
 
 def create_control_plane(repository: RunRepository | None = None) -> FastAPI:
     repo = repository or RunRepository()
     tasks = TaskRepository(repo.path)
+    task_service = ControlTaskService(tasks)
     app = FastAPI(
         title="LinkedIn Automation Control Plane",
         version="3.0",
@@ -29,6 +37,16 @@ def create_control_plane(repository: RunRepository | None = None) -> FastAPI:
     def readiness() -> dict:
         health = repo.health()
         return {"ready": True, "checks": {"storage": health}}
+
+    @app.post("/api/v3/tasks/agent", status_code=202)
+    def submit_agent_task(request: AgentTaskRequest) -> dict:
+        try:
+            return task_service.submit_agent(
+                locations=request.locations or None,
+                max_posted_hours=request.max_posted_hours,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/v3/tasks/{task_id}")
     def task(task_id: str) -> dict:
