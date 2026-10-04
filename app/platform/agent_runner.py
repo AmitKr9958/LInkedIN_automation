@@ -151,7 +151,11 @@ class AgentRunner:
             started_at=started.isoformat(),
         )
         self._queue_completion(result, freshness_hours=float(metadata["freshness_hours"]))
-        logger.exception("agent run failed", extra={"run_id": run_id})
+        logger.error(
+            "agent run failed: %s",
+            exc,
+            extra={"run_id": run_id, "run_state": state.value, "error_type": type(exc).__name__},
+        )
         return result
 
     def _queue_completion(self, result: AgentRunResult, *, freshness_hours: float) -> None:
